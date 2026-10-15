@@ -75,7 +75,8 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 ## Where things live
 - **Personal tasks (live data):** Google Drive folder `HTML_ToDo_Files`. Lists: Inbox, Test List, Feedback. The Feedback list holds the round-1 feedback tasks.
 - **OneDrive proof-of-concept data:** personal OneDrive folder `TaskBoard-Test`. Use copies only.
-- **GitHub Pages:** `https://<username>.github.io/html-todo-app/`. The proof of concept is at `/poc/`, and the Microsoft redirect URI must match it exactly, including the trailing slash.
+- **GitHub:** repository `https://github.com/gvd1024/html-todo-app` (public; `main`). Git and GitHub operations go through the `gh` CLI, logged in as `gvd1024`. Commits use the repo-local noreply identity `35988830+gvd1024@users.noreply.github.com`.
+- **GitHub Pages:** `https://gvd1024.github.io/html-todo-app/` (served from `main`, root). The proof of concept is at `/poc/`, and the Microsoft redirect URI must match it exactly, including the trailing slash.
 - **Geoff's machines:** Windows PC (C: drive only) and an Android phone.
 - **Code location:** `C:\dev\`, organized the way the code is hosted: `C:\dev\<host>\<account>\<repo>\`. Keep it **outside OneDrive**.
     - This repository: `C:\dev\github.com\gvd1024\html-todo-app\` (renamed from `taskboard` on 2026-10-14; the app's display name is still "Task Board").

@@ -12,7 +12,8 @@
 | App `app/todo.html` | **v0.1.1**. Works on desktop Chrome or Edge against a local or Drive-synced folder. Dark theme. Geoff is using it on `HTML_ToDo_Files` (Google Drive for desktop). |
 | Round 1 spec | 10 items. R1-9 and R1-10 are *Discussing*; the rest are *Open*. **Nothing is approved for build in the app.** |
 | OneDrive proof of concept `poc/` | **v0.0.1, built and approved** (a throwaway test, not the app). Tested only against a simulated Graph API and the headless sign-in redirect. **Not yet tested by Geoff.** |
-| Local repository | `C:\dev\github.com\gvd1024\html-todo-app\` (renamed from `taskboard`). **Git initialized and files staged, but nothing committed yet** (see "Update 2026-10-15 (evening)"). Remote will be `github.com/gvd1024/html-todo-app`. Not on GitHub yet; Pages not enabled. |
+| Repository | Local: `C:\dev\github.com\gvd1024\html-todo-app\`. Remote: **`https://github.com/gvd1024/html-todo-app`** (public, `main`), with git and GitHub driven by the `gh` CLI. |
+| GitHub Pages | **Live** from `main`, root: `https://gvd1024.github.io/html-todo-app/poc/` and `/app/todo.html` both return 200. |
 | Microsoft Entra app registration | Not done yet (Geoff; see `poc/SETUP.md` part B). |
 
 ## Update 2026-10-15
@@ -20,24 +21,20 @@
 - Geoff may switch between the Claude desktop Code tab and the Claude Code CLI in this folder. Continuity comes from `CLAUDE.md`, this file and the spec, so keep them current. Don't run two sessions on the folder at once.
 - Git is still **not** initialized.
 
-## Update 2026-10-15 (evening): git setup in progress, paused by Geoff
+## Update 2026-10-15/16: git and GitHub set up
 Geoff now runs the Claude Code **CLI** in the VS Code built-in terminal (terminal panel on the right, `/ide` connected). He chose the **`gh` CLI** over GitHub Desktop, with Claude running the commands.
-- **Done:**
-  - Installed `gh` 2.102.0 at `C:\Program Files\GitHub CLI\gh.exe` and logged in as `gvd1024` (HTTPS, keyring). Until VS Code restarts, `gh` isn't on PATH in old terminals, so use the full path with `&`.
-  - Added `.claude/settings.local.json` to `.gitignore`.
-  - Ran `git init -b main`.
-  - Set the repo-local identity to `Geoffrey V. Davis II <35988830+gvd1024@users.noreply.github.com>`, a GitHub noreply address chosen to keep personal email out of the public history. The global git config is unchanged.
-  - Ran `git add -A`: 15 files are staged, and `private/` and `.claude/settings.local.json` are correctly excluded.
-- **Next (only when Geoff says go):**
-  1. Run `git add -A` again (this file changed after staging), then `git status`, then `git commit -m "Initial commit: Task Board v0.1.1, OneDrive PoC v0.0.1, round-1 spec"`
-  2. `gh repo create gvd1024/html-todo-app --public --source . --push`. This is public, so confirm with Geoff first.
-  3. Enable Pages (`main`, root), and check that `https://gvd1024.github.io/html-todo-app/poc/` loads.
-  4. Update this file and `CLAUDE.md`, whose Pages URL still says `<username>`, then commit.
+- **Setup:**
+  - `gh` 2.102.0 is installed at `C:\Program Files\GitHub CLI\gh.exe` and logged in as `gvd1024` (HTTPS, keyring). Terminals opened before the install don't have `gh` on PATH, so use the full path with `&`.
+  - The repo-local identity is `Geoffrey V. Davis II <35988830+gvd1024@users.noreply.github.com>`, a noreply address that keeps personal email out of the public history. The global git config is unchanged.
+  - `.gitignore` excludes `private/` and `.claude/settings.local.json`.
+- **Published:**
+  - Initial commit `4b0187c` (15 files) was pushed with `gh repo create --public`.
+  - Pages was enabled through the API and built successfully.
 - **Follow-up to remind Geoff about: spell check in the CLI prompt.** The plan is to install the VS Code extension "Code Spell Checker" (streetsidesoftware), then point Claude Code's external editor (Ctrl+G, or Ctrl+X then Ctrl+E) at VS Code (`code --wait`). Long prompts then get written in a spell-checked VS Code tab. First verify how Claude Code picks the editor on Windows, and whether VS Code grabs Ctrl+G.
 - **Possible follow-up:** the Super Productivity MCP (`sp-local-rest`) is configured only in Claude desktop, not in Claude Code, so todo requests don't work from the CLI yet.
 
 ## Next steps (Geoff)
-- [x] ~~In GitHub Desktop…~~ Replaced by the `gh` CLI flow above (with Claude).
+- [x] Create and publish the GitHub repository and enable Pages. Done with the `gh` CLI (see above).
 - [ ] Register the app in Entra:
   - **Platform:** single-page app (SPA).
   - **Accounts:** "any org directory + personal Microsoft accounts".
