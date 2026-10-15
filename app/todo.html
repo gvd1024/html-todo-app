@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Board</title>
+<link rel="stylesheet" href="vendor/toastui-editor.css">
+<link rel="stylesheet" href="vendor/toastui-editor-dark.css">
+<style>
+:root{
+  color-scheme: dark;
+  /* surfaces */
+  --bg:#0f1318; --panel:#161b22; --col:#1b2129; --card:#222a34; --card-hover:#283140; --line:#2f3844;
+  --text:#e6edf3; --muted:#8b97a6;
+  /* blue = highlight / interactive */
+  --accent:#5b9bff; --accent-strong:#2f6fe4; --accent-ink:#ffffff; --accent-soft:rgba(91,155,255,.14);
+  /* supporting accents */
+  --danger:#ff6b6b;   /* overdue, delete */
+  --warn:#f5b545;     /* due today, unsaved, conflicts */
+  --ok:#3ecf8e;       /* done */
+  --chip:#2a2550; --chip-ink:#c4b5fd;   /* collections: violet, so they never read as buttons */
+  --shadow:0 1px 2px rgba(0,0,0,.45); --drop:rgba(91,155,255,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent-strong);color:var(--accent-ink);border-color:var(--accent-strong)}
+button.primary:hover:not(:disabled){background:#3d7cf0}
+button.primary:disabled{opacity:.45;cursor:default}
+button.ghost{border-color:transparent;background:transparent}
+button.danger{color:var(--danger)}
+input[type=text],input[type=date],input[type=search],select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 8px}
+
+/* header */
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0 8px 0 0}
+.pill{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--chip);color:var(--chip-ink);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill.demo{background:#3a2e12;color:#f5d38a}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 10px}
+.seg button.on{background:var(--accent-strong);color:var(--accent-ink)}
+.spacer{flex:1}
+label.tog{display:inline-flex;gap:4px;align-items:center;font-size:13px;color:var(--muted)}
+
+/* board */
+#board{flex:1;overflow:auto;padding:14px;display:flex;gap:14px;align-items:flex-start}
+#board.outline{flex-direction:column;align-items:stretch;max-width:900px;margin:0 auto;width:100%}
+.column{background:var(--col);border-radius:10px;width:300px;flex:0 0 300px;display:flex;flex-direction:column;max-height:100%}
+#board.outline .column{width:auto;flex:0 0 auto;max-height:none}
+.col-head{display:flex;align-items:center;gap:6px;padding:10px 10px 6px}
+.col-head h2{font-size:14px;margin:0;flex:1}
+.col-head .count{color:var(--muted);font-size:12px}
+.task-list{padding:4px 8px 10px;min-height:40px;overflow:auto;flex:1}
+#board.outline .task-list{overflow:visible}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);margin:6px 0;padding:6px 8px}
+.card .row{display:flex;align-items:flex-start;gap:6px}
+.card .title{flex:1;cursor:pointer;padding-top:1px;word-break:break-word}
+.card .title:hover{color:var(--accent)}
+.card:hover{border-color:#3a4554}
+input[type=checkbox],input[type=radio]{accent-color:var(--accent-strong)}
+.card.done>.row input[type=checkbox]{accent-color:var(--ok)}
+.card.done{border-left:3px solid var(--ok)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+a{color:var(--accent)}
+.card.done>.row .title{text-decoration:line-through;color:var(--muted)}
+.card.archived{opacity:.6;border-style:dashed}
+.card.new-unsaved{border-color:var(--accent)}
+.twisty{border:0;background:none;padding:0 2px;width:18px;color:var(--muted)}
+.twisty.none{visibility:hidden}
+.card input[type=checkbox]{margin-top:3px}
+.menu-btn{border:0;background:none;padding:0 4px;color:var(--muted);opacity:.0}
+.card:hover>.row .menu-btn,.menu-btn:focus{opacity:1}
+.meta{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 0 42px}
+.meta:empty{display:none}
+.chip{white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
+.chip.due{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.chip.overdue{border-color:var(--danger);color:var(--danger)}
+.chip.today{border-color:var(--warn);color:var(--warn)}
+.chip.warn{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.chip.status{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+.children{margin-left:18px;border-left:2px solid var(--line);padding-left:6px}
+.children:empty{border-left:0;margin-top:0}
+body.dragging .children{min-height:14px;border-left:2px dashed var(--accent);background:var(--drop);border-radius:4px}
+.sortable-ghost{opacity:.35}
+.sortable-chosen{box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.add-row{margin:2px 8px 10px;color:var(--muted);text-align:left;border-style:dashed;background:transparent}
+.empty-hint{color:var(--muted);padding:30px;text-align:center}
+
+/* due view */
+.due-group h3{font-size:13px;margin:16px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.path{font-size:11px;color:var(--muted);margin-left:42px}
+
+/* drawer */
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.15);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .18s ease;z-index:20}
+#drawer.open{transform:none}
+.d-head{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.d-head .dirty{color:var(--warn);font-size:12px;visibility:hidden}
+.d-head .dirty.on{visibility:visible}
+.d-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 14px}
+.d-fields label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+.d-fields .wide{grid-column:span 4}
+.d-fields .half{grid-column:span 2}
+#f-title{font-size:16px;font-weight:600}
+.d-note{font-size:12px;color:var(--muted);padding:0 14px 6px}
+.d-banner{margin:0 14px 8px;padding:6px 10px;border-radius:6px;border:1px solid var(--warn);color:var(--warn);font-size:12px;display:none}
+.d-banner.on{display:block}
+#editor-wrap{flex:1;min-height:240px;padding:0 14px}
+.d-checklist{padding:8px 14px;border-top:1px solid var(--line);max-height:22vh;overflow:auto}
+.d-checklist h4{margin:0 0 4px;font-size:12px;color:var(--muted)}
+.ck-item{display:flex;gap:8px;align-items:center;padding:2px 0;font-size:13px}
+.ck-item span{flex:1}
+.ck-item.checked span{text-decoration:line-through;color:var(--muted)}
+.ck-item button{font-size:12px;padding:2px 8px}
+.d-foot{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.d-foot .file{flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* modal + popover + toast */
+#modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:40}
+#modal-bg.on{display:flex}
+#modal{background:var(--panel);border-radius:10px;width:min(560px,94vw);max-height:90vh;overflow:auto;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#modal h3{margin:0 0 10px}
+#modal .opts label{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
+#modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+#modal pre{background:var(--col);padding:8px;border-radius:6px;font-size:12px;white-space:pre-wrap;max-height:180px;overflow:auto}
+#modal select,#modal input[type=text]{width:100%}
+#modal fieldset{border:1px solid var(--line);border-radius:6px;margin:10px 0;padding:6px 10px}
+#modal legend{font-size:12px;color:var(--muted)}
+#pop{position:fixed;display:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:30;padding:4px;min-width:180px}
+#pop.on{display:block}
+#pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 10px}
+#pop button:hover{background:var(--accent-soft)}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#e6edf3;color:#0f1318;padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+#toast.on{opacity:.95}
+/* Toast UI editor: match the app palette */
+.toastui-editor-defaultUI{border-color:var(--line)!important}
+.toastui-editor-dark .toastui-editor-md-container,.toastui-editor-dark .toastui-editor-ww-container,
+.toastui-editor-dark .toastui-editor-popup,.toastui-editor-dark .toastui-editor-context-menu{background-color:var(--card)!important}
+.toastui-editor-dark .toastui-editor-defaultUI-toolbar{background-color:var(--col)!important;border-color:var(--line)!important}
+.toastui-editor-dark .toastui-editor-contents,.toastui-editor-dark .toastui-editor-contents p{color:var(--text)}
+.toastui-editor-dark .toastui-editor-contents a{color:var(--accent)}
+.toastui-editor-dark .toastui-editor-contents .task-list-item.checked::before{background-color:var(--accent-strong);border-color:var(--accent-strong)}
+@media (max-width:640px){ .d-fields{grid-template-columns:1fr 1fr} .d-fields .wide{grid-column:span 2} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Task Board</h1>
+  <span id="source" class="pill demo">Demo data</span>
+  <button id="btn-open" title="Choose the folder that holds your task .md files">Open folder…</button>
+  <button id="btn-reconnect" style="display:none"></button>
+  <button id="btn-new" class="primary">+ New task</button>
+  <div class="seg" id="views">
+    <button data-view="board" class="on">Board</button>
+    <button data-view="outline">Outline</button>
+    <button data-view="due">By due date</button>
+  </div>
+  <button id="btn-expand" title="Expand all">⊞</button>
+  <button id="btn-collapse" title="Collapse all">⊟</button>
+  <span class="spacer"></span>
+  <input id="search" type="search" placeholder="Search…" style="width:170px">
+  <label class="tog"><input type="checkbox" id="tog-done" checked> done</label>
+  <label class="tog"><input type="checkbox" id="tog-arch"> archived</label>
+  <button id="btn-list" title="Add a list">+ List</button>
+  <button id="btn-refresh" title="Reload from disk">⟳</button>
+</header>
+
+<main id="board"></main>
+
+<aside id="drawer" aria-label="Task editor">
+  <div class="d-head">
+    <strong style="flex:1">Edit task</strong>
+    <span class="dirty" id="d-dirty">● unsaved</span>
+    <button id="d-mode" title="Switch between formatted and raw Markdown">Raw Markdown</button>
+    <button id="d-save" class="primary" disabled>Save</button>
+    <button id="d-close" class="ghost" title="Close (Esc)">✕</button>
+  </div>
+  <div class="d-fields">
+    <label class="wide">Title<input type="text" id="f-title"></label>
+    <label>Status<select id="f-status">
+      <option value="open">open</option><option value="doing">doing</option>
+      <option value="waiting">waiting</option><option value="done">done</option>
+      <option value="archived">archived</option></select></label>
+    <label>List<select id="f-list"></select></label>
+    <label>Due<input type="date" id="f-due"></label>
+    <label>Collections<input type="text" id="f-coll" placeholder="a, b"></label>
+  </div>
+  <div class="d-note" id="d-parent"></div>
+  <div class="d-banner" id="d-banner">This file changed on disk while you were editing (Claude or another device?). <button id="d-loaddisk">Load disk version</button> — or keep editing; Save will ask before overwriting.</div>
+  <div id="editor-wrap"><div id="editor"></div></div>
+  <div class="d-checklist" id="d-checklist"></div>
+  <div class="d-foot">
+    <span class="file" id="d-file"></span>
+    <button id="d-sub">+ Subtask</button>
+    <button id="d-demote">Demote into…</button>
+    <button id="d-delete" class="danger">Delete</button>
+  </div>
+</aside>
+
+<div id="modal-bg"><div id="modal"></div></div>
+<div id="pop"></div>
+<div id="toast"></div>
+
+<script src="vendor/js-yaml.min.js"></script>
+<script src="vendor/Sortable.min.js"></script>
+<script src="vendor/toastui-editor-all.min.js"></script>
+<script>
+"use strict";
+/* =====================================================================
+   Task Board — one Markdown file per task, YAML frontmatter for fields.
+   Data contract (frontmatter keys, in this order):
+     id, title, status, list, collections, parent, order, due, demoted_into
+   Unknown keys are preserved untouched. _todo.json holds {"lists":[...]}.
+   ===================================================================== */
+const CONFIG_FILE = '_todo.json';
+const KNOWN = ['id','title','status','list','collections','parent','order','due','demoted_into'];
+const POLL_MS = 4000;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls = { get(k, d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
+             set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+
+const S = {
+  tasks: new Map(), lists: [], store: null, view: ls.get('todo.view','board'),
+  showDone: ls.get('todo.showDone', true), showArchived: false, q: '',
+  collapsed: new Set(ls.get('todo.collapsed', [])), editing: null, snapshot: null,
+  dragging: false, busy: 0, sortables: [], editor: null,
+};
+
+/* ---------------- storage backends ---------------- */
+class ConflictError extends Error {}
+class MemStore {
+  constructor(files){ this.name = 'Demo data'; this.demo = true; this.files = new Map(); this.tick = Date.now();
+    for (const [n,t] of Object.entries(files)) this.files.set(n, { text:t, mtime:this.tick++ }); }
+  async list(){ return [...this.files].map(([name,f]) => ({ name, mtime:f.mtime })); }
+  async read(name){ const f = this.files.get(name); if(!f) throw new Error('missing '+name); return { ...f }; }
+  async write(name, text, expected){ const f = this.files.get(name);
+    if (expected != null && f && f.mtime !== expected) throw new ConflictError(name);
+    const mtime = ++this.tick; this.files.set(name, { text, mtime }); return mtime; }
+  async remove(name){ this.files.delete(name); }
+}
+class FsStore {
+  constructor(dir){ this.dir = dir; this.name = dir.name; this.demo = false; }
+  async list(){ const out = [];
+    for await (const [name, h] of this.dir.entries()){
+      if (h.kind !== 'file') continue;
+      if (name !== CONFIG_FILE && (!name.endsWith('.md') || /^[_.]/.test(name) || /^readme\.md$/i.test(name))) continue;
+      try { out.push({ name, mtime:(await h.getFile()).lastModified }); } catch {}
+    } return out; }
+  async read(name){ const f = await (await this.dir.getFileHandle(name)).getFile(); return { text: await f.text(), mtime: f.lastModified }; }
+  async write(name, text, expected){
+    let h = null; try { h = await this.dir.getFileHandle(name); } catch {}
+    if (h && expected != null){ const f = await h.getFile(); if (f.lastModified !== expected) throw new ConflictError(name); }
+    if (!h) h = await this.dir.getFileHandle(name, { create:true });
+    const w = await h.createWritable(); await w.write(text); await w.close();
+    return (await h.getFile()).lastModified; }
+  async remove(name){ await this.dir.removeEntry(name); }
+}
+
+/* ---------------- parse / serialize ---------------- */
+function titleFromName(n){ return n.replace(/\.md$/,'').replace(/[-_]+/g,' ').replace(/^\w/, c=>c.toUpperCase()); }
+function asArr(v){ return v == null || v === '' ? [] : Array.isArray(v) ? v.map(String) : String(v).split(',').map(s=>s.trim()).filter(Boolean); }
+function parseTask(name, text, mtime){
+  let fm = {}, body = text, bad = false;
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/);
+  if (m){ try { fm = jsyaml.load(m[1], { schema: jsyaml.CORE_SCHEMA }) || {}; if (typeof fm !== 'object') { fm = {}; bad = true; } }
+          catch(e){ bad = true; fm = {}; } body = m[2]; }
+  const t = {
+    file: name, mtime, raw: text, readonly: bad,
+    id: String(fm.id ?? ('f-' + name.replace(/\.md$/,''))),
+    title: fm.title != null ? String(fm.title) : titleFromName(name),
+    status: String(fm.status || 'open'), list: String(fm.list || 'Inbox'),
+    collections: asArr(fm.collections), parent: fm.parent ? String(fm.parent) : '',
+    order: Number.isFinite(+fm.order) && fm.order !== null && fm.order !== '' ? +fm.order : null,
+    due: fm.due ? String(fm.due) : '', demoted_into: fm.demoted_into ? String(fm.demoted_into) : '',
+    body, extra: {}, noId: fm.id == null,
+  };
+  for (const k of Object.keys(fm)) if (!KNOWN.includes(k)) t.extra[k] = fm[k];
+  return t;
+}
+function serializeTask(t){
+  const fm = { id:t.id, title:t.title, status:t.status, list:t.list };
+  if (t.collections.length) fm.collections = t.collections;
+  if (t.parent) fm.parent = t.parent;
+  fm.order = t.order ?? 1;
+  if (t.due) fm.due = t.due;
+  if (t.demoted_into) fm.demoted_into = t.demoted_into;
+  Object.assign(fm, t.extra);
+  const y = jsyaml.dump(fm, { schema: jsyaml.CORE_SCHEMA, lineWidth: -1, flowLevel: 1 });
+  return '---\n' + y + '---\n' + (t.body || '');
+}
+function normBody(md){ md = (md || '').trim(); return md ? '\n' + md + '\n' : ''; }
+
+/* ---------------- task helpers ---------------- */
+const all = () => [...S.tasks.values()];
+const get = id => S.tasks.get(id);
+const kids = id => all().filter(t => t.parent === id).sort(byOrder);
+function byOrder(a,b){ return (a.order ?? 1e9) - (b.order ?? 1e9) || a.title.localeCompare(b.title); }
+function descendants(id){ const out = []; for (const c of kids(id)){ out.push(c, ...descendants(c.id)); } return out; }
+function isAncestor(a, b){ let cur = get(b), guard = 0; while (cur && cur.parent && guard++ < 100){ if (cur.parent === a) return true; cur = get(cur.parent); } return false; }
+function hasParent(t){ return t.parent && S.tasks.has(t.parent) && t.parent !== t.id; }
+function nextOrder(siblings){ return siblings.length ? Math.max(...siblings.map(s => s.order ?? 0)) + 1 : 1; }
+function today(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(n){ const d = new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function newId(){ return 't-' + today().replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,6); }
+function slug(s){ return (s||'task').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/[\s_-]+/g,'-').slice(0,60) || 'task'; }
+function uniqueFile(title){ const used = new Set(all().map(t => t.file)); let base = slug(title), n = 1, f = base + '.md';
+  while (used.has(f)) f = `${base}-${++n}.md`; return f; }
+const CK_RE = /^(\s*)[-*+] \[( |x|X)\] ?(.*)$/;
+function checklistStats(body){ let done = 0, total = 0; for (const l of (body||'').split('\n')){ const m = l.match(CK_RE); if (m){ total++; if (m[2] !== ' ') done++; } } return { done, total }; }
+
+/* ---------------- load / save ---------------- */
+async function loadAll(){
+  const entries = await S.store.list();
+  const map = new Map(); let cfg = null;
+  for (const e of entries){
+    try {
+      const { text, mtime } = await S.store.read(e.name);
+      if (e.name === CONFIG_FILE){ try { cfg = JSON.parse(text); } catch {} continue; }
+      addParsed(map, parseTask(e.name, text, mtime));
+    } catch (err){ console.warn('read failed', e.name, err); }
+  }
+  S.tasks = map;
+  S.lists = Array.isArray(cfg?.lists) ? cfg.lists.map(String) : [];
+  syncLists();
+  render();
+}
+function addParsed(map, t){
+  if (map.has(t.id) && map.get(t.id).file !== t.file){ t.dupOf = t.id; t.id = t.id + '~' + t.file; }
+  map.set(t.id, t);
+}
+function syncLists(){ for (const t of all()) if (!S.lists.includes(t.list)) S.lists.push(t.list); if (!S.lists.length) S.lists.push('Inbox'); }
+async function saveConfig(){ try { S.busy++; const cur = await S.store.list(); const has = cur.find(e => e.name === CONFIG_FILE);
+  await S.store.write(CONFIG_FILE, JSON.stringify({ lists: S.lists }, null, 2) + '\n', null); void has; } catch(e){ toast('Could not save list config: '+e.message); } finally { S.busy--; } }
+
+async function saveTask(t, { force = false } = {}){
+  if (t.readonly){ toast(`"${t.title}" has unreadable frontmatter — fix the file by hand first.`); return false; }
+  if (!t.file) t.file = uniqueFile(t.title);
+  const text = serializeTask(t);
+  S.busy++;
+  try {
+    t.mtime = await S.store.write(t.file, text, (force || t.isNew) ? null : t.mtime);
+    t.raw = text; t.isNew = false; t.diskChanged = false; return true;
+  } catch (e){
+    if (e instanceof ConflictError){ return await conflictDialog(t); }
+    toast('Save failed: ' + e.message); console.error(e); return false;
+  } finally { S.busy--; }
+}
+async function saveMany(list){ let ok = true; for (const t of list) ok = (await saveTask(t)) && ok; return ok; }
+async function removeTask(t){
+  S.busy++;
+  try { if (!t.isNew) await S.store.remove(t.file); S.tasks.delete(t.id); }
+  catch(e){ toast('Delete failed: ' + e.message); } finally { S.busy--; }
+}
+async function reloadOne(t){
+  const { text, mtime } = await S.store.read(t.file);
+  const fresh = parseTask(t.file, text, mtime); fresh.id = t.id; S.tasks.set(t.id, fresh); return fresh;
+}
+function conflictDialog(t){
+  return new Promise(resolve => {
+    modal(`<h3>File changed on disk</h3>
+      <p><b>${esc(t.title)}</b> (<code>${esc(t.file)}</code>) was changed by something else — Claude, another device, or a sync — since this page loaded it.</p>
+      <div class="btns"><button data-a="reload">Use disk version</button><button class="primary" data-a="over">Overwrite with mine</button></div>`,
+      async a => {
+        if (a === 'over'){ closeModal(); resolve(await saveTask(t, { force:true })); }
+        else if (a === 'reload'){ closeModal(); const f = await reloadOne(t); if (S.editing === t.id) fillDrawer(f); render(); resolve(false); }
+      });
+  });
+}
+
+/* ---------------- polling for outside edits ---------------- */
+async function poll(){
+  if (!S.store || S.dragging || S.busy || document.hidden) return;
+  let entries; try { entries = await S.store.list(); } catch { return; }
+  const byFile = new Map(all().filter(t => !t.isNew).map(t => [t.file, t]));
+  let changed = false;
+  for (const e of entries){
+    if (e.name === CONFIG_FILE) continue;
+    const t = byFile.get(e.name); byFile.delete(e.name);
+    if (t && t.mtime === e.mtime) continue;
+    if (t && S.editing === t.id && isDirty()){ if (!t.diskChanged){ t.diskChanged = true; $('#d-banner').classList.add('on'); } continue; }
+    try {
+      const { text, mtime } = await S.store.read(e.name);
+      const fresh = parseTask(e.name, text, mtime);
+      if (t){ fresh.id = t.id; S.tasks.set(t.id, fresh); if (S.editing === t.id) fillDrawer(fresh); }
+      else addParsed(S.tasks, fresh);
+      changed = true;
+    } catch {}
+  }
+  for (const gone of byFile.values()){ if (S.editing === gone.id) continue; S.tasks.delete(gone.id); changed = true; }
+  if (changed){ syncLists(); render(); }
+}
+
+/* ---------------- rendering ---------------- */
+function matches(t){ if (!S.q) return true; const q = S.q.toLowerCase();
+  return t.title.toLowerCase().includes(q) || (t.body||'').toLowerCase().includes(q) || t.collections.some(c => c.toLowerCase().includes(q)); }
+function visibleSelf(t){ if (t.status === 'archived' && !S.showArchived) return false; if (t.status === 'done' && !S.showDone) return false; return true; }
+function visible(t){ if (!visibleSelf(t)) return false; return matches(t) || descendants(t.id).some(d => visibleSelf(d) && matches(d)); }
+function dueClass(d){ if (!d) return ''; const t = today(); return d < t ? 'overdue' : d === t ? 'today' : ''; }
+
+function cardHTML(t, depth, opts = {}){
+  const ch = kids(t.id).filter(visible);
+  const collapsed = S.view === 'board' && S.collapsed.has(t.id);
+  const ck = checklistStats(t.body);
+  const meta = [];
+  if (t.status !== 'open' && t.status !== 'done') meta.push(`<span class="chip status">${esc(t.status)}</span>`);
+  if (t.due) meta.push(`<span class="chip due ${dueClass(t.due)}">📅 ${esc(t.due)}</span>`);
+  for (const c of t.collections) meta.push(`<span class="chip">#${esc(c)}</span>`);
+  if (ck.total) meta.push(`<span class="chip due">☑ ${ck.done}/${ck.total}</span>`);
+  if (collapsed && ch.length) meta.push(`<span class="chip due">${ch.length} subtask${ch.length>1?'s':''}</span>`);
+  if (t.readonly) meta.push(`<span class="chip warn">bad frontmatter</span>`);
+  if (t.dupOf) meta.push(`<span class="chip warn" title="Two files share id ${esc(t.dupOf)} — often a sync-conflict copy">duplicate id</span>`);
+  if (t.isNew) meta.push(`<span class="chip warn">unsaved</span>`);
+  const inner = collapsed ? '' : ch.map(c => cardHTML(c, depth+1, opts)).join('');
+  return `<div class="card ${t.status==='done'?'done':''} ${t.status==='archived'?'archived':''} ${t.isNew?'new-unsaved':''}" data-id="${esc(t.id)}">
+    <div class="row">
+      <button class="twisty ${ch.length && !opts.flat?'':'none'}" data-act="twisty">${collapsed?'▸':'▾'}</button>
+      <input type="checkbox" data-act="done" ${t.status==='done'?'checked':''} title="Mark done">
+      <div class="title" data-act="open">${esc(t.title)}</div>
+      <button class="menu-btn" data-act="menu" title="More">⋯</button>
+    </div>
+    ${opts.path ? `<div class="path">${esc(opts.path(t))}</div>` : ''}
+    <div class="meta">${meta.join('')}</div>
+    ${opts.flat ? '' : `<div class="children" data-parent="${esc(t.id)}" data-list="${esc(t.list)}" data-collapsed="${collapsed?1:0}">${inner}</div>`}
+  </div>`;
+}
+
+function render(){
+  for (const s of S.sortables) s.destroy(); S.sortables = [];
+  const board = $('#board');
+  board.className = S.view === 'outline' ? 'outline' : '';
+  document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.view === S.view));
+  $('#tog-done').checked = S.showDone; $('#tog-arch').checked = S.showArchived;
+  if (S.view === 'due') return renderDue(board);
+  const topOf = l => all().filter(t => t.list === l && !hasParent(t)).sort(byOrder).filter(visible);
+  board.innerHTML = S.lists.map(l => {
+    const top = topOf(l);
+    const count = all().filter(t => t.list === l && t.status !== 'archived' && t.status !== 'done').length;
+    return `<section class="column" data-list="${esc(l)}">
+      <div class="col-head"><h2>${esc(l)}</h2><span class="count">${count}</span>
+        <button class="ghost" data-act="list-menu" data-list="${esc(l)}" title="List options">⋯</button></div>
+      <div class="task-list" data-parent="" data-list="${esc(l)}">${top.map(t => cardHTML(t,0)).join('')}</div>
+      <button class="add-row" data-act="add" data-list="${esc(l)}">+ Add task</button>
+    </section>`;
+  }).join('') || '<div class="empty-hint">No lists yet.</div>';
+  if (S.view === 'outline'){ /* outline shows everything expanded; drag still works */ }
+  board.querySelectorAll('.task-list, .children').forEach(el => {
+    S.sortables.push(Sortable.create(el, {
+      group: 'tasks', animation: 150, fallbackOnBody: true, swapThreshold: 0.65, invertSwap: true,
+      emptyInsertThreshold: 10, filter: 'input,button', preventOnFilter: false, draggable: '.card',
+      onStart(){ S.dragging = true; document.body.classList.add('dragging'); },
+      onEnd(evt){ S.dragging = false; document.body.classList.remove('dragging'); handleDrop(evt.item.dataset.id, evt.to, evt.item); },
+    }));
+  });
+}
+
+function renderDue(board){
+  const groups = [['Overdue', t => t.due && t.due < today()], ['Today', t => t.due === today()],
+    ['Next 7 days', t => t.due > today() && t.due <= addDays(7)], ['Later', t => t.due > addDays(7)], ['No due date', t => !t.due]];
+  const pool = all().filter(t => visibleSelf(t) && matches(t)).sort((a,b) => (a.due||'9999').localeCompare(b.due||'9999') || byOrder(a,b));
+  const path = t => { const p = []; let cur = t; let g = 0; while (hasParent(cur) && g++ < 20){ cur = get(cur.parent); p.unshift(cur.title); } return [t.list, ...p].join(' › '); };
+  board.className = 'outline';
+  board.innerHTML = groups.map(([name, f]) => { const items = pool.filter(f); if (!items.length) return '';
+    return `<div class="due-group"><h3>${name} · ${items.length}</h3>${items.map(t => cardHTML(t, 0, { flat:true, path })).join('')}</div>`; }).join('')
+    || '<div class="empty-hint">Nothing to show.</div>';
+}
+
+/* ---------------- drag & drop ---------------- */
+async function handleDrop(id, toEl, itemEl){
+  const t = get(id); if (!t) return render();
+  const newParent = toEl.dataset.parent || '';
+  if (newParent && (newParent === id || isAncestor(id, newParent))) { toast("Can't nest a task inside itself."); return render(); }
+  const newList = newParent ? get(newParent).list : toEl.dataset.list;
+  const sibEls = [...toEl.children].filter(e => e.classList.contains('card'));
+  const i = sibEls.indexOf(itemEl);
+  const prev = i > 0 ? get(sibEls[i-1].dataset.id) : null;
+  const next = i < sibEls.length-1 ? get(sibEls[i+1].dataset.id) : null;
+  const siblings = (newParent ? kids(newParent) : all().filter(x => x.list === newList && !hasParent(x))).filter(x => x.id !== id);
+  let order;
+  if (toEl.dataset.collapsed === '1') order = nextOrder(siblings);
+  else if (prev && next) order = ((prev.order ?? 0) + (next.order ?? 0)) / 2;
+  else if (prev) order = (prev.order ?? 0) + 1;
+  else if (next) order = (next.order ?? 1) - 1;
+  else order = nextOrder(siblings);
+  const changed = [t];
+  t.parent = newParent; t.order = order;
+  if (t.list !== newList){ t.list = newList; for (const d of descendants(t.id)){ d.list = newList; changed.push(d); } }
+  if (prev && next && Math.abs((next.order ?? 0) - (prev.order ?? 0)) < 1e-6){
+    const ordered = sibEls.map(e => get(e.dataset.id)).filter(Boolean);
+    ordered.forEach((s, k) => { s.order = k + 1; if (!changed.includes(s)) changed.push(s); });
+  }
+  if (newParent && S.collapsed.has(newParent)){ S.collapsed.delete(newParent); persistCollapsed(); }
+  render();
+  await saveMany(changed.filter(x => !x.isNew));
+  render();
+}
+
+/* ---------------- board interactions ---------------- */
+$('#board').addEventListener('click', async e => {
+  const actEl = e.target.closest('[data-act]'); if (!actEl) return;
+  const act = actEl.dataset.act; const card = actEl.closest('.card'); const t = card && get(card.dataset.id);
+  if (act === 'open' && t) openDrawer(t.id);
+  else if (act === 'twisty' && t){ S.collapsed.has(t.id) ? S.collapsed.delete(t.id) : S.collapsed.add(t.id); persistCollapsed(); render(); }
+  else if (act === 'done' && t){ t.status = actEl.checked ? 'done' : 'open'; if (!t.isNew) await saveTask(t); render(); if (S.editing === t.id) $('#f-status').value = t.status, updateSnapshotField('status', t.status); }
+  else if (act === 'menu' && t) cardMenu(t, actEl);
+  else if (act === 'add') newTask({ list: actEl.dataset.list });
+  else if (act === 'list-menu') listMenu(actEl.dataset.list, actEl);
+});
+function persistCollapsed(){ ls.set('todo.collapsed', [...S.collapsed]); }
+
+function popover(anchor, items){
+  const pop = $('#pop'); pop.innerHTML = items.map((it, i) => `<button data-i="${i}" class="${it.danger?'danger':''}">${esc(it.label)}</button>`).join('');
+  const r = anchor.getBoundingClientRect(); pop.classList.add('on');
+  pop.style.top = Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 8) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.onclick = ev => { const b = ev.target.closest('button'); if (!b) return; pop.classList.remove('on'); items[+b.dataset.i].fn(); };
+}
+document.addEventListener('mousedown', e => { if (!e.target.closest('#pop') && !e.target.closest('[data-act=menu]') && !e.target.closest('[data-act=list-menu]')) $('#pop').classList.remove('on'); });
+
+function cardMenu(t, anchor){
+  const items = [ { label:'Open', fn:() => openDrawer(t.id) }, { label:'Add subtask', fn:() => newTask({ parent:t.id }) },
+    { label:'Demote into a checklist item…', fn:() => demoteDialog(t) } ];
+  if (t.parent) items.push({ label:'Move to top level', fn: async () => { t.parent = ''; t.order = nextOrder(all().filter(x => x.list === t.list && !hasParent(x))); await saveTask(t); render(); } });
+  if (t.status === 'archived') items.push({ label:'Unarchive', fn: async () => { t.status = 'open'; t.demoted_into = ''; await saveTask(t); render(); } });
+  else items.push({ label:'Archive', fn: async () => { t.status = 'archived'; await saveTask(t); render(); } });
+  items.push({ label:'Delete…', danger:true, fn:() => deleteDialog(t) });
+  popover(anchor, items);
+}
+function listMenu(l, anchor){
+  popover(anchor, [
+    { label:'Rename list…', fn:() => renameListDialog(l) },
+    { label:'Move list left', fn:() => moveList(l, -1) }, { label:'Move list right', fn:() => moveList(l, +1) },
+    { label:'Remove list (if empty)', danger:true, fn: async () => {
+      if (all().some(t => t.list === l)) return toast('Move or archive its tasks first (archived ones count too).');
+      S.lists = S.lists.filter(x => x !== l); await saveConfig(); render(); } },
+  ]);
+}
+async function moveList(l, d){ const i = S.lists.indexOf(l), j = i + d; if (j < 0 || j >= S.lists.length) return;
+  [S.lists[i], S.lists[j]] = [S.lists[j], S.lists[i]]; await saveConfig(); render(); }
+function renameListDialog(l){
+  modal(`<h3>Rename list</h3><input type="text" id="m-name" value="${esc(l)}">
+    <p style="font-size:12px;color:var(--muted)">Updates the <code>list:</code> field in every task file in this list.</p>
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Rename</button></div>`,
+    async a => { if (a !== 'ok') return closeModal(); const n = $('#m-name').value.trim(); if (!n || n === l) return closeModal();
+      if (S.lists.includes(n)) return toast('A list with that name exists.');
+      closeModal(); const ts = all().filter(t => t.list === l); ts.forEach(t => t.list = n);
+      S.lists = S.lists.map(x => x === l ? n : x); await saveConfig(); await saveMany(ts.filter(t => !t.isNew)); render(); });
+  setTimeout(() => $('#m-name').select(), 0);
+}
+function addListDialog(){
+  modal(`<h3>New list</h3><input type="text" id="m-name" placeholder="e.g. Errands">
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Add</button></div>`,
+    async a => { if (a !== 'ok') return closeModal(); const n = $('#m-name').value.trim(); closeModal();
+      if (!n || S.lists.includes(n)) return; S.lists.push(n); await saveConfig(); render(); });
+  setTimeout(() => $('#m-name').focus(), 0);
+}
+function deleteDialog(t){
+  const ch = kids(t.id);
+  modal(`<h3>Delete task?</h3><p><b>${esc(t.title)}</b> — <code>${esc(t.file || '(unsaved)')}</code> will be deleted from the folder.</p>
+    ${ch.length ? `<p>Its ${ch.length} subtask(s) will move up one level.</p>` : ''}
+    <p style="font-size:12px;color:var(--muted)">Tip: “Archive” keeps the file but hides it.</p>
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary danger" data-a="ok">Delete</button></div>`,
+    async a => { closeModal(); if (a !== 'ok') return;
+      for (const c of ch){ c.parent = t.parent; } await saveMany(ch);
+      if (S.editing === t.id) closeDrawer(true);
+      await removeTask(t); render(); });
+}
+
+/* ---------------- new task ---------------- */
+function newTask({ list, parent } = {}){
+  const p = parent ? get(parent) : null;
+  const l = p ? p.list : (list || S.lists[0] || 'Inbox');
+  const siblings = p ? kids(p.id) : all().filter(x => x.list === l && !hasParent(x));
+  const t = { file:'', mtime:null, id:newId(), title:'', status:'open', list:l, collections:[], parent: p ? p.id : '',
+    order: nextOrder(siblings), due:'', demoted_into:'', body:'', extra:{}, isNew:true };
+  S.tasks.set(t.id, t);
+  if (p && S.collapsed.has(p.id)){ S.collapsed.delete(p.id); persistCollapsed(); }
+  render(); openDrawer(t.id); setTimeout(() => $('#f-title').focus(), 50);
+}
+
+/* ---------------- drawer / editor ---------------- */
+function ensureEditor(){
+  if (S.editor) return S.editor;
+    S.editor = new toastui.Editor({
+    el: $('#editor'), height: '100%', initialEditType: ls.get('todo.mode','wysiwyg'), previewStyle: 'tab',
+    hideModeSwitch: true, usageStatistics: false, theme: 'dark', autofocus: false,
+    toolbarItems: [['heading','bold','italic','strike'],['hr','quote'],['ul','ol','task','indent','outdent'],['table','link'],['code','codeblock']],
+  });
+  S.editor.on('change', () => { onDirtyCheck(); scheduleChecklist(); });
+  updateModeBtn();
+  return S.editor;
+}
+function updateModeBtn(){ $('#d-mode').textContent = S.editor && S.editor.isMarkdownMode() ? 'Formatted view' : 'Raw Markdown'; }
+$('#d-mode').onclick = () => { const ed = ensureEditor(); const to = ed.isMarkdownMode() ? 'wysiwyg' : 'markdown';
+  ed.changeMode(to, true); ls.set('todo.mode', to); updateModeBtn(); };
+
+function fieldState(){ return JSON.stringify({ title:$('#f-title').value, status:$('#f-status').value, list:$('#f-list').value,
+  due:$('#f-due').value, coll:$('#f-coll').value }); }
+function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing); if (t?.isNew) return true;
+  return fieldState() !== S.snapshot.fields || S.editor.getMarkdown() !== S.snapshot.md; }
+function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d; }
+function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
+['#f-title','#f-status','#f-list','#f-due','#f-coll'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
+$('#f-list').addEventListener('change', () => { if ($('#f-list').value === '__new'){
+  const n = (prompt('New list name') || '').trim(); if (n && !S.lists.includes(n)){ S.lists.push(n); saveConfig(); }
+  fillListSelect(n || get(S.editing).list); onDirtyCheck(); } });
+function fillListSelect(sel){ $('#f-list').innerHTML = S.lists.map(l => `<option ${l===sel?'selected':''}>${esc(l)}</option>`).join('') + '<option value="__new">＋ New list…</option>'; }
+
+function openDrawer(id){
+  if (S.editing && S.editing !== id && isDirty()){
+    return confirmDiscard(() => { discardNew(); openDrawer(id); });
+  }
+  const t = get(id); if (!t) return;
+  S.editing = id; ensureEditor(); fillDrawer(t);
+  $('#drawer').classList.add('open');
+}
+function fillDrawer(t){
+  $('#f-title').value = t.title; $('#f-status').value = t.status; fillListSelect(t.list);
+  $('#f-due').value = t.due; $('#f-coll').value = t.collections.join(', ');
+  const p = hasParent(t) ? get(t.parent) : null;
+  $('#f-list').disabled = !!p;
+  $('#d-parent').innerHTML = p ? `Subtask of <a href="#" data-open="${esc(p.id)}">${esc(p.title)}</a> — its list follows the parent.` :
+    (t.demoted_into ? `Archived after being demoted into <a href="#" data-open="${esc(t.demoted_into)}">${esc(get(t.demoted_into)?.title || t.demoted_into)}</a>.` : '');
+  $('#d-file').textContent = t.file ? t.file : 'not saved yet — file name comes from the title';
+  $('#d-banner').classList.toggle('on', !!t.diskChanged);
+  S.snapshot = null;
+  S.editor.setMarkdown((t.body || '').replace(/^\n/, ''), false);
+  S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown() };
+  $('#d-demote').disabled = !!t.isNew; $('#d-delete').disabled = false;
+  onDirtyCheck(); renderChecklist();
+}
+$('#d-parent').addEventListener('click', e => { const a = e.target.closest('[data-open]'); if (a){ e.preventDefault(); openDrawer(a.dataset.open); } });
+
+function readDrawerInto(t){
+  const oldList = t.list;
+  t.title = $('#f-title').value.trim() || 'Untitled'; t.status = $('#f-status').value;
+  if (!hasParent(t)) t.list = $('#f-list').value === '__new' ? t.list : $('#f-list').value;
+  t.due = $('#f-due').value; t.collections = asArr($('#f-coll').value);
+  t.body = normBody(S.editor.getMarkdown());
+  const changed = [t];
+  if (t.list !== oldList) for (const d of descendants(t.id)){ d.list = t.list; changed.push(d); }
+  return changed;
+}
+async function saveDrawer(){
+  const t = get(S.editing); if (!t) return false;
+  const changed = readDrawerInto(t);
+  const ok = await saveMany(changed);
+  if (ok){ S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown() }; $('#d-file').textContent = t.file; $('#d-demote').disabled = false; toast('Saved'); }
+  onDirtyCheck(); syncLists(); render(); return ok;
+}
+$('#d-save').onclick = saveDrawer;
+$('#d-close').onclick = () => closeDrawer();
+function discardNew(){ const t = S.editing && get(S.editing); if (t?.isNew) S.tasks.delete(t.id); }
+function closeDrawer(force){
+  if (!force && isDirty()) return confirmDiscard(() => closeDrawer(true));
+  discardNew(); S.editing = null; S.snapshot = null; $('#drawer').classList.remove('open'); render();
+}
+function confirmDiscard(onDiscard){
+  modal(`<h3>Unsaved changes</h3><p>Save your changes to this task first?</p>
+    <div class="btns"><button data-a="cancel">Keep editing</button><button data-a="discard" class="danger">Discard</button><button class="primary" data-a="save">Save</button></div>`,
+    async a => { closeModal(); if (a === 'discard') onDiscard(); else if (a === 'save'){ if (await saveDrawer()) onDiscard(); } });
+}
+$('#d-loaddisk').onclick = async () => { const t = get(S.editing); const f = await reloadOne(t); fillDrawer(f); render(); };
+$('#d-sub').onclick = async () => { const t = get(S.editing); if (t.isNew || isDirty()){ if (!await saveDrawer()) return; } newTask({ parent: t.id }); };
+$('#d-demote').onclick = async () => { const t = get(S.editing); if (isDirty() && !await saveDrawer()) return; demoteDialog(t); };
+$('#d-delete').onclick = () => { const t = get(S.editing); if (t.isNew){ closeDrawer(true); return; } deleteDialog(t); };
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && S.editing){ e.preventDefault(); if (isDirty()) saveDrawer(); }
+  else if (e.key === 'Escape'){ if ($('#modal-bg').classList.contains('on')) closeModal(); else if ($('#pop').classList.contains('on')) $('#pop').classList.remove('on'); else if (S.editing) closeDrawer(); }
+});
+window.addEventListener('beforeunload', e => { if (isDirty()){ e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------------- checklist items: parse / promote ---------------- */
+// Top-level checkbox items in a body, each with its nested block (more-indented lines that follow).
+function checklistBlocks(md){
+  const lines = md.split('\n'); const out = [];
+  for (let i = 0; i < lines.length; i++){
+    const m = lines[i].match(CK_RE); if (!m || m[1].length !== 0) continue;
+    let j = i + 1; const nested = [];
+    while (j < lines.length){
+      const l = lines[j];
+      if (l.trim() === ''){ // blank line belongs to the block only if an indented line follows
+        let k = j + 1; while (k < lines.length && lines[k].trim() === '') k++;
+        if (k < lines.length && /^\s+\S/.test(lines[k])){ for (; j < k; j++) nested.push(''); continue; } break;
+      }
+      if (/^\s+\S/.test(l)){ nested.push(l); j++; } else break;
+    }
+    out.push({ start:i, end:j, checked: m[2] !== ' ', text: m[3], nested });
+  }
+  return out;
+}
+let ckTimer = null;
+function scheduleChecklist(){ clearTimeout(ckTimer); ckTimer = setTimeout(renderChecklist, 250); }
+function renderChecklist(){
+  if (!S.editing || !S.editor) return;
+  const blocks = checklistBlocks(S.editor.getMarkdown());
+  $('#d-checklist').style.display = blocks.length ? '' : 'none';
+  $('#d-checklist').innerHTML = `<h4>Checklist items — promote one to its own task file</h4>` + blocks.map((b, i) =>
+    `<div class="ck-item ${b.checked?'checked':''}"><span>${esc(stripInline(b.text).title)}</span>${linkedFile(b.text) ? '<span class="chip" style="flex:0">archived file</span>' : ''}<button data-i="${i}">↑ Promote</button></div>`).join('');
+}
+$('#d-checklist').addEventListener('click', e => { const b = e.target.closest('button[data-i]'); if (b) promote(+b.dataset.i); });
+const LINK_RE = /\s*\[[^\]]*\]\(([^)\s]+\.md)\)/;
+function linkedFile(text){ const m = text.match(LINK_RE); return m ? decodeURIComponent(m[1]) : null; }
+function stripInline(text){
+  let due = '', tags = [];
+  let s = text.replace(LINK_RE, '');
+  s = s.replace(/\s*📅\s*(\d{4}-\d{2}-\d{2})/, (_, d) => { due = d; return ''; });
+  s = s.replace(/(^|\s)#([\w-]+)/g, (_, sp, tag) => { tags.push(tag); return ''; });
+  return { title: s.replace(/\*\*/g,'').trim() || 'Untitled', due, tags };
+}
+function dedent(lines){
+  const ind = Math.min(...lines.filter(l => l.trim()).map(l => l.match(/^\s*/)[0].length));
+  return lines.map(l => l.slice(Number.isFinite(ind) ? ind : 0));
+}
+async function promote(i){
+  const p = get(S.editing); const md = S.editor.getMarkdown(); const blocks = checklistBlocks(md); const b = blocks[i]; if (!b) return;
+  const info = stripInline(b.text); const nestedMd = dedent(b.nested).join('\n').trim();
+  const file = linkedFile(b.text); const archived = file && all().find(t => t.file === file);
+  let t;
+  if (archived){
+    t = archived; t.status = b.checked ? 'done' : 'open'; t.demoted_into = '';
+    if (nestedMd) t.body = normBody(nestedMd);           // nested copy is the most recent edit
+    if (info.due) t.due = info.due; if (info.tags.length) t.collections = [...new Set([...t.collections, ...info.tags])];
+  } else {
+    t = { file:'', mtime:null, id:newId(), title:info.title, status: b.checked ? 'done' : 'open', list:p.list, collections:info.tags,
+      parent:p.id, order:0, due:info.due, demoted_into:'', body:normBody(nestedMd), extra:{}, isNew:true };
+  }
+  t.parent = p.id; t.list = p.list; t.order = nextOrder(kids(p.id).filter(k => k.id !== t.id));
+  const lines = md.split('\n'); lines.splice(b.start, b.end - b.start);
+  S.editor.setMarkdown(lines.join('\n').replace(/\n{3,}/g, '\n\n'), false);
+  if (!S.tasks.has(t.id)) S.tasks.set(t.id, t);
+  if (await saveTask(t)){ await saveDrawer(); toast(archived ? `Restored “${t.title}” from its archived file` : `Promoted “${t.title}” to ${t.file}`); }
+  if (S.collapsed.has(p.id)){ S.collapsed.delete(p.id); persistCollapsed(); }
+  render();
+}
+
+/* ---------------- demote ---------------- */
+function demoteLines(t, o, indent){
+  const box = `${indent}- [${t.status === 'done' ? 'x' : ' '}] ${t.title.replace(/\n/g,' ')}`;
+  let line = box;
+  if (o.level >= 2){ if (t.due) line += ` 📅 ${t.due}`; for (const c of t.collections) line += ` #${c.replace(/\s+/g,'-')}`; }
+  if (o.keep) line += ` [↗](${encodeURIComponent(t.file)})`;
+  const out = [line];
+  if (o.level >= 3){
+    const body = (t.body || '').trim();
+    if (body) for (const l of body.split('\n')) out.push(l.trim() ? indent + '  ' + l.replace(/^(#{1,6})\s+(.*)$/, '**$2**') : '');
+  }
+  if (o.kids === 'demote') for (const c of kids(t.id)) out.push(...demoteLines(c, o, indent + '  '));
+  return out;
+}
+function demoteDialog(t){
+  const blocked = new Set([t.id, ...descendants(t.id).map(d => d.id)]);
+  const targets = all().filter(x => !blocked.has(x.id) && x.status !== 'archived' && !x.isNew).sort((a,b) => a.list.localeCompare(b.list) || byOrder(a,b));
+  if (!targets.length) return toast('No other task to demote into.');
+  const defTarget = hasParent(t) ? t.parent : (targets.find(x => x.list === t.list && !hasParent(x)) || targets[0]).id;
+  const nk = descendants(t.id).length;
+  modal(`<h3>Demote “${esc(t.title)}” to a checklist item</h3>
+    <label style="font-size:12px;color:var(--muted)">Into task</label>
+    <select id="m-target">${targets.map(x => `<option value="${esc(x.id)}" ${x.id===defTarget?'selected':''}>${esc(x.list)} › ${esc(x.title)}</option>`).join('')}</select>
+    <fieldset class="opts"><legend>What to carry into the checklist line</legend>
+      <label><input type="radio" name="lvl" value="1"> <span><b>Title only</b> — fastest; notes and fields are dropped from the line.</span></label>
+      <label><input type="radio" name="lvl" value="2"> <span><b>Title + details</b> — due date and collections inline (<code>📅 2026-10-20 #rental</code>).</span></label>
+      <label><input type="radio" name="lvl" value="3" checked> <span><b>Title + details + notes</b> — the task's Markdown body is nested under the checkbox (headings become bold).</span></label>
+    </fieldset>
+    <fieldset class="opts"><legend>The original file</legend>
+      <label><input type="checkbox" id="m-keep" checked> <span><b>Keep it, archived</b> — status becomes <code>archived</code>, <code>demoted_into</code> points at the target, and the checkbox links to it. “Promote” later restores every field. Uncheck to delete the file.</span></label>
+    </fieldset>
+    ${nk ? `<fieldset class="opts"><legend>Its ${nk} subtask(s)</legend>
+      <label><input type="radio" name="kids" value="move" checked> <span>Move them under the target as real tasks</span></label>
+      <label><input type="radio" name="kids" value="demote"> <span>Demote them too, as nested checkboxes</span></label></fieldset>` : ''}
+    <div style="font-size:12px;color:var(--muted)">Will be appended to the target's notes:</div><pre id="m-preview"></pre>
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Demote</button></div>`,
+    async a => { if (a !== 'ok') return closeModal(); const o = opts(); closeModal(); await doDemote(t, get(o.target), o); });
+  const opts = () => ({ target: $('#m-target').value, level: +document.querySelector('input[name=lvl]:checked').value,
+    keep: $('#m-keep').checked, kids: document.querySelector('input[name=kids]:checked')?.value || 'move' });
+  const prev = () => { $('#m-preview').textContent = demoteLines(t, opts(), '').join('\n'); };
+  $('#modal').addEventListener('input', prev); prev();
+}
+async function doDemote(t, target, o){
+  if (!target) return;
+  const tree = o.kids === 'demote' ? descendants(t.id) : [];
+  const lines = demoteLines(t, o, '');
+  const changed = [];
+  // 1) append to the target's body
+  const body = (target.body || '').replace(/\s+$/, '');
+  const last = body.split('\n').pop();
+  const sep = body ? ((CK_RE.test(last) || /^\s+\S/.test(last)) ? '\n' : '\n\n') : '';
+  target.body = normBody(body + sep + lines.join('\n'));
+  changed.push(target);
+  // 2) subtasks not demoted move under the target
+  if (o.kids !== 'demote') for (const c of kids(t.id)){ c.order = nextOrder(kids(target.id)); c.parent = target.id; c.list = target.list;
+    changed.push(c); for (const d of descendants(c.id)){ d.list = target.list; changed.push(d); } }
+  // 3) the demoted task(s): archive or delete
+  const gone = [t, ...tree];
+  if (o.keep){ for (const g of gone){ g.status = 'archived'; g.demoted_into = target.id; if (g === t) g.parent = target.id; changed.push(g); } }
+  if (!(await saveMany(changed))) { toast('Demote stopped — nothing was deleted.'); render(); return; }
+  if (!o.keep) for (const g of gone) await removeTask(g);
+  if (S.editing === t.id || tree.some(d => d.id === S.editing)) closeDrawer(true);
+  if (S.editing === target.id) fillDrawer(target);
+  toast(`Demoted into “${target.title}”`); render();
+}
+
+/* ---------------- modal / toast ---------------- */
+function modal(html, onAction){
+  $('#modal').innerHTML = html; $('#modal-bg').classList.add('on');
+  $('#modal').onclick = e => { const b = e.target.closest('[data-a]'); if (b) onAction(b.dataset.a); };
+}
+function closeModal(){ $('#modal-bg').classList.remove('on'); $('#modal').innerHTML = ''; }
+$('#modal-bg').addEventListener('mousedown', e => { if (e.target.id === 'modal-bg') closeModal(); });
+let toastTimer; function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 2600); }
+
+/* ---------------- header controls ---------------- */
+$('#views').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.view = b.dataset.view; ls.set('todo.view', S.view); render(); };
+$('#btn-new').onclick = () => newTask({});
+$('#btn-list').onclick = addListDialog;
+$('#btn-expand').onclick = () => { S.collapsed.clear(); persistCollapsed(); render(); };
+$('#btn-collapse').onclick = () => { for (const t of all()) if (kids(t.id).length) S.collapsed.add(t.id); persistCollapsed(); if (S.view !== 'board'){ S.view = 'board'; } render(); };
+$('#search').oninput = e => { S.q = e.target.value.trim(); render(); };
+$('#tog-done').onchange = e => { S.showDone = e.target.checked; ls.set('todo.showDone', S.showDone); render(); };
+$('#tog-arch').onchange = e => { S.showArchived = e.target.checked; render(); };
+$('#btn-refresh').onclick = async () => { if (isDirty()) return toast('Save or close the open task first.'); await loadAll(); toast('Reloaded'); };
+
+/* ---------------- folder access (File System Access API) ---------------- */
+const idb = {
+  open(){ return new Promise((res, rej) => { const r = indexedDB.open('task-board', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async get(k){ const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); }); },
+  async set(k, v){ const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = res; }); },
+};
+async function useStore(store){
+  if (S.editing) closeDrawer(true);
+  S.store = store;
+  const src = $('#source'); src.textContent = store.demo ? 'Demo data — changes are not saved' : '📁 ' + store.name;
+  src.classList.toggle('demo', !!store.demo); src.title = store.demo ? 'Open a folder to work with real files' : 'Tasks are read from and written to this folder';
+  await loadAll();
+  if (!store.demo && S.tasks.size === 0) offerSeed();
+}
+$('#btn-open').onclick = async () => {
+  if (!window.showDirectoryPicker) return modal(`<h3>Folder access not available</h3><p>This browser can't open local folders. Use <b>Chrome</b> or <b>Edge</b> on desktop.</p><div class="btns"><button class="primary" data-a="x">OK</button></div>`, closeModal);
+  if (isDirty()) return toast('Save or close the open task first.');
+  try {
+    const dir = await window.showDirectoryPicker({ id:'task-board', mode:'readwrite' });
+    try { await idb.set('dir', dir); } catch {}
+    $('#btn-reconnect').style.display = 'none';
+    await useStore(new FsStore(dir));
+  } catch (e){ if (e.name !== 'AbortError') toast('Could not open folder: ' + e.message); }
+};
+async function tryRestoreFolder(){
+  let dir; try { dir = await idb.get('dir'); } catch {}
+  if (!dir) return false;
+  const perm = await dir.queryPermission?.({ mode:'readwrite' });
+  if (perm === 'granted'){ await useStore(new FsStore(dir)); return true; }
+  const b = $('#btn-reconnect'); b.style.display = ''; b.textContent = `Reconnect “${dir.name}”`; b.className = 'primary';
+  b.onclick = async () => { if (await dir.requestPermission({ mode:'readwrite' }) === 'granted'){ b.style.display = 'none'; await useStore(new FsStore(dir)); } };
+  return false;
+}
+function offerSeed(){
+  modal(`<h3>This folder has no task files</h3><p>Write the sample tasks here so you have something to try? (About 15 small <code>.md</code> files and <code>_todo.json</code>.)</p>
+    <div class="btns"><button data-a="no">Start empty</button><button class="primary" data-a="yes">Add sample tasks</button></div>`,
+    async a => { closeModal(); if (a !== 'yes') { await saveConfig(); return; }
+      for (const [name, text] of Object.entries(sampleFiles())) await S.store.write(name, text, null);
+      await loadAll(); toast('Sample tasks written to the folder'); });
+}
+
+/* ---------------- sample data ---------------- */
+function sampleFiles(){
+  const f = {}; const d = addDays;
+  const mk = (file, fm, body = '') => { const t = { id:fm.id, title:fm.title, status:fm.status||'open', list:fm.list, collections:fm.collections||[],
+    parent:fm.parent||'', order:fm.order, due:fm.due||'', demoted_into:fm.demoted_into||'', body: body ? '\n' + body.trim() + '\n' : '', extra:{} };
+    f[file] = serializeTask(t); };
+  f[CONFIG_FILE] = JSON.stringify({ lists:['Inbox','Home','Rental','School'] }, null, 2) + '\n';
+  mk('call-insurance-agent.md', { id:'t-s01', title:'Call insurance agent about renewal', list:'Inbox', order:1, due:d(1) }, 'Ask about bundling the rental policy.');
+  mk('try-the-task-board.md', { id:'t-s02', title:'Try dragging this card to another list', list:'Inbox', order:2, collections:['meta'] },
+     '## How this board works\n\nEvery card is a `.md` file. Drag cards between lists, or drop one **onto the dashed area under another card** to make it a subtask.\n\n- [x] Open the editor\n- [ ] Toggle Raw Markdown\n- [ ] Promote one of these checklist items to its own task');
+  mk('fix-gate-latch.md', { id:'t-s03', title:'Fix gate latch', list:'Home', order:1, due:d(-1), collections:['repairs'] },
+     'Latch sticks when it is hot out.\n\n- [x] Measure the gap\n- [ ] Buy replacement hinge 📅 ' + d(2) + ' #repairs [↗](buy-replacement-hinge.md)\n  Hardware store, aisle 12 — 3.5" galvanized.\n- [ ] Re-hang gate');
+  mk('buy-replacement-hinge.md', { id:'t-s04', title:'Buy replacement hinge', status:'archived', list:'Home', parent:'t-s03', order:1, due:d(2), collections:['repairs'], demoted_into:'t-s03' },
+     'Hardware store, aisle 12 — 3.5" galvanized.');
+  mk('solar-panel-cleaning.md', { id:'t-s05', title:'Solar panel cleaning', list:'Home', order:2, due:d(10), collections:['solar'] }, 'Both houses. Check inverter output before and after.');
+  mk('get-quotes.md', { id:'t-s06', title:'Get three cleaning quotes', list:'Home', parent:'t-s05', order:1 });
+  mk('compare-inverter-readings.md', { id:'t-s07', title:'Compare inverter readings', list:'Home', parent:'t-s05', order:2 });
+  mk('export-readings-csv.md', { id:'t-s08', title:'Export last 90 days to CSV', list:'Home', parent:'t-s07', order:1, status:'done' });
+  mk('water-plants.md', { id:'t-s09', title:'Water the plants', list:'Home', order:3, status:'done' });
+  mk('tenant-lease-renewal.md', { id:'t-s10', title:'Tenant lease renewal', list:'Rental', order:1, due:d(14), collections:['wild-flower-manor'] },
+     '## Steps\n\n- [ ] Review market rent\n- [ ] Draft renewal letter\n- [ ] Send for signature');
+  mk('hvac-filter.md', { id:'t-s11', title:'Replace HVAC filter', list:'Rental', order:2, due:d(0), collections:['wild-flower-manor','repairs'] });
+  mk('quarterly-books.md', { id:'t-s12', title:'Quarterly bookkeeping', status:'doing', list:'Rental', order:3, due:d(5) });
+  mk('reconcile-bank.md', { id:'t-s13', title:'Reconcile bank statement', list:'Rental', parent:'t-s12', order:1 });
+  mk('categorize-receipts.md', { id:'t-s14', title:'Categorize receipts', list:'Rental', parent:'t-s12', order:2 });
+  mk('research-paper-outline.md', { id:'t-s15', title:'Research paper outline', list:'School', order:1, due:d(6), collections:['unr'] },
+     'Thesis: _per-file task storage beats a single JSON file for multi-agent sync._\n\n- [ ] Lit review\n- [ ] Draft outline');
+  mk('register-spring.md', { id:'t-s16', title:'Register for spring classes', list:'School', order:2, due:d(21), collections:['unr'] });
+  return f;
+}
+
+/* ---------------- boot ---------------- */
+window.__todo = { S, MemStore, FsStore, useStore, parseTask, serializeTask, checklistBlocks, demoteLines, doDemote, promote, handleDrop, saveTask, get, openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll };
+(async () => {
+  const restored = await tryRestoreFolder().catch(() => false);
+  if (!restored) await useStore(new MemStore(sampleFiles()));
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>

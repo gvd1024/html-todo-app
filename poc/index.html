@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1318">
+<title>OneDrive PoC</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1318;--panel:#161b22;--card:#222a34;--line:#2f3844;--text:#e6edf3;--muted:#8b97a6;
+  --accent:#5b9bff;--accent-strong:#2f6fe4;--danger:#ff6b6b;--warn:#f5b545;--ok:#3ecf8e}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:12px 16px 40px;max-width:900px;margin:0 auto}
+h1{font-size:20px;margin:4px 0 2px} h2{font-size:16px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sub{color:var(--muted);font-size:13px;margin-bottom:12px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0}
+label{display:block;font-size:13px;color:var(--muted);margin:6px 0 3px}
+input[type=text],textarea,select{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit}
+textarea{min-height:42vh;font:14px/1.45 ui-monospace,Consolas,monospace}
+button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer;margin:4px 6px 4px 0}
+button.primary{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.45}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.status{font-size:14px} .ok{color:var(--ok)} .bad{color:var(--danger)} .warn{color:var(--warn)} .muted{color:var(--muted)}
+ul.files{list-style:none;margin:0;padding:0}
+ul.files li{display:flex;justify-content:space-between;gap:8px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+ul.files li:hover{background:var(--card)} ul.files li.flash{background:rgba(91,155,255,.18)}
+ul.files .meta{color:var(--muted);font-size:12px;text-align:right;white-space:nowrap}
+#log{font:12px/1.4 ui-monospace,Consolas,monospace;white-space:pre-wrap;max-height:40vh;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px}
+.checks label{display:flex;gap:8px;align-items:flex-start;color:var(--text);font-size:15px;margin:6px 0}
+input[type=checkbox]{accent-color:var(--accent-strong);width:18px;height:18px;margin-top:2px;flex-shrink:0}
+.hidden{display:none}
+code{background:var(--card);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>OneDrive PoC <span class="muted" style="font-size:13px">v0.0.1 · Task Board R1-10 step 1</span></h1>
+<div class="sub">Throwaway test page: sign in with Microsoft, then read, edit, create and delete <code>.md</code> files in one OneDrive folder. Nothing is stored anywhere except your OneDrive and this browser.</div>
+
+<section id="setup">
+  <h2>1 · Setup</h2>
+  <label for="clientId">Application (client) ID from the Entra app registration</label>
+  <input type="text" id="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+  <label for="folder">OneDrive folder (path from the root of your OneDrive)</label>
+  <input type="text" id="folder" value="TaskBoard-Test" spellcheck="false">
+  <div class="muted" style="font-size:12px;margin-top:6px">Redirect URI this page uses (must be registered exactly, as a "Single-page application"): <code id="redirectShow"></code></div>
+  <div class="row" style="margin-top:8px">
+    <button class="primary" id="btnSignIn">Sign in with Microsoft</button>
+    <button id="btnSignOut" class="hidden">Sign out</button>
+    <span class="status" id="who">Not signed in</span>
+  </div>
+</section>
+
+<section id="filesSec" class="hidden">
+  <h2>2 · Files</h2>
+  <div class="row">
+    <button id="btnList">↻ List folder</button>
+    <button id="btnNew">+ New file</button>
+    <label class="tog" style="display:flex;gap:6px;align-items:center;margin:0;color:var(--text)"><input type="checkbox" id="watch" checked> watch for changes (delta, every <select id="interval" style="width:auto;padding:2px 4px"><option>5</option><option selected>10</option><option>30</option></select>s)</label>
+  </div>
+  <ul class="files" id="files"></ul>
+</section>
+
+<section id="editSec" class="hidden">
+  <h2>3 · Edit <span id="editName" style="text-transform:none;color:var(--text)"></span></h2>
+  <div class="muted" style="font-size:12px" id="editMeta"></div>
+  <label for="newName" id="newNameLbl" class="hidden">New file name</label>
+  <input type="text" id="newName" class="hidden" value="poc-test.md" spellcheck="false">
+  <textarea id="content" spellcheck="false"></textarea>
+  <div class="row">
+    <button class="primary" id="btnSave">Save (with If-Match)</button>
+    <button id="btnReload">Reload from OneDrive</button>
+    <button class="danger" id="btnDelete">Delete file</button>
+    <button id="btnClose">Close</button>
+  </div>
+  <div id="conflict" class="hidden" style="margin-top:8px;border:1px solid var(--warn);border-radius:8px;padding:8px">
+    <span class="warn">412 — the file changed in OneDrive since you opened it.</span>
+    <div class="row"><button id="btnTakeTheirs">Load their version</button><button id="btnOverwrite" class="danger">Overwrite with mine</button></div>
+  </div>
+</section>
+
+<section>
+  <h2>4 · Test checklist</h2>
+  <div class="checks" id="checks"></div>
+  <button id="btnCopy" class="primary">Copy results + log</button> <span class="muted" style="font-size:13px">then paste into the chat</span>
+</section>
+
+<section>
+  <h2>Log</h2>
+  <div id="log"></div>
+  <button id="btnClearLog">Clear log</button>
+</section>
+
+<script src="vendor/msal-browser.min.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = { get(k,d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch{ return d; } },
+                set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const SCOPES = ['Files.ReadWrite', 'User.Read'];
+const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
+$('#redirectShow').textContent = REDIRECT;
+
+/* ---------- log ---------- */
+const logLines = store.get('poc.log', []);
+function log(msg, cls){ const t = new Date().toLocaleTimeString([], { hour12:false }); const line = `${t}  ${msg}`; logLines.push(line); if (logLines.length > 400) logLines.shift(); store.set('poc.log', logLines); renderLog(); if (cls === 'bad') console.warn(msg); }
+function renderLog(){ const el = $('#log'); el.textContent = logLines.join('\n'); el.scrollTop = el.scrollHeight; }
+renderLog();
+$('#btnClearLog').onclick = () => { logLines.length = 0; store.set('poc.log', logLines); renderLog(); };
+
+/* ---------- checklist ---------- */
+const CHECKS = [
+  'Sign-in works on Android Chrome',
+  'List folder shows the test files',
+  'Open + edit + save a file; change visible in the OneDrive app / on the PC',
+  'Create a new file; it appears in the OneDrive app',
+  'Delete that file; it disappears from the OneDrive app',
+  'Conflict: edit a file in the OneDrive app (or PC), then Save here → 412 shown',
+  'Change a file on the PC → this page notices (note the seconds in the log)',
+  'Next day: reopen the page → still signed in without typing a password',
+];
+const checkState = store.get('poc.checks', {});
+$('#checks').innerHTML = CHECKS.map((c,i) => `<label><input type="checkbox" data-i="${i}" ${checkState[i]?'checked':''}> <span>${esc(c)}</span></label>`).join('');
+$('#checks').onchange = e => { const i = e.target.dataset.i; if (i == null) return; checkState[i] = e.target.checked; store.set('poc.checks', checkState); };
+$('#btnCopy').onclick = async () => {
+  const lines = ['OneDrive PoC results', `When: ${new Date().toString()}`, `Device: ${navigator.userAgent}`, `Redirect URI: ${REDIRECT}`, `Folder: ${$('#folder').value}`, '',
+    ...CHECKS.map((c,i) => `${checkState[i] ? '[x]' : '[ ]'} ${c}`), '', 'Log:', ...logLines.slice(-150)];
+  const text = lines.join('\n');
+  try { await navigator.clipboard.writeText(text); log('Copied results + log to clipboard'); }
+  catch { const ta = document.createElement('textarea'); ta.value = text; document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); log('Copied (fallback)'); }
+};
+
+/* ---------- settings ---------- */
+$('#clientId').value = store.get('poc.clientId', '');
+$('#folder').value = store.get('poc.folder', 'TaskBoard-Test');
+$('#clientId').onchange = () => { store.set('poc.clientId', $('#clientId').value.trim()); log('Client ID saved — reload the page if you changed it.'); };
+$('#folder').onchange = () => { store.set('poc.folder', $('#folder').value.trim().replace(/^\/+|\/+$/g,'')); deltaLink = null; listFolder(); };
+const folderPath = () => store.get('poc.folder', 'TaskBoard-Test').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+
+/* ---------- auth (MSAL, redirect flow — popups are unreliable on phones) ---------- */
+let pca = null, account = null;
+async function initAuth(){
+  const clientId = store.get('poc.clientId', '');
+  if (!clientId){ log('Enter the client ID, then tap Sign in.'); return; }
+  pca = new msal.PublicClientApplication({
+    auth: { clientId, authority: 'https://login.microsoftonline.com/common', redirectUri: REDIRECT, postLogoutRedirectUri: REDIRECT },
+    cache: { cacheLocation: 'localStorage' },
+  });
+  pca.__id = clientId;
+  await pca.initialize();
+  try {
+    const res = await pca.handleRedirectPromise();
+    if (res){ account = res.account; log(`Signed in (interactive) as ${account.username}`, 'ok'); store.set('poc.lastInteractive', Date.now()); }
+  } catch (e){ log('Sign-in error: ' + (e.errorCode || '') + ' ' + e.message, 'bad'); }
+  if (!account){ const all = pca.getAllAccounts(); if (all.length) account = all[0]; }
+  if (account){ pca.setActiveAccount(account); onSignedIn(); }
+}
+async function getToken(){
+  try {
+    const t0 = performance.now();
+    const r = await pca.acquireTokenSilent({ scopes: SCOPES, account });
+    const ms = Math.round(performance.now() - t0);
+    if (ms > 300) log(`Token refreshed silently (${ms} ms), expires ${r.expiresOn?.toLocaleTimeString()}`);
+    return r.accessToken;
+  } catch (e){
+    log('Silent token failed (' + (e.errorCode || e.name) + ') → redirecting to sign in', 'warn');
+    await pca.acquireTokenRedirect({ scopes: SCOPES, account });
+    throw e;
+  }
+}
+$('#btnSignIn').onclick = async () => {
+  const id = $('#clientId').value.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return log('That does not look like a client ID (36 characters, hex and dashes).', 'bad');
+  store.set('poc.clientId', id);
+  if (!pca || pca.__id !== id){ await initAuth(); if (pca) pca.__id = id; }
+  if (account) return onSignedIn();
+  log('Redirecting to Microsoft sign-in…');
+  await pca.loginRedirect({ scopes: SCOPES, prompt: 'select_account' });
+};
+$('#btnSignOut').onclick = async () => { const a = account; account = null; await pca.logoutRedirect({ account: a }); };
+
+function onSignedIn(){
+  const last = store.get('poc.lastInteractive', 0);
+  $('#who').innerHTML = `<span class="ok">● ${esc(account.username)}</span> <span class="muted">${last ? '· last password sign-in ' + new Date(last).toLocaleString() : ''}</span>`;
+  $('#btnSignIn').classList.add('hidden'); $('#btnSignOut').classList.remove('hidden');
+  $('#filesSec').classList.remove('hidden');
+  listFolder().then(startWatch);
+}
+
+/* ---------- Graph helper ---------- */
+async function graph(method, url, { body, headers = {}, raw = false } = {}){
+  const token = await getToken();
+  const t0 = performance.now();
+  const res = await fetch(url.startsWith('http') ? url : GRAPH + url, { method, headers: { Authorization: 'Bearer ' + token, ...headers }, body });
+  const ms = Math.round(performance.now() - t0);
+  const short = url.replace(GRAPH, '').replace(/\?.*$/, '?…');
+  log(`${method} ${short} → ${res.status} (${ms} ms)`, res.ok ? '' : 'bad');
+  if (raw) return res;
+  if (!res.ok){ let detail = ''; try { detail = (await res.json()).error?.message || ''; } catch {} const err = new Error(`${res.status} ${detail}`); err.status = res.status; throw err; }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ---------- list / read ---------- */
+let items = new Map();   // id -> driveItem
+async function listFolder(){
+  try {
+    const r = await graph('GET', `/me/drive/root:/${folderPath()}:/children?$top=200`);
+    items = new Map(r.value.filter(i => i.file).map(i => [i.id, i]));
+    renderFiles();
+  } catch (e){ if (e.status === 404) log(`Folder "${store.get('poc.folder')}" not found in your OneDrive — create it and add a few .md files.`, 'bad'); else log('List failed: ' + e.message, 'bad'); }
+}
+function renderFiles(flashIds = new Set()){
+  const arr = [...items.values()].sort((a,b) => a.name.localeCompare(b.name));
+  $('#files').innerHTML = arr.map(i => `<li data-id="${esc(i.id)}" class="${flashIds.has(i.id)?'flash':''}"><span>${esc(i.name)}</span>
+    <span class="meta">${new Date(i.lastModifiedDateTime).toLocaleString()}<br>${i.size} B · eTag …${esc(String(i.eTag).slice(-8))}</span></li>`).join('')
+    || '<li class="muted">No files in this folder.</li>';
+}
+$('#files').onclick = e => { const li = e.target.closest('li[data-id]'); if (li) openFile(li.dataset.id); };
+$('#btnList').onclick = listFolder;
+
+let current = null;  // { id, name, eTag, isNew }
+async function readContent(item){
+  const url = item['@microsoft.graph.downloadUrl'];
+  if (url){
+    try { const t0 = performance.now(); const r = await fetch(url); log(`GET downloadUrl → ${r.status} (${Math.round(performance.now()-t0)} ms)`); if (r.ok) return await r.text(); }
+    catch (e){ log('downloadUrl fetch failed (' + e.message + '), falling back to /content', 'warn'); }
+  }
+  const r = await graph('GET', `/me/drive/items/${item.id}/content`, { raw:true });
+  if (!r.ok) throw new Error('read ' + r.status);
+  return r.text();
+}
+async function openFile(id){
+  try {
+    const item = await graph('GET', `/me/drive/items/${id}`);   // fresh eTag + downloadUrl
+    items.set(id, item);
+    const text = await readContent(item);
+    current = { id, name: item.name, eTag: item.eTag, isNew: false };
+    showEditor(text);
+  } catch (e){ log('Open failed: ' + e.message, 'bad'); }
+}
+function showEditor(text){
+  $('#editSec').classList.remove('hidden'); $('#conflict').classList.add('hidden');
+  $('#editName').textContent = current.isNew ? '(new file)' : current.name;
+  $('#newName').classList.toggle('hidden', !current.isNew); $('#newNameLbl').classList.toggle('hidden', !current.isNew);
+  $('#btnDelete').disabled = current.isNew; $('#btnReload').disabled = current.isNew;
+  $('#editMeta').textContent = current.isNew ? 'Saving creates the file; fails with 409 if the name exists.' : `eTag ${current.eTag}`;
+  $('#content').value = text;
+  $('#editSec').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+$('#btnClose').onclick = () => { current = null; $('#editSec').classList.add('hidden'); };
+$('#btnReload').onclick = () => current && openFile(current.id);
+$('#btnNew').onclick = () => {
+  const stamp = new Date().toISOString().slice(0,19);
+  current = { id:null, name:null, eTag:null, isNew:true };
+  showEditor(`---\nid: t-poc-${Date.now().toString(36)}\ntitle: PoC test task\nstatus: open\nlist: Inbox\norder: 99\n---\n\nCreated from the OneDrive PoC on ${stamp}.\n\n- [ ] it shows up in the OneDrive app\n`);
+};
+
+/* ---------- write / create / delete ---------- */
+async function save(force = false){
+  const text = $('#content').value;
+  try {
+    if (current.isNew){
+      const name = $('#newName').value.trim(); if (!/\.md$/i.test(name)) return log('File name must end in .md', 'bad');
+      const r = await graph('PUT', `/me/drive/root:/${folderPath()}/${encodeURIComponent(name)}:/content?@microsoft.graph.conflictBehavior=fail`,
+        { body: text, headers: { 'Content-Type': 'text/plain' } });
+      current = { id: r.id, name: r.name, eTag: r.eTag, isNew: false }; items.set(r.id, r);
+      log(`Created ${r.name}`, 'ok');
+    } else {
+      const headers = { 'Content-Type': 'text/plain' }; if (!force) headers['If-Match'] = current.eTag;
+      const r = await graph('PUT', `/me/drive/items/${current.id}/content`, { body: text, headers });
+      current.eTag = r.eTag; items.set(r.id, r); log(`Saved ${r.name}${force ? ' (overwrite, no If-Match)' : ''}`, 'ok');
+    }
+    showEditor(text); renderFiles();
+  } catch (e){
+    if (e.status === 412){ $('#conflict').classList.remove('hidden'); log('CONFLICT detected (412 Precondition Failed) — exactly what we want to see in the conflict test.', 'warn'); }
+    else if (e.status === 409) log('409: a file with that name already exists (conflictBehavior=fail worked).', 'warn');
+    else log('Save failed: ' + e.message, 'bad');
+  }
+}
+$('#btnSave').onclick = () => save(false);
+$('#btnOverwrite').onclick = () => save(true);
+$('#btnTakeTheirs').onclick = () => openFile(current.id);
+$('#btnDelete').onclick = async () => {
+  if (!current || current.isNew) return;
+  if (!confirm(`Delete ${current.name} from OneDrive? (It goes to the OneDrive recycle bin.)`)) return;
+  try { await graph('DELETE', `/me/drive/items/${current.id}`, { headers: { 'If-Match': current.eTag } });
+    items.delete(current.id); log(`Deleted ${current.name}`, 'ok'); current = null; $('#editSec').classList.add('hidden'); renderFiles(); }
+  catch (e){ if (e.status === 412){ log('Delete refused: file changed since you opened it (412). Reload first.', 'warn'); } else log('Delete failed: ' + e.message, 'bad'); }
+};
+
+/* ---------- watch for changes (delta query) ---------- */
+let deltaLink = null, watchTimer = null, polling = false;
+async function deltaTick(){
+  if (polling || !account || !$('#watch').checked || document.hidden) return;
+  polling = true;
+  try {
+    let url = deltaLink || `/me/drive/root:/${folderPath()}:/delta`;
+    const changed = new Set(); let first = !deltaLink, removed = 0;
+    while (url){
+      const r = await graph('GET', url);
+      for (const it of r.value){
+        if (first) continue;                       // first pass = baseline only
+        if (it.deleted){ if (items.delete(it.id)) removed++; changed.add(it.id); continue; }
+        if (!it.file) continue;
+        const old = items.get(it.id);
+        if (!old || old.eTag !== it.eTag){ items.set(it.id, { ...old, ...it }); changed.add(it.id); }
+      }
+      if (r['@odata.nextLink']) url = r['@odata.nextLink'];
+      else { deltaLink = r['@odata.deltaLink']; url = null; }
+    }
+    if (first) log('Delta baseline set — now watching for changes.');
+    else if (changed.size){
+      const names = [...changed].map(id => items.get(id)?.name || '(deleted)').join(', ');
+      log(`CHANGE DETECTED: ${names}${removed ? ` (${removed} removed)` : ''}`, 'ok');
+      renderFiles(changed);
+      if (current && changed.has(current.id) && items.get(current.id)?.eTag !== current.eTag) log(`The open file changed in OneDrive — Save will now return 412 unless you reload.`, 'warn');
+    }
+  } catch (e){ log('Delta failed: ' + e.message + ' — resetting', 'bad'); deltaLink = null; }
+  finally { polling = false; }
+}
+function startWatch(){ clearInterval(watchTimer); deltaTick(); watchTimer = setInterval(deltaTick, (+$('#interval').value) * 1000); }
+$('#interval').onchange = startWatch; $('#watch').onchange = () => { if ($('#watch').checked) startWatch(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) deltaTick(); });
+
+/* ---------- boot ---------- */
+window.__poc = { get pca(){ return pca; }, set pca(v){ pca = v; }, set account(v){ account = v; }, onSignedIn, listFolder, openFile, save, deltaTick, items: () => items };
+log(`Page loaded · ${navigator.userAgent.includes('Android') ? 'Android' : 'desktop'} · redirect ${REDIRECT}`);
+initAuth().catch(e => log('Init failed: ' + e.message, 'bad'));
+</script>
+</body>
+</html>
