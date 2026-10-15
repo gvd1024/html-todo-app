@@ -11,7 +11,7 @@
 |---|---|
 | App `app/todo.html` | **v0.1.1**. Works on desktop Chrome or Edge against a local or Drive-synced folder. Dark theme. Geoff is using it on `HTML_ToDo_Files` (Google Drive for desktop). |
 | Round 1 spec | 10 items. R1-9 and R1-10 are *Discussing*; the rest are *Open*. **Nothing is approved for build in the app.** |
-| OneDrive proof of concept `poc/` | **v0.0.1, built and approved** (a throwaway test, not the app). Tested only against a simulated Graph API and the headless sign-in redirect. **Not yet tested by Geoff.** |
+| OneDrive proof of concept `poc/` | **v0.0.2** (client ID built in). **Phone test passed 2026-10-15** on Android Chrome against personal OneDrive `HTML-ToDo-App-Test`: CRUD OK, 412 conflict detected, change detection 2–3 s. **Pending:** next-day silent sign-in check, plus Geoff's pasted "Copy results + log". |
 | Repository | Local: `C:\dev\github.com\gvd1024\html-todo-app\`. Remote: **`https://github.com/gvd1024/html-todo-app`** (public, `main`), with git and GitHub driven by the `gh` CLI. |
 | GitHub Pages | **Live** from `main`, root: `https://gvd1024.github.io/html-todo-app/poc/` and `/app/todo.html` both return 200. |
 | Microsoft Entra app registration | **Done** (2026-10-15) in Geoff's free Azure "Default Directory": `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, any tenant + personal accounts, SPA redirect `/html-todo-app/poc/`, `Files.ReadWrite`. Built into PoC v0.0.2. |
@@ -35,14 +35,16 @@ Geoff now runs the Claude Code **CLI** in the VS Code built-in terminal (termina
 
 ## Next steps (Geoff)
 - [x] Create and publish the GitHub repository and enable Pages. Done with the `gh` CLI (see above).
-- [ ] Register the app in Entra:
+- [x] Register the app in Entra (done 2026-10-15, via a free Azure directory):
   - **Platform:** single-page app (SPA).
   - **Accounts:** "any org directory + personal Microsoft accounts".
   - **Redirect URI:** `https://gvd1024.github.io/html-todo-app/poc/`.
   - **Permission:** delegated `Files.ReadWrite`.
   - If a personal account can't register without a directory, a free Azure sign-up provides one. Note what the screen says.
-- [ ] Create the `HTML-ToDo-App-Test` folder in personal OneDrive and add copies of a few task `.md` files.
-- [ ] Run the checklist on the proof-of-concept page on the Android phone, then **Copy results + log**.
+- [x] Create the `HTML-ToDo-App-Test` folder in personal OneDrive (done; 5 copied task files).
+- [x] Run the checklist on the Android phone (passed 2026-10-15).
+- [ ] Paste the **Copy results + log** output to Claude.
+- [ ] Next day: reopen the PoC page on the phone and confirm a silent sign-in (no password).
 
 ## Next steps (Claude, only once Geoff asks)
 - Analyze the proof-of-concept results. Record them in R1-10 (Step 1) and the Decision log.
