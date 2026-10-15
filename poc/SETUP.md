@@ -42,7 +42,7 @@ You don't need a client secret or certificate. Ignore those sections.
 ## D. Test on your phone
 
 1. Open `https://gvd1024.github.io/html-todo-app/poc/` in **Chrome** on your phone.
-2. Paste the **client ID** and tap **Sign in with Microsoft**. On the consent screen, "HTML-ToDo-App PoC wants to… access your files", tap **Accept**. Microsoft may say the app is unverified; that's expected for a personal test app.
+2. The **client ID** is pre-filled (built into the page since v0.0.2). Tap **Sign in with Microsoft**. On the consent screen, "HTML-ToDo-App PoC wants to… access your files", tap **Accept**. Microsoft may say the app is unverified; that's expected for a personal test app.
 3. Work through the **Test checklist** on the page. The conflict test goes like this:
    1. Open a file on the page.
    2. Edit the same file somewhere else: in the OneDrive app, on onedrive.com, or on the PC. Save it there.

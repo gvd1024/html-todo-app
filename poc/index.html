@@ -35,7 +35,7 @@ code{background:var(--card);padding:1px 5px;border-radius:4px}
 </style>
 </head>
 <body>
-<h1>OneDrive PoC <span class="muted" style="font-size:13px">v0.0.1 · HTML-ToDo-App R1-10 step 1</span></h1>
+<h1>OneDrive PoC <span class="muted" style="font-size:13px">v0.0.2 · HTML-ToDo-App R1-10 step 1</span></h1>
 <div class="sub">Throwaway test page: sign in with Microsoft, then read, edit, create and delete <code>.md</code> files in one OneDrive folder. Nothing is stored anywhere except your OneDrive and this browser.</div>
 
 <section id="setup">
@@ -101,6 +101,8 @@ const store = { get(k,d){ try{ const v = localStorage.getItem(k); return v == nu
                 set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} } };
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['Files.ReadWrite', 'User.Read'];
+// Client ID of the "HTML-ToDo-App PoC" app registration (Azure Default Directory). Not a secret.
+const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
 $('#redirectShow').textContent = REDIRECT;
 
@@ -134,7 +136,7 @@ $('#btnCopy').onclick = async () => {
 };
 
 /* ---------- settings ---------- */
-$('#clientId').value = store.get('poc.clientId', '');
+$('#clientId').value = store.get('poc.clientId', DEFAULT_CLIENT_ID);
 $('#folder').value = store.get('poc.folder', 'HTML-ToDo-App-Test');
 $('#clientId').onchange = () => { store.set('poc.clientId', $('#clientId').value.trim()); log('Client ID saved — reload the page if you changed it.'); };
 $('#folder').onchange = () => { store.set('poc.folder', $('#folder').value.trim().replace(/^\/+|\/+$/g,'')); deltaLink = null; listFolder(); };
@@ -143,7 +145,7 @@ const folderPath = () => store.get('poc.folder', 'HTML-ToDo-App-Test').split('/'
 /* ---------- auth (MSAL, redirect flow — popups are unreliable on phones) ---------- */
 let pca = null, account = null;
 async function initAuth(){
-  const clientId = store.get('poc.clientId', '');
+  const clientId = store.get('poc.clientId', DEFAULT_CLIENT_ID);
   if (!clientId){ log('Enter the client ID, then tap Sign in.'); return; }
   pca = new msal.PublicClientApplication({
     auth: { clientId, authority: 'https://login.microsoftonline.com/common', redirectUri: REDIRECT, postLogoutRedirectUri: REDIRECT },

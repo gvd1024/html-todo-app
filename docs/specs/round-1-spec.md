@@ -486,6 +486,7 @@
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-15 | R1-10 | App registered: `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, "Any Entra ID Tenant + Personal Microsoft accounts", SPA redirect `https://gvd1024.github.io/html-todo-app/poc/`, delegated `Files.ReadWrite` + `User.Read`. PoC v0.0.2 has the client ID built in (Geoff's choice, so it needn't be typed on the phone) | Ready for phone test |
 | 2026-10-15 | R1-11 | App renamed to **HTML-ToDo-App** (display name everywhere); slugs stay `html-todo-app`; OneDrive test folder `HTML-ToDo-App-Test`; app title text changed with Geoff's approval | Built |
 | 2026-10-15 | R1-10 | Setup finding: a personal Microsoft account can't register apps in Entra without a directory ("does not exist in tenant 'Microsoft Services'", also in portal.azure.com). Fix: free Azure sign-up (phone + card verification, no charge), which created "Default Directory". App registrations are free | Registration in progress |
 | 2026-10-15 | — | Repository published: `github.com/gvd1024/html-todo-app` (public) with Pages live; set up with the `gh` CLI instead of GitHub Desktop | — |

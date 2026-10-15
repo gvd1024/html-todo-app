@@ -14,7 +14,7 @@
 | OneDrive proof of concept `poc/` | **v0.0.1, built and approved** (a throwaway test, not the app). Tested only against a simulated Graph API and the headless sign-in redirect. **Not yet tested by Geoff.** |
 | Repository | Local: `C:\dev\github.com\gvd1024\html-todo-app\`. Remote: **`https://github.com/gvd1024/html-todo-app`** (public, `main`), with git and GitHub driven by the `gh` CLI. |
 | GitHub Pages | **Live** from `main`, root: `https://gvd1024.github.io/html-todo-app/poc/` and `/app/todo.html` both return 200. |
-| Microsoft Entra app registration | Not done yet (Geoff; see `poc/SETUP.md` part B). |
+| Microsoft Entra app registration | **Done** (2026-10-15) in Geoff's free Azure "Default Directory": `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, any tenant + personal accounts, SPA redirect `/html-todo-app/poc/`, `Files.ReadWrite`. Built into PoC v0.0.2. |
 
 ## Update 2026-10-15
 - The folder and repository were renamed `taskboard` → `html-todo-app` before git init. Geoff renamed the folder by hand and re-pointed the Claude Code project at it. All paths, the remote and the Pages/Entra redirect address use `html-todo-app`.
