@@ -35,7 +35,7 @@ code{background:var(--card);padding:1px 5px;border-radius:4px}
 </style>
 </head>
 <body>
-<h1>OneDrive PoC <span class="muted" style="font-size:13px">v0.0.1 · Task Board R1-10 step 1</span></h1>
+<h1>OneDrive PoC <span class="muted" style="font-size:13px">v0.0.1 · HTML-ToDo-App R1-10 step 1</span></h1>
 <div class="sub">Throwaway test page: sign in with Microsoft, then read, edit, create and delete <code>.md</code> files in one OneDrive folder. Nothing is stored anywhere except your OneDrive and this browser.</div>
 
 <section id="setup">
@@ -43,7 +43,7 @@ code{background:var(--card);padding:1px 5px;border-radius:4px}
   <label for="clientId">Application (client) ID from the Entra app registration</label>
   <input type="text" id="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
   <label for="folder">OneDrive folder (path from the root of your OneDrive)</label>
-  <input type="text" id="folder" value="TaskBoard-Test" spellcheck="false">
+  <input type="text" id="folder" value="HTML-ToDo-App-Test" spellcheck="false">
   <div class="muted" style="font-size:12px;margin-top:6px">Redirect URI this page uses (must be registered exactly, as a "Single-page application"): <code id="redirectShow"></code></div>
   <div class="row" style="margin-top:8px">
     <button class="primary" id="btnSignIn">Sign in with Microsoft</button>
@@ -135,10 +135,10 @@ $('#btnCopy').onclick = async () => {
 
 /* ---------- settings ---------- */
 $('#clientId').value = store.get('poc.clientId', '');
-$('#folder').value = store.get('poc.folder', 'TaskBoard-Test');
+$('#folder').value = store.get('poc.folder', 'HTML-ToDo-App-Test');
 $('#clientId').onchange = () => { store.set('poc.clientId', $('#clientId').value.trim()); log('Client ID saved — reload the page if you changed it.'); };
 $('#folder').onchange = () => { store.set('poc.folder', $('#folder').value.trim().replace(/^\/+|\/+$/g,'')); deltaLink = null; listFolder(); };
-const folderPath = () => store.get('poc.folder', 'TaskBoard-Test').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+const folderPath = () => store.get('poc.folder', 'HTML-ToDo-App-Test').split('/').filter(Boolean).map(encodeURIComponent).join('/');
 
 /* ---------- auth (MSAL, redirect flow — popups are unreliable on phones) ---------- */
 let pca = null, account = null;

@@ -41,7 +41,7 @@ Geoff now runs the Claude Code **CLI** in the VS Code built-in terminal (termina
   - **Redirect URI:** `https://gvd1024.github.io/html-todo-app/poc/`.
   - **Permission:** delegated `Files.ReadWrite`.
   - If a personal account can't register without a directory, a free Azure sign-up provides one. Note what the screen says.
-- [ ] Create the `TaskBoard-Test` folder in personal OneDrive and add copies of a few task `.md` files.
+- [ ] Create the `HTML-ToDo-App-Test` folder in personal OneDrive and add copies of a few task `.md` files.
 - [ ] Run the checklist on the proof-of-concept page on the Android phone, then **Copy results + log**.
 
 ## Next steps (Claude, only once Geoff asks)

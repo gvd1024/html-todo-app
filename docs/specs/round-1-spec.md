@@ -1,8 +1,8 @@
-# Task Board — Round 1 Spec
+# HTML-ToDo-App — Round 1 Spec
 
 | Field | Value |
 |---|---|
-| **App** | Task Board (`todo.html`) |
+| **App** | HTML-ToDo-App (`todo.html`) |
 | **Current build (baseline)** | v0.1.1. v0.1.0 was the first build; v0.1.1 added the dark theme. |
 | **Target build** | v0.2.0 |
 | **Source of findings** | All three tasks in the Feedback list: "Toast UI Changes" (`round-1.md`) → R1-1 to R1-5; "Board View" (`board-view.md`) → R1-7, R1-8; "Access from Android Phone" (`access-from-android-phone.md`) → R1-9. Plus R1-6 (versioning) and R1-10 (work OneDrive), which Geoff raised in chat. |
@@ -31,6 +31,7 @@
 | R1-8 | Clicking the open task again should close the editor | Open | A + B | — |
 | R1-9 | Use the board from an Android phone (**key requirement**) | Discussing | C (Drive backend) | — |
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
+| R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
 
 ---
 
@@ -438,7 +439,7 @@
 
 **Proof-of-concept plan** (a throwaway `poc.html`, not the app)
 
-1. **Prep:** create a `TaskBoard-Test` folder in your personal OneDrive and copy 3–5 task `.md` files into it.
+1. **Prep:** create a `HTML-ToDo-App-Test` folder in your personal OneDrive and copy 3–5 task `.md` files into it.
 2. **Register the app** in the Microsoft Entra admin center. Choose single-page application (SPA) as the platform, with the GitHub Pages address and `http://localhost:8000` as redirect addresses. Note the client ID. No secret is needed. *Registering may require an Entra directory tied to your personal account, which a free Azure sign-up provides. We'll confirm during setup.*
 3. **Host** `poc.html` on GitHub Pages.
 4. **On your phone (Chrome),** in this order:
@@ -469,10 +470,25 @@
 
 ---
 
+## R1-11 — Rename the app to HTML-ToDo-App
+
+**Reported** (in chat, 2026-10-15): "I do not like the name "TaskBoard" for this app. I want you to change the context everywhere you can to state that this app should be called "HTML-ToDo-App"."
+
+**Decision:** The display name is **HTML-ToDo-App** in docs, the app title and heading, the PoC page and the Azure app registration (`HTML-ToDo-App PoC`). The local folder, GitHub repository and Pages URLs keep the lowercase slug `html-todo-app` (URL convention; nothing breaks). The OneDrive test folder becomes `HTML-ToDo-App-Test`. Old decision-log rows keep the old name as history.
+
+**Implementation notes:** Text-only change in `app/todo.html` (`<title>`, `<h1>`, header comment), approved by Geoff 2026-10-15. No version bump yet (versioning is R1-6).
+
+**Acceptance criteria:** No "Task Board"/"TaskBoard" outside history rows and the vendor folder; the app and PoC pages on GitHub Pages show the new name.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-15 | R1-11 | App renamed to **HTML-ToDo-App** (display name everywhere); slugs stay `html-todo-app`; OneDrive test folder `HTML-ToDo-App-Test`; app title text changed with Geoff's approval | Built |
+| 2026-10-15 | R1-10 | Setup finding: a personal Microsoft account can't register apps in Entra without a directory ("does not exist in tenant 'Microsoft Services'", also in portal.azure.com). Fix: free Azure sign-up (phone + card verification, no charge), which created "Default Directory". App registrations are free | Registration in progress |
+| 2026-10-15 | — | Repository published: `github.com/gvd1024/html-todo-app` (public) with Pages live; set up with the `gh` CLI instead of GitHub Desktop | — |
 | 2026-10-14 | — | Project folder and repository renamed from `taskboard` to `html-todo-app`; Pages and Entra redirect address is now `/html-todo-app/poc/`. Earlier log rows keep the old name as history | Do before git init |
 | 2026-10-14 | — | Spec created; all items Open | No build work approved |
 | 2026-10-14 | — | Moving development to Claude Code. A repository package was prepared: `taskboard` (app/, poc/, docs/specs/, CLAUDE.md, HANDOFF.md; private/ is git-ignored). The proof-of-concept address moves to `/taskboard/poc/` | Repository must be public for free GitHub Pages |
@@ -485,6 +501,7 @@
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-15 — v8: added R1-11 (rename to HTML-ToDo-App); logged GitHub publish and the Azure-directory finding for R1-10.
 - 2026-10-14 — v7: logged the move to Claude Code and the repository layout.
 - 2026-10-14 — v6: logged PoC build and approval.
 - 2026-10-14 — v5: R1-10 Step 1 (personal OneDrive design and proof-of-concept plan).

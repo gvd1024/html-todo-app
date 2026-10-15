@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Task Board</title>
+<title>HTML-ToDo-App</title>
 <link rel="stylesheet" href="vendor/toastui-editor.css">
 <link rel="stylesheet" href="vendor/toastui-editor-dark.css">
 <style>
@@ -147,7 +147,7 @@ body.dragging .children{min-height:14px;border-left:2px dashed var(--accent);bac
 </head>
 <body>
 <header>
-  <h1>Task Board</h1>
+  <h1>HTML-ToDo-App</h1>
   <span id="source" class="pill demo">Demo data</span>
   <button id="btn-open" title="Choose the folder that holds your task .md files">Open folder…</button>
   <button id="btn-reconnect" style="display:none"></button>
@@ -209,7 +209,7 @@ body.dragging .children{min-height:14px;border-left:2px dashed var(--accent);bac
 <script>
 "use strict";
 /* =====================================================================
-   Task Board — one Markdown file per task, YAML frontmatter for fields.
+   HTML-ToDo-App — one Markdown file per task, YAML frontmatter for fields.
    Data contract (frontmatter keys, in this order):
      id, title, status, list, collections, parent, order, due, demoted_into
    Unknown keys are preserved untouched. _todo.json holds {"lists":[...]}.

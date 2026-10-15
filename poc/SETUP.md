@@ -1,6 +1,6 @@
 # OneDrive PoC — setup (about 20 minutes)
 
-This is a throwaway test page for spec item R1-10, step 1. It checks that a web page on your Android phone can create, read, update and delete `.md` files in your **personal** OneDrive. It is not the Task Board.
+This is a throwaway test page for spec item R1-10, step 1. It checks that a web page on your Android phone can create, read, update and delete `.md` files in your **personal** OneDrive. It is not HTML-ToDo-App itself.
 
 You do three things, in order: put the page on GitHub Pages, register it with Microsoft, and put a few test files in OneDrive. Then you test it on your phone.
 
@@ -24,7 +24,7 @@ This step is where the page gets permission (`Files.ReadWrite`) to read and writ
 1. Go to **https://entra.microsoft.com** and sign in with your **personal** Microsoft account (the one that owns your OneDrive).
    - If it says you don't have access or need a directory or tenant, go to **https://portal.azure.com** instead and sign up for the free Azure account. That creates the directory app registrations need. Microsoft may ask for a card to verify your identity; there's no charge for this. If you hit this step, tell Claude what the screen says.
 2. Go to **Applications → App registrations → + New registration**.
-   - **Name:** `TaskBoard PoC`
+   - **Name:** `HTML-ToDo-App PoC`
    - **Supported account types:** *Accounts in any organizational directory and personal Microsoft accounts*. This lets the same registration try your work account later.
    - **Redirect URI:** platform **Single-page application (SPA)**, and the address exactly as the page shows it, e.g. `https://gvd1024.github.io/html-todo-app/poc/`. Include the trailing `/`.
    - Click **Register**.
@@ -36,13 +36,13 @@ You don't need a client secret or certificate. Ignore those sections.
 
 ## C. Prepare a test folder in OneDrive (about 2 min)
 
-1. In OneDrive (web, PC or phone), create a folder named **`TaskBoard-Test`** at the top level.
+1. In OneDrive (web, PC or phone), create a folder named **`HTML-ToDo-App-Test`** at the top level.
 2. Copy 3–5 task `.md` files into it, e.g. the ones from `HTML_ToDo_Files` in Google Drive. **Use copies**, not your only versions.
 
 ## D. Test on your phone
 
 1. Open `https://gvd1024.github.io/html-todo-app/poc/` in **Chrome** on your phone.
-2. Paste the **client ID** and tap **Sign in with Microsoft**. On the consent screen, "TaskBoard PoC wants to… access your files", tap **Accept**. Microsoft may say the app is unverified; that's expected for a personal test app.
+2. Paste the **client ID** and tap **Sign in with Microsoft**. On the consent screen, "HTML-ToDo-App PoC wants to… access your files", tap **Accept**. Microsoft may say the app is unverified; that's expected for a personal test app.
 3. Work through the **Test checklist** on the page. The conflict test goes like this:
    1. Open a file on the page.
    2. Edit the same file somewhere else: in the OneDrive app, on onedrive.com, or on the PC. Save it there.
@@ -56,7 +56,7 @@ You don't need a client secret or certificate. Ignore those sections.
 
 - **Microsoft access:** delete the app registration in Entra. Also remove its permission at https://account.live.com/consent/Manage.
 - **GitHub:** turn off Pages, or delete the `poc/` folder.
-- **OneDrive:** delete the `TaskBoard-Test` folder.
+- **OneDrive:** delete the `HTML-ToDo-App-Test` folder.
 
 ## Troubleshooting
 

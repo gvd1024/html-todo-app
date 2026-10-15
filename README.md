@@ -1,4 +1,4 @@
-# Task Board
+# HTML-ToDo-App
 
 A personal task board. Every task is one Markdown file with YAML frontmatter, and people and Claude both edit the same files.
 

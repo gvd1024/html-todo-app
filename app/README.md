@@ -1,4 +1,4 @@
-# Task Board
+# HTML-ToDo-App
 
 This is a local task board. Each task is its own Markdown file. `todo.html` gives you a board, an outline, and a by-due-date view. Claude, Obsidian, or any text editor can read and change the same files.
 
