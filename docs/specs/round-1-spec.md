@@ -458,16 +458,25 @@
 - [x] Create, read, update and delete all work on the same files that show in the OneDrive app and on the PC.
 - [x] The conflict is detected (412).
 - [x] Changes appear on the other device within about 30 seconds. *(Observed 2–3 s; expected range is about 2–15 s: OneDrive upload from the PC plus up to the 10 s poll.)*
-- [x] Having to sign in again is no more than about daily and is painless. *(Next day, 2026-10-16: closed the tab, reopened the URL in a new tab, still signed in with no password.)*
+- [ ] Having to sign in again is no more than about daily and is painless. **Failed.** *(About 12 h after signing in, at 19:19 the same day, five page loads didn't restore the session, and Geoff had to type his Microsoft username and password again. Closing and reopening the tab right after signing in did restore silently.)*
 
-**Step 1 results (2026-10-15, Geoff's Android phone, Chrome, PoC v0.0.2, personal OneDrive `HTML-ToDo-App-Test`):** sign-in, list, open/edit/save, create and delete all passed. The conflict test passed: a PC edit, then Save on the phone, showed 412. Change detection took 2–3 seconds. Next-day silent sign-in passed (2026-10-16). **Step 1 passed: all 5 criteria.**
+**Step 1 results (2026-10-15, Geoff's Android phone, Chrome, PoC v0.0.2, personal OneDrive `HTML-ToDo-App-Test`):** sign-in, list, open/edit/save, create and delete all passed. The conflict test passed: a PC edit, then Save on the phone, showed 412. Change detection took 2–3 seconds. **Step 1: 4 of 5 criteria pass.** Silent sign-in failed after about 12 h (see finding 5).
 
 **Findings from the phone log** (things the real OneDrive connector must handle):
 1. **Latency:** every Graph call succeeded (0.35–2.6 s); the only failure was the deliberate 412. Change detection = OneDrive upload from the PC + up to one poll interval (10 s).
 2. **Bursts:** one PC save of `sub-2.md` produced three change events within 30 s. Debounce, and reload only when the eTag differs from what's loaded.
 3. **Own-write echo:** the page's own delete came back as a change (`CHANGE DETECTED: (deleted)`), but its own saves didn't. Ignore changes the app made itself, deletes included.
 4. **Background pauses:** a 48 s gap with no polls while the phone screen was off or Chrome was in the background. Delta catches up afterwards with no loss; the app should also poll right away on `visibilitychange`.
-5. **Not covered:** the access-token refresh (the session lasted about 15 minutes, shorter than a token's life). The next-day sign-in suggests the refresh token works.
+5. **Sign-in doesn't survive a browser restart (open issue).** After about 12 h (Chrome on Android had probably been closed or reclaimed), the page found no cached account and needed a full username and password sign-in. Likely causes, not yet verified: (a) MSAL Browser v4+ encrypts its `localStorage` cache with a key held in a *session* cookie, so the cache is unreadable after the browser session ends; and (b) Microsoft's own sign-in cookie wasn't persistent ("Stay signed in?" not accepted). Next: retest, answering **Yes** to "Stay signed in?", and check the MSAL v5 cache options. This must be solved for the phone app, because a password every time Chrome restarts isn't acceptable.
+
+**Dual-access test (2026-10-15 evening):** the real app `app/todo.html` (desktop Chrome, local-folder store on the OneDrive-synced `HTML-ToDo-App-Test`) and the PoC on the phone, working on the same files. All 5 passed:
+1. A phone edit appeared in the app.
+2. An app edit was detected on the phone.
+3. A task created in the app appeared on the phone, and deleting it on the phone removed it from the app.
+4. The app's conflict check (by modified time) caught a phone save over unsaved app edits: banner, then the "File changed on disk" dialog.
+5. The phone caught an app save as a 412.
+
+The app's existing conflict handling works across OneDrive sync with no code changes. (The 412 in test 5 was seen on screen; the copied log ended before it.)
 
 **Recommendation:** Run Step 1 (the personal OneDrive proof of concept) first. Separately, ask IT questions 1–3, or try a quick test sign-in once the R1-9 proof of concept exists. If allowed, do A after the Google Drive connector. Until then, use B on the work PC.
 
@@ -495,7 +504,8 @@
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
-| 2026-10-16 | R1-10 | **Step 1 complete: all 5 criteria pass** (next-day silent sign-in confirmed). Log findings recorded: change-event bursts, own-delete echo, background pauses | Next: storage connector interface (when Geoff asks) and/or a work-account test |
+| 2026-10-15 | R1-10 | Dual-access test passed, 5/5: the real app on the PC (OneDrive-synced folder) and the PoC on the phone, same files. **Correction:** an earlier row said silent next-day sign-in passed on 2026-10-16. Wrong: it was the same day, about 12 h later, and it **failed** (password required). Step 1 is 4/5; sign-in persistence is an open issue | Retest with "Stay signed in? Yes" and check the MSAL cache options |
+| 2026-10-15 | R1-10 | Log findings recorded: change-event bursts, own-delete echo, background pauses | — |
 | 2026-10-15 | R1-10 | **Step 1 phone test passed** (Android Chrome, personal OneDrive): CRUD OK, 412 conflict detected, change detection 2–3 s. Pending: next-day silent sign-in | Personal OneDrive from Android is proven feasible |
 | 2026-10-15 | R1-10 | App registered: `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, "Any Entra ID Tenant + Personal Microsoft accounts", SPA redirect `https://gvd1024.github.io/html-todo-app/poc/`, delegated `Files.ReadWrite` + `User.Read`. PoC v0.0.2 has the client ID built in (Geoff's choice, so it needn't be typed on the phone) | Ready for phone test |
 | 2026-10-15 | R1-11 | App renamed to **HTML-ToDo-App** (display name everywhere); slugs stay `html-todo-app`; OneDrive test folder `HTML-ToDo-App-Test`; app title text changed with Geoff's approval | Built |
@@ -513,7 +523,8 @@
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
-- 2026-10-16 — v9: R1-10 Step 1 results and log findings.
+- 2026-10-15 — v10: dual-access test results; corrected the silent sign-in result (failed, not passed; same day, not next day).
+- 2026-10-15 — v9: R1-10 Step 1 results and log findings.
 - 2026-10-15 — v8: added R1-11 (rename to HTML-ToDo-App); logged GitHub publish and the Azure-directory finding for R1-10.
 - 2026-10-14 — v7: logged the move to Claude Code and the repository layout.
 - 2026-10-14 — v6: logged PoC build and approval.

@@ -11,7 +11,7 @@
 |---|---|
 | App `app/todo.html` | **v0.1.1**. Works on desktop Chrome or Edge against a local or Drive-synced folder. Dark theme. Geoff is using it on `HTML_ToDo_Files` (Google Drive for desktop). |
 | Round 1 spec | 10 items. R1-9 and R1-10 are *Discussing*; the rest are *Open*. **Nothing is approved for build in the app.** |
-| OneDrive proof of concept `poc/` | **v0.0.2** (client ID built in). **Phone test passed 2026-10-15** on Android Chrome against personal OneDrive `HTML-ToDo-App-Test`: CRUD OK, 412 conflict detected, change detection 2–3 s. Next-day silent sign-in passed 2026-10-16. **Step 1 complete: all 5 criteria pass.** Log findings are in spec R1-10. |
+| OneDrive proof of concept `poc/` | **v0.0.2** (client ID built in). **Phone test passed 2026-10-15** on Android Chrome against personal OneDrive `HTML-ToDo-App-Test`: CRUD OK, 412 conflict detected, change detection 2–3 s. **Step 1: 4 of 5 criteria pass.** Silent sign-in **failed** after about 12 h (username and password needed again); open issue, see spec R1-10 finding 5. Dual-access test with the real app (PC, OneDrive-synced folder) plus the PoC (phone): 5/5 pass. |
 | Repository | Local: `C:\dev\github.com\gvd1024\html-todo-app\`. Remote: **`https://github.com/gvd1024/html-todo-app`** (public, `main`), with git and GitHub driven by the `gh` CLI. |
 | GitHub Pages | **Live** from `main`, root: `https://gvd1024.github.io/html-todo-app/poc/` and `/app/todo.html` both return 200. |
 | Microsoft Entra app registration | **Done** (2026-10-15) in Geoff's free Azure "Default Directory": `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, any tenant + personal accounts, SPA redirect `/html-todo-app/poc/`, `Files.ReadWrite`. Built into PoC v0.0.2. |
@@ -44,7 +44,8 @@ Geoff now runs the Claude Code **CLI** in the VS Code built-in terminal (termina
 - [x] Create the `HTML-ToDo-App-Test` folder in personal OneDrive (done; 5 copied task files).
 - [x] Run the checklist on the Android phone (passed 2026-10-15).
 - [x] Paste the **Copy results + log** output to Claude (done; analyzed in R1-10).
-- [x] Next day: silent sign-in confirmed 2026-10-16.
+- [x] Silent sign-in check (2026-10-15, about 12 h later): **failed**, password required.
+- [ ] Retest sign-in persistence: when Microsoft asks "Stay signed in?", answer **Yes**, then check again after Chrome has been closed.
 
 ## Next steps (Claude, only once Geoff asks)
 - Analyze the proof-of-concept results. Record them in R1-10 (Step 1) and the Decision log.
