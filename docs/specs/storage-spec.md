@@ -32,7 +32,7 @@ Same rules as the round specs: no code until Geoff approves; only named items ge
 | S-6 | Locations and switching | **Decided** | C for the prototype (one folder setting, default `HTML-ToDo-App-Test`); A later |
 | S-7 | Delete behavior | **Decided** | Recoverable: OneDrive recycle bin plus a 5 s in-app Undo; confirm before deleting a parent's subtasks |
 | S-8 | Caching and offline | **Decided** | C for the prototype (no cache, parallel loading); A when startup feels slow |
-| S-9 | Build order | Open | OneDrive connector first, then Google Drive |
+| S-9 | Build order (MVP build plan) | **Discussing** (draft) | Phases 0–6: prep → storage refactor → OneDrive + sign-in → phone list view → checking/done/delete → long-press move → acceptance and go-live |
 | S-12 | Claude can create, read, update and delete the same files | **Open**, requirement | Synced folder on the PC; a local MCP server for desktop Chat; a remote MCP server for Android and the web |
 | S-11 | File and folder naming rules | **Decided** (rules); feature is future | One-way slug with dashes, plus Windows/OneDrive safety rules; `parent:` stays the hierarchy's source of truth |
 | S-10 | How the PC reaches the files | **Decided** | A for the prototype (OneDrive web connection on PC and phone); pivot to C later |
@@ -369,23 +369,119 @@ interface Store {
 
 ---
 
-## S-9 — Build order
+## S-9 — Build order (MVP build plan)
 
-**Problem:** what to build first, following Geoff's rule of resolving the most architecturally dependent problems first.
+**Goal:** the MVP Geoff can start using for real: the same OneDrive task files from Android Chrome and PC Chrome, in the R1-12 phone list view. Built on the decisions in this spec (S-2 to S-8, S-10, S-11) and in round-1 R1-12.
 
-**Proposed phases** (each needs Geoff's approval before it starts):
-1. **Interface refactor** (S-2): add `version`, `create`, `caps` and `changes()` to the existing stores, with no visible change. A safe first step, testable with the existing Playwright setup.
-2. **OneDrive connector** in the app (S-3 to S-5, S-7), on personal OneDrive. Most of the hard parts are already proven by the PoC. Test on the phone against `HTML-ToDo-App-Test`.
-3. **Phone layout** (R1-9): make the board usable on a small touch screen.
-4. **Location switcher** (S-6) and **cache** (S-8).
-5. **Google Drive connector.** First a small Drive PoC like the OneDrive one, to test sign-in on Android and the S-3 read-back check.
-6. **Work OneDrive.** Blocked on the work-account test and the IT questions in R1-10.
+**How the build runs**
+- **Approvals:** each phase starts only when Geoff approves it, and ends with Geoff's own check on the PC and phone. Status goes `Approved for build → Built → Verified`.
+- **Test data:** all testing uses the OneDrive folder `HTML-ToDo-App-Test` (rule 10).
+- **Branching:** work goes straight to `main`, in small commits, because the phone can only test what GitHub Pages serves. Before Phase 1, tag the current app `v0.1.1` so it can always be restored (`git checkout v0.1.1 -- app/`).
+- **Automated tests:** Playwright in headless Chromium, with a simulated Graph API for the OneDrive store, as in the Cowork session. Real sign-in and real-phone checks are Geoff's.
+- **Sizes** are relative (S / M / L), not time promises.
 
-**Why OneDrive before Google Drive** (the reverse of the earlier plan in R1-10): OneDrive is already proven end to end on the phone and has the stronger conflict guarantee; Google Drive's phone sign-in is still untested. Google Drive is where Geoff's live personal tasks are, though, so if phone access to *those* tasks matters most, swap phases 2 and 5.
+### Phase 0 — Prep (S)
 
-**Open question for Geoff:** which tasks do you most want on the phone first: personal (Google Drive) or the OneDrive test setup on the way to work tasks?
+| # | Task | Who |
+|---|---|---|
+| 0.1 | Tag `v0.1.1` in git and push the tag | Claude |
+| 0.2 | **Versioning (R1-6, minimal):** app version `0.2.0-dev` shown in the header; **data-format version 2** for the new keys `prefix` and `completed` (written to `_todo.json` as `"format": 2`). The full R1-6 scheme can follow later. *Needs Geoff's OK.* | Geoff decides |
+| 0.3 | Add redirect URIs to the Azure registration `HTML-ToDo-App PoC`: `https://gvd1024.github.io/html-todo-app/app/` and `http://localhost:8000/app/`. The app will be served as `app/index.html` so the URI has no file name. | Geoff (Claude guides) |
+| 0.4 | Install the test harness: `pip install playwright` and `playwright install chromium` (about 150 MB). *Needs Geoff's OK.* | Claude |
+| 0.5 | Reset the test folder: remove `poc-test.md`, and add 10–15 varied test tasks (long titles, subtasks two levels deep, done items, bullets, body checklists, one unknown frontmatter key) so every R1-12 behavior can be exercised | Claude |
 
-**Decision:** —
+**Done when:** the tag exists, redirect URIs are added, the harness runs a trivial test, and the test folder is seeded.
+
+### Phase 1 — Storage interface refactor (S-2) (S/M)
+
+- Rename `mtime` to an opaque `version` across the app; key files by **relative path**.
+- Add `create()`, `remove(path, expected)`, `changes()` and `caps` to `MemStore` and `FsStore`.
+- Give `_todo.json` a version check and an automatic merge on conflict (S-3).
+- Apply the S-11 slug rules to new file names (reserved names, 40 characters, case-insensitive uniqueness, Unicode kept).
+- No visible change yet.
+
+**Done when:** one shared store test suite passes for `MemStore` and `FsStore`, and the v0.1.1 board still works.
+
+### Phase 2 — OneDrive connector and sign-in (M/L)
+
+- Add the **GraphStore**, ported from the PoC:
+    - list, read, write with `If-Match`, `create` with `conflictBehavior=fail`, recycle-bin `remove` with `If-Match`;
+    - `changes()` via folder delta (S-4 rules: reload only on a version change, check on `visibilitychange`, poll about 10 s on the phone and 5 s on the PC);
+    - parallel reads, about 6 at a time (S-8 C).
+- **Sign-in (S-5):**
+    - MSAL redirect;
+    - an automatic redirect when the session is gone, with a loop guard and the Sign in button as fallback;
+    - drafts saved across redirects.
+- **One folder setting** (S-6 C), default `HTML-ToDo-App-Test`. The app moves to `app/index.html`.
+- **Conflict dialog:** adds **Keep both** (S-3).
+- **Header status icon:** signed in / syncing / offline / conflict.
+
+**Done when:**
+- The store test suite passes against the simulated Graph.
+- On Geoff's PC and phone, the **existing views** load the test folder over OneDrive.
+- The dual-access tests (2026-10-15) pass again, now app ↔ app.
+
+### Phase 3 — Phone list view (R1-12) (L)
+
+- **Retire the board view.** It becomes the new **list view**, the default on all devices.
+- **Header:** a large list name, which opens the list-picker sheet with task counts (the phone remembers the last list viewed), plus the status icon.
+- **Rows:**
+    - one line each, at least 44 px tall;
+    - a sticky prefix cell (checkbox / active dot / bullet / none, with ⚠ for unrecognized frontmatter);
+    - the title (tap → editor);
+    - the subtask badge `open/total` in an accent color (tap → expand or collapse; zero space when collapsed);
+    - a sticky ⋯ menu: Edit / Move to list / Change prefix / Delete.
+- **Sideways scrolling:** the whole list scrolls together, with a ⇤ button and an automatic snap back on list switch, editor close or 3 s idle (7a).
+- **Quick-add box** at the bottom.
+- **Editor:** full-screen on the phone, with a prefix selector and the unrecognized-frontmatter notice.
+
+**Done when:** the R1-12 acceptance checks for layout pass on Geoff's phone, and the same view works on PC Chrome.
+
+### Phase 4 — Checking, done items and delete (M)
+
+- **Checkbox toggle:** saves immediately, with a 5 s Undo.
+- **"Check all / Check only this / Cancel"** dialog when subtasks or body `- [ ]` lines are open.
+- **The `completed` date:** set on check, removed on uncheck.
+- **Done items hidden,** with a "Show done" toggle (done items can be unchecked).
+- **Delete:** confirm, then recycle bin, with a 5 s Undo; a parent's subtasks are included (S-7).
+
+**Done when:** R1-12 decisions 3, 8 and 14 and S-7 pass on the phone, and no unconditional writes exist anywhere (searched in code and logged in tests).
+
+### Phase 5 — Long-press move (M, needs the most phone testing)
+
+- Long press (400 ms) → flash → drag.
+- **Drop on a row's middle** = make it a child (the row highlights).
+- **Drop on a row's edge** = reorder (a line shows).
+- **Drag left** = un-nest.
+- Dropping onto a collapsed parent makes the item its last child.
+- Children move with their parent; `list` is updated to match.
+- The list auto-scrolls near its edges.
+
+**Done when:** Geoff can reorder, nest and un-nest reliably on his phone without accidental drags while scrolling.
+
+### Phase 6 — MVP acceptance and go-live (S)
+
+- **A full checklist on the PC and phone:** everything above, plus a CRUD pass by Claude through the synced folder while the app is open on both devices (S-12).
+- **The sign-in persistence check** across a Chrome restart (S-5).
+- **Go-live:**
+    1. Geoff chooses the real OneDrive folder.
+    2. Claude migrates the current real tasks (from Google Drive `HTML_ToDo_Files`) into it, by hand, showing the changes.
+    3. **Rule 10's protection of real files takes effect from here.**
+
+### After the MVP (not in this plan)
+
+- **PC layout parity extras** (R1-12 #5).
+- **Locations list** and per-device choice (S-6 A / S-10 C).
+- **Cache** (S-8 A) and the done-file **archive** (R1-12 #14).
+- **Claude access** from desktop Chat and Android (S-12 paths 2–4, the remote MCP server).
+- **Work OneDrive** (R1-10, after the work-account test).
+- **Remaining round-1 items:**
+    - R1-1, R1-3 and R1-4 still apply to the editor.
+    - **R1-2** is covered by quick-add.
+    - **R1-7 and R1-8** were board-only and become obsolete when the board is retired, pending Geoff's confirmation.
+- **The checklist → task-in-folder feature** (S-11).
+
+**Decision:** — (draft; awaiting Geoff's review of the phases and the Phase 0 questions)
 
 ---
 
@@ -523,6 +619,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 ## Change history of this spec
 
+- 2026-10-17 — v9: S-9 rewritten as the phased MVP build plan (draft).
 - 2026-10-16 — v8: S-6 (C), S-7 (C: recoverable plus Undo) and S-8 (C) decided for the prototype.
 - 2026-10-16 — v7: S-4 decided; S-12 added (Claude CRUD requirement, access paths, test checklist).
 - 2026-10-16 — v6: S-3 decided (A + E); S-11 added and decided (A).
