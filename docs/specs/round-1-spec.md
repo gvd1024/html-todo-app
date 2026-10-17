@@ -197,6 +197,8 @@
 - **Long titles** (A: sideways scroll / B: wrapped title in the editor / C: a "wrap long titles" toggle / D: landscape / E: slimmer row chrome).
     - **Decision: A only.** Keep the existing sideways scroll; Geoff finds the titles readable for now.
 
+- **Header follow-up 3 (Geoff, 2026-10-17):** "just for the phone, could you move the 3 dots all the way to the right edge and make the green connection dot much closer to the 3 dots". Built: on phones ⋯ sits flush right (full-height tap area kept) and the status dot is directly beside it.
+
 **Status:** Built 2026-10-17 (the header fix built the same day); awaiting Geoff's check on the phone.
 
 ---
@@ -638,6 +640,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-4 | Phone header: ⋯ flush right, status dot right beside it | Built |
 | 2026-10-17 | R1-4 | Header follow-up: **shrink-to-fit list name + no version on the phone header** (status dot kept). Long titles: keep sideways scroll only | Built |
 | 2026-10-17 | R1-4 | **C: a text-size setting** (100/125/150/175 %), per device, phones default 125 %; text and tap targets scale together. Built immediately at Geoff's request | Awaiting phone check |
 | 2026-10-17 | R1-10 | Sign-in persistence retest (the app v0.2.0-dev after the night, with "Stay signed in" set): the list appeared after about 3 s with no Microsoft screens or typing. **Experience passes.** Not yet proven after a forced Chrome close | Criterion 5 effectively met; confirm with a forced-close test |

@@ -44,7 +44,12 @@ header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bo
 .list-name .caret{font-size:calc(14px*var(--z));color:var(--muted);margin-left:4px}
 .spacer{flex:1}
 .ver{font-size:calc(11px*var(--z));color:var(--muted);white-space:nowrap}
-@media (max-width:600px){ .ver{display:none} }   /* phones: the list name gets the room; the version is shown in Settings */
+@media (max-width:600px){                        /* phones: the list name gets the room */
+  .ver{display:none}                             /* the version is shown in Settings */
+  header{padding-right:0;gap:0}
+  header .stat{min-width:calc(16px*var(--z));padding:0 2px}                    /* status dot sits right next to ⋯ */
+  #app-menu{min-width:calc(30px*var(--z));text-align:right;padding:0 8px 0 0} /* ⋯ flush with the right edge; tap area stays full height */
+}
 .icon{border:0;background:none;min-width:calc(44px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));padding:0}
 .stat{border:0;background:none;min-width:calc(28px*var(--z));min-height:calc(44px*var(--z));font-size:calc(16px*var(--z));padding:0}
 .stat.ok,.stat.local{color:var(--ok)} .stat.sync{color:var(--accent)} .stat.offline,.stat.signedout{color:var(--danger)}
