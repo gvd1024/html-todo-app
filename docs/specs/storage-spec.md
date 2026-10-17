@@ -27,12 +27,13 @@ Same rules as the round specs: no code until Geoff approves; only named items ge
 | S-1 | Where this design lives | Discussing | This separate spec; R1-9 and R1-10 point here |
 | S-2 | Connector interface | **Decided** | A + D: the existing interface keyed by relative path, with an opaque version token |
 | S-3 | Conflict safety per service | **Decided** | A + E: the strongest check per service (OneDrive `If-Match`), and a **Keep both** button |
-| S-4 | Change detection | Open | B: a connector-specific watcher behind one `changes()` call |
+| S-4 | Change detection | **Decided** | B + three rules: delta on personal OneDrive, listing (or root delta) on work OneDrive |
 | S-5 | Sign-in and staying signed in | **Decided** (confirm after the 2026-10-17 retest) | B (automatic redirect), with A (button) as fallback |
 | S-6 | Locations and switching | Open | A: a saved list of locations in the browser |
 | S-7 | Delete behavior | Open | A: recoverable deletes everywhere |
 | S-8 | Caching and offline | Open | A: cache by version, read-only offline |
 | S-9 | Build order | Open | OneDrive connector first, then Google Drive |
+| S-12 | Claude can create, read, update and delete the same files | **Open**, requirement | Synced folder on the PC; a local MCP server for desktop Chat; a remote MCP server for Android and the web |
 | S-11 | File and folder naming rules | **Decided** (rules); feature is future | One-way slug with dashes, plus Windows/OneDrive safety rules; `parent:` stays the hierarchy's source of truth |
 | S-10 | How the PC reaches the files | **Decided** | A for the prototype (OneDrive web connection on PC and phone); pivot to C later |
 
@@ -231,7 +232,21 @@ interface Store {
 
 **Recommendation:** B.
 
-**Decision:** —
+**Decision (Geoff, 2026-10-16):** **B with the three rules:**
+1. Reload a file only if its version differs from what's loaded. This fixes bursts and own-write echoes, deletes included.
+2. Check right away on `visibilitychange`.
+3. Poll about every 10 s on the phone and about every 5 s on the PC (configurable).
+
+**Work OneDrive implications (explained to Geoff 2026-10-16):** on OneDrive for Business and SharePoint, a delta query works only at the **drive root**, not on a folder. The method still works at work, using one of two fallbacks:
+- **(a) Listing:** list the task folder's children every poll. One small request returns every file's eTag; fine for hundreds of files.
+- **(b) Root delta:** run delta on the whole drive (start with `token=latest` to skip the initial full scan) and keep only items whose parent path is the task folder. More efficient, but noisier.
+- **Choice:** the prototype (personal OneDrive) uses folder delta. Work starts with (a) for simplicity.
+- **The real work risks aren't S-4.** They're the R1-10 IT questions: app consent, and conditional access on a personal phone.
+
+**Acceptance criteria:**
+- A PC or Claude edit shows on the phone within about 15 s while the app is in the foreground, and right away after it returns to the foreground.
+- No duplicate reloads from one save.
+- The app's own writes and deletes are never reported as outside changes.
 
 ---
 
@@ -356,6 +371,52 @@ interface Store {
 
 ---
 
+## S-12 — Claude can create, read, update and delete the same task files
+
+**Requirement** (Geoff, 2026-10-16): "I do want you to be able to do crud from as much of the following as possible: the pc desktop claude code app; the pc desktop claude cowork app; the pc desktop claude chat app; the pc claude code cli; the android claude cowork app; the android claude chat app. … please add this as a requirement and dont forget to add this to our testing."
+
+**Why it matters:** the app's purpose is that Geoff and Claude work on the same task files. Until 2026-10-16, Claude had only **read** the OneDrive test folder; it had never created, updated or deleted anything there.
+
+**Clarification (2026-10-16):** the earlier "no server" principle applies to the **app** (data lives only in plain files; the app needs no backend). It does **not** forbid a small server whose only job is Claude's access to OneDrive. Geoff already runs a custom MCP server for Super Productivity and is fine with a custom MCP server for this, on PC and Android, hosted on a free service for personal use (probably not acceptable at work).
+
+**Access paths**
+
+| Path | How | Covers | Notes |
+|---|---|---|---|
+| **1. Synced folder** | Claude's file tools on `C:\Users\gvd10\OneDrive\HTML-ToDo-App-Test`; OneDrive syncs it | Claude Code CLI, desktop Code tab, desktop Cowork (folder connected) | No new software. The PC must be on, with OneDrive syncing. No version check: Claude must re-read a file right before editing it. |
+| **2. Local MCP server** | A filesystem MCP server or desktop extension in the Claude desktop config, pointed at the synced folder | Desktop Chat | Like Geoff's existing `sp-local-rest`. PC only. |
+| **3. Remote MCP server** | A small hosted server that signs in to OneDrive (Microsoft Graph) as Geoff and exposes list, read, create, update and delete on **one allowed folder**, using the same eTag / `If-Match` safety as the app. Added as a custom connector in claude.ai, it appears in all Claude apps. | Android Chat, claude.ai web, desktop Chat, and maybe Android Cowork | **Hosting:** GitHub Pages can't run servers. Candidates: Cloudflare Workers (free; remote-MCP templates with OAuth), Vercel or Netlify functions, Azure Functions (Geoff's free Azure account). Holds an OneDrive refresh token: lock it to Geoff's account and the allowed folder. Probably needs IT approval at work. |
+| **4. Microsoft 365 connector** | The built-in claude.ai connector | Chat surfaces | **Verify:** HANDOFF says it doesn't expose OneDrive file writing. Check its actual tools before ruling it in or out. |
+
+**Starting assessment per surface (verify; don't assume)**
+
+| Surface | Expected path | Confidence | Test status |
+|---|---|---|---|
+| PC Claude Code CLI | 1 | High | Testing 2026-10-16 |
+| PC desktop app, Code tab | 1 | High | Not tested |
+| PC desktop app, Cowork | 1 | Medium-high | Not tested |
+| PC desktop app, Chat | 2 (or 3, or 4) | Medium (needs setup) | Not tested |
+| Android Claude app, Chat | 3 (or 4) | Medium (needs the remote MCP server) | Not tested |
+| Android Claude app, Cowork | 3, if Cowork with connectors exists on Android | Unknown: verify that Android Cowork exists and what it can reach | Not tested |
+
+**Test checklist (run per surface, test folder only):**
+1. Create `claude-test-<surface>.md` with valid frontmatter (`list: Test List`).
+2. Read it back.
+3. Geoff sees it in the app on the PC and the phone.
+4. Claude updates its body; the change appears on both devices.
+5. Conflict: Geoff edits the same file in the app, then Claude re-reads it before writing and doesn't overwrite blindly.
+6. Claude deletes it; it disappears on both devices.
+
+**Rules for Claude when editing task files (all paths):**
+- Re-read right before writing.
+- Keep the frontmatter key order and any unknown keys.
+- Never touch real task folders unless Geoff says so.
+- Prefer the path with a version check (path 3) when it exists.
+
+**Decision:** — (requirement accepted; paths and build order to decide)
+
+---
+
 ## S-11 — File and folder naming rules
 
 **Reported** (Geoff, 2026-10-16): "Eventually I want to incorporate the ability to turn a markdown style todo item (with the .md - [ ] plain text) into its own task. in a folder that has the name of the parent task file. … The key is having a standard way to translate regular text into unique file and/or folder names that work on windows file explorer."
@@ -421,6 +482,8 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | S-12 | **Added requirement:** Claude CRUD on the same task files from six surfaces (PC CLI, desktop Code, desktop Cowork, desktop Chat, Android Chat, Android Cowork). "No server" clarified as app-only; a custom remote MCP server for Claude's access is acceptable (personal) | Testing starts with the PC CLI |
+| 2026-10-16 | S-4 | **B + three rules**; work OneDrive uses listing (or root delta), since folder delta is personal-only | Decided |
 | 2026-10-16 | S-11 | Added (future feature: checklist line → task file in a folder named after the parent). Decided **A**: `parent:` stays the truth. Naming: a one-way dash slug with Windows/OneDrive safety rules; the original text is preserved in `title:` | Feature deferred; rules apply now |
 | 2026-10-16 | S-3 | **A + E:** OneDrive `If-Match` on every write; conflict dialog gains **Keep both**; `_todo.json` gets a version check plus an automatic merge (gap found in `saveConfig`) | Decided |
 | 2026-10-16 | S-2 | **A + D:** the existing interface keyed by relative path, with an opaque version token; options E (task-level store) and F (local-first sync) considered and rejected for now | Decided |
@@ -431,6 +494,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 ## Change history of this spec
 
+- 2026-10-16 — v7: S-4 decided; S-12 added (Claude CRUD requirement, access paths, test checklist).
 - 2026-10-16 — v6: S-3 decided (A + E); S-11 added and decided (A).
 - 2026-10-16 — v5: S-2 decided (A + D); options D, E and F added.
 - 2026-10-16 — v4: S-5 decided (B with A fallback).
