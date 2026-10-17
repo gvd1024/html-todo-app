@@ -467,7 +467,12 @@
 2. **Bursts:** one PC save of `sub-2.md` produced three change events within 30 s. Debounce, and reload only when the eTag differs from what's loaded.
 3. **Own-write echo:** the page's own delete came back as a change (`CHANGE DETECTED: (deleted)`), but its own saves didn't. Ignore changes the app made itself, deletes included.
 4. **Background pauses:** a 48 s gap with no polls while the phone screen was off or Chrome was in the background. Delta catches up afterwards with no loss; the app should also poll right away on `visibilitychange`.
-5. **Sign-in doesn't survive a browser restart (open issue).** After about 12 h (Chrome on Android had probably been closed or reclaimed), the page found no cached account and needed a full username and password sign-in. Likely causes, not yet verified: (a) MSAL Browser v4+ encrypts its `localStorage` cache with a key held in a *session* cookie, so the cache is unreadable after the browser session ends; and (b) Microsoft's own sign-in cookie wasn't persistent ("Stay signed in?" not accepted). Next: retest, answering **Yes** to "Stay signed in?", and check the MSAL v5 cache options. This must be solved for the phone app, because a password every time Chrome restarts isn't acceptable.
+5. **Sign-in doesn't survive a browser restart (open issue).** After about 12 h (Chrome on Android had probably been closed or reclaimed), the page found no cached account and needed a full username and password sign-in. Two causes:
+   - **(a) Confirmed in the bundled library code:** MSAL Browser 5.22.0 encrypts its `localStorage` cache with a key stored in the cookie `msal.cache.encryption`, which has no expiry. That makes it a session cookie, so after Chrome's session ends the cached sign-in can't be read and the page shows "Not signed in". This is by design, and is reproduced on 2026-10-16 08:44.
+   - **(b) Confirmed 2026-10-16:** Microsoft's own sign-in cookie hadn't persisted either. "Sign in" showed a blank email box, not the account. Geoff then signed in and tapped **Yes** on "Stay signed in?" (which hadn't been accepted before).
+   - **Constraint:** even without (a), Microsoft caps silent refresh for browser (SPA) apps at 24 h, so a periodic trip back to Microsoft is unavoidable.
+   - **Leading design for the connector:** when no cached account is found, redirect to Microsoft automatically. With "Stay signed in" set, that should be a 1–2 s bounce with no typing.
+   - **Retest:** 2026-10-17 morning, open the page and tap Sign in. Pass if there's no password or email entry.
 
 **Dual-access test (2026-10-15 evening):** the real app `app/todo.html` (desktop Chrome, local-folder store on the OneDrive-synced `HTML-ToDo-App-Test`) and the PoC on the phone, working on the same files. All 5 passed:
 1. A phone edit appeared in the app.
@@ -504,6 +509,7 @@ The app's existing conflict handling works across OneDrive sync with no code cha
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | R1-10 | Sign-in persistence: the page and Microsoft had both forgotten the session overnight. Cause (a), MSAL's session-cookie encryption key, confirmed in code; cause (b), no "Stay signed in", fixed by Geoff tapping Yes. Leading fix: automatic redirect when no cached account | Retest 2026-10-17 morning |
 | 2026-10-15 | R1-10 | Dual-access test passed, 5/5: the real app on the PC (OneDrive-synced folder) and the PoC on the phone, same files. **Correction:** an earlier row said silent next-day sign-in passed on 2026-10-16. Wrong: it was the same day, about 12 h later, and it **failed** (password required). Step 1 is 4/5; sign-in persistence is an open issue | Retest with "Stay signed in? Yes" and check the MSAL cache options |
 | 2026-10-15 | R1-10 | Log findings recorded: change-event bursts, own-delete echo, background pauses | — |
 | 2026-10-15 | R1-10 | **Step 1 phone test passed** (Android Chrome, personal OneDrive): CRUD OK, 412 conflict detected, change detection 2–3 s. Pending: next-day silent sign-in | Personal OneDrive from Android is proven feasible |
@@ -523,6 +529,7 @@ The app's existing conflict handling works across OneDrive sync with no code cha
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-16 — v11: sign-in persistence causes confirmed (MSAL session-cookie key; Microsoft cookie not kept); "Stay signed in" set; retest planned.
 - 2026-10-15 — v10: dual-access test results; corrected the silent sign-in result (failed, not passed; same day, not next day).
 - 2026-10-15 — v9: R1-10 Step 1 results and log findings.
 - 2026-10-15 — v8: added R1-11 (rename to HTML-ToDo-App); logged GitHub publish and the Azure-directory finding for R1-10.

@@ -45,7 +45,8 @@ Geoff now runs the Claude Code **CLI** in the VS Code built-in terminal (termina
 - [x] Run the checklist on the Android phone (passed 2026-10-15).
 - [x] Paste the **Copy results + log** output to Claude (done; analyzed in R1-10).
 - [x] Silent sign-in check (2026-10-15, about 12 h later): **failed**, password required.
-- [ ] Retest sign-in persistence: when Microsoft asks "Stay signed in?", answer **Yes**, then check again after Chrome has been closed.
+- [x] Signed in again 2026-10-16 08:47 and tapped **Yes** on "Stay signed in?".
+- [ ] **Retest 2026-10-17 morning:** open the PoC on the phone. It will show "Not signed in" (expected; MSAL's key is in a session cookie). Tap Sign in: pass if Microsoft signs you in **without asking for email or password**.
 
 ## Next steps (Claude, only once Geoff asks)
 - Analyze the proof-of-concept results. Record them in R1-10 (Step 1) and the Decision log.
