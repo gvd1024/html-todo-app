@@ -550,6 +550,16 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - The list auto-scrolls when dragging near the top or bottom edge.
     - Moving to a **different list** uses ⋯ → *Move to list…* (only one list is shown at a time).
 
+14. **Done files** (Geoff, 2026-10-17; asked "what happens with the files (and files for subtasks) that are checked as done?"):
+    - **Where they live:**
+        - **Prototype:** done files **stay in place** with `status: done`, hidden from the list.
+        - **Later:** a setting moves them to an archive folder (e.g. `archive/2026/`) after N days (default 30), with subtasks moving along. This uses the path keys from the storage spec, S-2/S-11.
+        - Never auto-delete.
+    - **New key `completed: YYYY-MM-DD`:** set when an item is checked, removed when it's unchecked. Key order: after `due`. A contract addition, like `prefix`.
+    - **Unchecking a parent** leaves its subtasks as they are.
+    - **All subtasks checked** does **not** auto-check the parent.
+    - **The subtask badge** shows **open/total** (e.g. `1/3`). When expanded, done subtasks stay hidden unless "Show done" is on.
+
 **Open sub-questions**
 
 - **7a. Scrolled sideways, then scrolling down.** Options:
@@ -603,6 +613,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-12 | Done files: stay in place for the prototype, with archive-after-N-days later; new key `completed: YYYY-MM-DD`; unchecking a parent leaves subtasks; no auto-check of the parent; badge shows open/total | Decided |
 | 2026-10-16 | R1-12 | Old status values: **no automatic translation**. Claude migrates files by hand (real files only when Geoff says). The app keeps unrecognized frontmatter untouched and shows a ⚠ warning | Test folder already compliant |
 | 2026-10-16 | R1-12 | 7a: keep the sideways offset plus a ⇤ button, and snap back on list switch, editor close or 3 s idle. 13a: drop on a row's middle = make child, edges = reorder, drag left = un-nest, with a visible indicator | R1-12 Decided |
 | 2026-10-16 | R1-12 | Added: phone list view. Decided: lists = `list:` field; subtasks hidden behind a count badge; checking hides the item, with a dialog when subtasks or body checkboxes are unchecked; quick-add at the bottom; **board view retired** (the PC will later match the phone); new key **`prefix`** (checkbox / bullet / none); status `open` / `active` (green dot) / `done`; whole-list sideways scroll with pinned prefix and ⋯ and no second lines; 5 s Undo, 44 px targets; list picker sheet; ⋯ menu; header status icon; long-press drag to reorder or nest | Open: 7a, 13a |
@@ -626,6 +637,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v15: R1-12 point 14 (done files, `completed` key).
 - 2026-10-16 — v14: unrecognized-frontmatter policy (warn, never delete; Claude migrates by hand).
 - 2026-10-16 — v13: R1-12 7a and 13a decided; R1-12 Decided.
 - 2026-10-16 — v12: added R1-12 (phone list view) with Geoff's decisions and open sub-questions.
