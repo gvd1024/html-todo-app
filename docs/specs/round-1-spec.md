@@ -530,7 +530,12 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
         - **Checkbox display:** `open` → unchecked; `active` → unchecked with a **small green dot**; `done` → checked.
         - **Tapping a checkbox** toggles `done` ↔ `open` (or `active` → `done`).
         - **Bullet and none:** shown as `•` or nothing; tapping the prefix does nothing.
-    - **No `waiting`** status. Existing values are read gracefully: `doing` shows as `active`, and `waiting` shows as `open`. They're rewritten only when the task is next saved.
+    - **No `waiting`** status.
+    - **No automatic translation of old values** (Geoff, 2026-10-16). Claude migrates existing files **by hand** to the agreed values (`open` / `active` / `done` / `archived`), showing each change first. Real task files are migrated only when Geoff says so. The OneDrive test folder already complies (all `open`, no `prefix` needed).
+    - **Unrecognized frontmatter** (unknown keys, or unknown values of known keys such as `status: doing`):
+        - The app **never deletes or changes it**; unknown keys are already preserved on save.
+        - The app **warns**: a small ⚠ on the row, plus a line in the editor such as *Unrecognized frontmatter: `status: doing`, `priority: 2` (kept as is)*.
+        - A row with an unknown `status` shows as an unchecked box with the ⚠, and its checkbox can't be tapped until the value is fixed. This prevents silent rewrites.
     - **The editor** lets the user change the prefix type (checkbox / bullet / none).
 7. **Long titles: the whole list scrolls sideways together** (not per row). The prefix column (left) and the actions column (right) stay pinned (CSS `position: sticky`). **No second lines:** one row per title, to save vertical space. *How to handle a list scrolled far right as you scroll down: see open question 7a.*
 8. **Toggle safety:** after any checkbox toggle, an **Undo** bar shows for **5 seconds**. All tap targets are at least **44 px** tall, even with compact visuals.
@@ -598,6 +603,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | R1-12 | Old status values: **no automatic translation**. Claude migrates files by hand (real files only when Geoff says). The app keeps unrecognized frontmatter untouched and shows a ⚠ warning | Test folder already compliant |
 | 2026-10-16 | R1-12 | 7a: keep the sideways offset plus a ⇤ button, and snap back on list switch, editor close or 3 s idle. 13a: drop on a row's middle = make child, edges = reorder, drag left = un-nest, with a visible indicator | R1-12 Decided |
 | 2026-10-16 | R1-12 | Added: phone list view. Decided: lists = `list:` field; subtasks hidden behind a count badge; checking hides the item, with a dialog when subtasks or body checkboxes are unchecked; quick-add at the bottom; **board view retired** (the PC will later match the phone); new key **`prefix`** (checkbox / bullet / none); status `open` / `active` (green dot) / `done`; whole-list sideways scroll with pinned prefix and ⋯ and no second lines; 5 s Undo, 44 px targets; list picker sheet; ⋯ menu; header status icon; long-press drag to reorder or nest | Open: 7a, 13a |
 | 2026-10-16 | R1-10 | Sign-in persistence: the page and Microsoft had both forgotten the session overnight. Cause (a), MSAL's session-cookie encryption key, confirmed in code; cause (b), no "Stay signed in", fixed by Geoff tapping Yes. Leading fix: automatic redirect when no cached account | Retest 2026-10-17 morning |
@@ -620,6 +626,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-16 — v14: unrecognized-frontmatter policy (warn, never delete; Claude migrates by hand).
 - 2026-10-16 — v13: R1-12 7a and 13a decided; R1-12 Decided.
 - 2026-10-16 — v12: added R1-12 (phone list view) with Geoff's decisions and open sub-questions.
 - 2026-10-16 — v11: sign-in persistence causes confirmed (MSAL session-cookie key; Microsoft cookie not kept); "Stay signed in" set; retest planned.
