@@ -288,6 +288,22 @@ def test_onedrive(browser):
     check("subtask hidden; badge 1/1", row(page, "Sub 2").locator(".badge").inner_text() == "1/1")
     page.screenshot(path=str(SHOTS / "07-onedrive-test-list.png"))
 
+    # pull to refresh (real touch drag via Chrome DevTools)
+    cdp = ctx.new_cdp_session(page)
+    lists_before = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    sc = page.locator("#scroller").bounding_box()
+    x, y = sc["x"] + 200, sc["y"] + 20
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+    for step in range(1, 13):
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y + step * 15}]})
+    ready_text = page.inner_text("#ptr-text")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    page.wait_for_timeout(800)
+    lists_after = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    check("pull down at the top shows 'Release to refresh'", ready_text == "Release to refresh", ready_text)
+    check("releasing re-reads the file list from OneDrive", lists_after > lists_before, (lists_before, lists_after))
+    check("refresh indicator closes afterwards", page.eval_on_selector("#ptr", "e => e.getBoundingClientRect().height") < 1)
+
     # toggle → conditional PUT
     row(page, "Sub 2").locator(".ck").click()
     page.wait_for_timeout(400)

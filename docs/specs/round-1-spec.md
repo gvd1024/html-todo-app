@@ -587,6 +587,11 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - **All subtasks checked** does **not** auto-check the parent.
     - **The subtask badge** shows **open/total** (e.g. `1/3`). When expanded, done subtasks stay hidden unless "Show done" is on.
 
+15. **Pull to refresh** (Geoff, 2026-10-17: "when i scroll all the way to the top of the list and continue to scroll up it should do a page refresh … if not it should also refresh the file list").
+    - **Built in-app:** at the top of the list, pull down until it says "Release to refresh", then let go. The app re-lists the folder and re-reads the files from OneDrive (`loadAll`), then shows "Up to date".
+    - **Why in-app and not Chrome's page reload:** Chrome's own pull-to-refresh can't fire, because the list scrolls in its own panel. A full reload would also redo sign-in checks and could discard an open, unsaved edit, which the in-app refresh refuses to do.
+    - The ⋯ menu **Refresh** does the same thing.
+
 **Open sub-questions**
 
 - **7a. Scrolled sideways, then scrolling down.** Options:
@@ -640,6 +645,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-12 | #15 pull to refresh, in-app: re-reads the file list from OneDrive; refuses while an edit is unsaved | Built |
 | 2026-10-17 | R1-4 | Phone header: ⋯ flush right, status dot right beside it | Built |
 | 2026-10-17 | R1-4 | Header follow-up: **shrink-to-fit list name + no version on the phone header** (status dot kept). Long titles: keep sideways scroll only | Built |
 | 2026-10-17 | R1-4 | **C: a text-size setting** (100/125/150/175 %), per device, phones default 125 %; text and tap targets scale together. Built immediately at Geoff's request | Awaiting phone check |
@@ -669,6 +675,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v20: R1-12 #15 pull to refresh.
 - 2026-10-17 — v19: R1-4 header follow-up decided and built.
 - 2026-10-17 — v18: R1-4 decided (C) and built.
 - 2026-10-17 — v17: R1-12 first cut built.

@@ -58,6 +58,9 @@ header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bo
 /* list: whole list scrolls sideways together; prefix + actions stay pinned */
 main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #scroller{flex:1;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+/* pull to refresh (in-app): re-reads the file list from OneDrive */
+#ptr{height:0;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;color:var(--muted);font-size:calc(13px*var(--z));flex:0 0 auto;transition:height .15s ease}
+#ptr.pulling{transition:none} #ptr.ready{color:var(--accent)} #ptr span{padding-bottom:8px}
 #rows{width:max-content;min-width:100%;padding-bottom:12px}
 .row{display:flex;align-items:stretch;min-height:calc(44px*var(--z));border-bottom:1px solid var(--line)}
 .row>.pfx{position:sticky;left:0;z-index:2;flex:0 0 calc(44px*var(--z));display:flex;align-items:center;justify-content:center;background:var(--bg)}
@@ -173,6 +176,7 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 </header>
 
 <main>
+  <div id="ptr"><span id="ptr-text">Pull to refresh</span></div>
   <div id="scroller"><div id="rows"></div></div>
   <button id="snap" hidden title="Back to the start of the titles">⇤</button>
 </main>
@@ -795,6 +799,30 @@ function renderDue(rows){
   updateSnapBtn();
 }
 
+/* pull to refresh: at the top of the list, pull down and let go → re-read everything from the store */
+async function refreshAll(){
+  if (!S.store) return false;
+  if (isDirty()){ toast('Save or close the open task first.'); return false; }
+  try { await loadAll(); toast('Up to date'); return true; } catch (e){ storeError(e, 'refresh'); return false; }
+}
+(() => {
+  const sc = $('#scroller'), ptr = $('#ptr'), txt = $('#ptr-text'); const READY = 70, MAX = 90;
+  let y0 = null, x0 = 0, pull = 0, busyRefresh = false;
+  const set = h => { ptr.style.height = h + 'px'; };
+  sc.addEventListener('touchstart', e => { if (busyRefresh || sc.scrollTop > 0 || e.touches.length !== 1) { y0 = null; return; }
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; pull = 0; }, { passive:true });
+  sc.addEventListener('touchmove', e => { if (y0 == null) return;
+    const dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
+    if (dy <= 0 || dx > dy || sc.scrollTop > 0){ if (pull){ pull = 0; ptr.classList.remove('pulling','ready'); set(0); } return; }
+    pull = Math.min(MAX, dy * 0.5); ptr.classList.add('pulling'); set(pull);
+    const ready = pull >= READY; ptr.classList.toggle('ready', ready); txt.textContent = ready ? 'Release to refresh' : 'Pull to refresh';
+    if (e.cancelable) e.preventDefault(); }, { passive:false });
+  const end = async () => { if (y0 == null) return; y0 = null; ptr.classList.remove('pulling');
+    if (pull >= READY && S.store){ busyRefresh = true; txt.textContent = 'Refreshing…'; set(44); await refreshAll(); busyRefresh = false; }
+    pull = 0; ptr.classList.remove('ready'); set(0); txt.textContent = 'Pull to refresh'; };
+  sc.addEventListener('touchend', end); sc.addEventListener('touchcancel', end);
+})();
+
 /* sideways scroll: ⇤ button + snap back on list switch, editor close or 3 s idle (R1-12 7a = B + C) */
 let snapTimer = null;
 function updateSnapBtn(){ $('#snap').hidden = $('#scroller').scrollLeft < 8; }
@@ -1213,7 +1241,7 @@ $('#app-menu').onclick = () => {
     { label: (S.showDone ? '✓ ' : '') + 'Show done', fn:() => { S.showDone = !S.showDone; ls.set('todo.showDone', S.showDone); render(); } },
     { label: (S.showArchived ? '✓ ' : '') + 'Show archived', fn:() => { S.showArchived = !S.showArchived; render(); } },
     { label: 'Search…', fn: searchDialog },
-    { label: 'Refresh', fn: async () => { if (!S.store) return; if (isDirty()) return toast('Save or close the open task first.'); try { await loadAll(); toast('Reloaded'); } catch (e){ storeError(e, 'reload'); } } },
+    { label: 'Refresh', fn: () => refreshAll() },
     { sep:true },
     { label: 'Settings…', fn: settingsDialog },
   ];
@@ -1391,7 +1419,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, APP_VERSION, DATA_FORMAT };
 (async () => {
   render();
   if (window.__TEST_NO_BOOT__) return;
