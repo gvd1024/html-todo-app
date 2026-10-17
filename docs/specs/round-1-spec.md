@@ -613,6 +613,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-10 | Sign-in persistence retest (the app v0.2.0-dev after the night, with "Stay signed in" set): the list appeared after about 3 s with no Microsoft screens or typing. **Experience passes.** Not yet proven after a forced Chrome close | Criterion 5 effectively met; confirm with a forced-close test |
 | 2026-10-17 | R1-7, R1-8 | **Obsolete:** both were board-only, and the board view is retired (R1-12) | Geoff confirmed |
 | 2026-10-17 | R1-12 | Done files: stay in place for the prototype, with archive-after-N-days later; new key `completed: YYYY-MM-DD`; unchecking a parent leaves subtasks; no auto-check of the parent; badge shows open/total | Decided |
 | 2026-10-16 | R1-12 | Old status values: **no automatic translation**. Claude migrates files by hand (real files only when Geoff says). The app keeps unrecognized frontmatter untouched and shows a ⚠ warning | Test folder already compliant |
