@@ -132,8 +132,10 @@ def test_phone_demo(browser):
     check("version shown in header", "0.2.0-dev" in page.inner_text("#ver"), page.inner_text("#ver"))
     page.screenshot(path=str(SHOTS / "01-phone-list-home.png"))
 
+    fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
+    check("phone text size defaults to 125% (titles 20 px)", abs(fs - 20) < 0.1, fs)
     heights = page.eval_on_selector_all(".row", "rs => rs.map(r => r.getBoundingClientRect().height)")
-    check("every row is at least 44 px tall and one line", heights and min(heights) >= 44 and max(heights) < 60, heights)
+    check("every row is at least 44 px tall and one line", heights and min(heights) >= 44 and max(heights) < 75, heights)
     titles = page.eval_on_selector_all(".row .ttl", "ts => ts.map(t => t.textContent)")
     check("subtasks hidden by default (no rows for them)", not any("cleaning quotes" in t for t in titles), titles)
     solar = row(page, "Solar panel cleaning")
@@ -227,6 +229,21 @@ def test_phone_demo(browser):
     check("saving keeps unknown keys untouched (priority: 2)", "priority: 2" in saved and "prefix: none" in saved, saved[:200])
     page.click("#d-close")
     page.wait_for_timeout(250)
+
+    # text size setting (R1-4)
+    page.click("#app-menu")
+    page.locator("#pop button", has_text="Settings").click()
+    page.check("input[name=tsz][value='175']")
+    live = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
+    page.click("#modal button:has-text('Apply')")
+    page.wait_for_timeout(200)
+    after = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
+    box = page.eval_on_selector(".row .ck", "c => c.getBoundingClientRect().width")
+    check("text size 175% previews live, applies without reload, and scales tap targets", abs(live - 28) < 0.1 and abs(after - 28) < 0.1 and abs(box - 77) < 1,
+          (live, after, box))
+    page.screenshot(path=str(SHOTS / "13-phone-text-175.png"))
+    check("text size is remembered per device", page.evaluate("localStorage.getItem('todo.textSize')") == "175")
+    page.evaluate("() => { localStorage.setItem('todo.textSize', '125'); document.documentElement.style.setProperty('--z', '1.25'); }")
 
     # by due date
     page.click("#list-name")

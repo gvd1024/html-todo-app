@@ -24,7 +24,7 @@
 | R1-1 | Checklist toolbar icon looks like a dropdown | Open | A + B | — |
 | R1-2 | Enter in the title box should save and close | Open | B | — |
 | R1-3 | Save & close button (keep plain Save?) | Open | A | — |
-| R1-4 | Font is too small | Open | A | — |
+| R1-4 | Font is too small | **Built** | C | Text-size setting 100–175 %, per device; phones default 125 % |
 | R1-5 | What is Collections for? | Open | A | — |
 | R1-6 | Track the app version | Open | A + C | — |
 | R1-7 | Reorder lists by dragging | **Obsolete** | — | Board view retired (R1-12) |
@@ -168,11 +168,28 @@
 
 **Recommendation:** A, built on that single size setting so that C or D is easy to add later.
 
-**Decision:** —
+**Follow-up (Geoff, 2026-10-17, phone):** "for the android / phone app, the font is way too small. my vision is not very good. … can you just increase the font size of everything by about 25%"
 
-**Implementation notes:** —
+**Options discussed 2026-10-17:**
+- **A — Chrome's own text scaling** (no app change).
+- **B — Everything +25% on phones.**
+- **C — A text-size setting** (100 / 125 / 150 / 175 %), per device, with phones defaulting to 125 %.
 
-**Acceptance criteria:** —
+**Decision (Geoff, 2026-10-17):** **C**, built right away as a small fix ahead of Phase 4.
+
+**Implementation notes:**
+- All CSS font sizes and tap-target sizes (rows, checkboxes, buttons, badge, header, sheets, menus, editor text) scale from one variable, `--z`.
+- **Settings → Text size:** previews live while choosing, applies without reloading, and is stored in `localStorage` (`todo.textSize`) per device.
+- **Defaults:** 125 % on phones, 100 % on PCs.
+- **At 150 % or more on a phone**, the header hides the version label so the list name fits (the version still shows in Settings).
+
+**Acceptance criteria:**
+- Phone titles are 20 px by default (16 px × 1.25).
+- Changing the size rescales text **and** tap targets proportionally.
+- The choice survives reloads.
+- (Automated: `run_tests.py` demo group; Geoff confirms comfort on his phone.)
+
+**Status:** Built 2026-10-17; awaiting Geoff's check on the phone.
 
 ---
 
@@ -613,6 +630,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-4 | **C: a text-size setting** (100/125/150/175 %), per device, phones default 125 %; text and tap targets scale together. Built immediately at Geoff's request | Awaiting phone check |
 | 2026-10-17 | R1-10 | Sign-in persistence retest (the app v0.2.0-dev after the night, with "Stay signed in" set): the list appeared after about 3 s with no Microsoft screens or typing. **Experience passes.** Not yet proven after a forced Chrome close | Criterion 5 effectively met; confirm with a forced-close test |
 | 2026-10-17 | R1-7, R1-8 | **Obsolete:** both were board-only, and the board view is retired (R1-12) | Geoff confirmed |
 | 2026-10-17 | R1-12 | Done files: stay in place for the prototype, with archive-after-N-days later; new key `completed: YYYY-MM-DD`; unchecking a parent leaves subtasks; no auto-check of the parent; badge shows open/total | Decided |
@@ -639,6 +657,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v18: R1-4 decided (C) and built.
 - 2026-10-17 — v17: R1-12 first cut built.
 - 2026-10-17 — v16: R1-7 and R1-8 marked obsolete.
 - 2026-10-17 — v15: R1-12 point 14 (done files, `completed` key).

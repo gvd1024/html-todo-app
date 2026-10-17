@@ -9,6 +9,7 @@
 <style>
 :root{
   color-scheme: dark;
+  --z:1;            /* text size (R1-4): 1 = 100%; set from Settings, phones default 1.25 */
   /* surfaces */
   --bg:#0f1318; --panel:#161b22; --col:#1b2129; --card:#222a34; --card-hover:#283140; --line:#262e39;
   --text:#e6edf3; --muted:#8b97a6;
@@ -24,7 +25,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:calc(15px*var(--z))/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px}
 button:hover{border-color:var(--accent)}
@@ -39,12 +40,13 @@ a{color:var(--accent)}
 
 /* header: the list name is the main control */
 header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bottom:1px solid var(--line);background:var(--panel);flex:0 0 auto}
-.list-name{border:0;background:none;font-size:22px;font-weight:700;padding:6px 8px;min-height:44px;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.list-name .caret{font-size:14px;color:var(--muted);margin-left:4px}
+.list-name{border:0;background:none;font-size:calc(22px*var(--z));font-weight:700;padding:6px 8px;min-height:calc(44px*var(--z));flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.list-name .caret{font-size:calc(14px*var(--z));color:var(--muted);margin-left:4px}
 .spacer{flex:1}
-.ver{font-size:11px;color:var(--muted)}
-.icon{border:0;background:none;min-width:44px;min-height:44px;font-size:20px;padding:0}
-.stat{border:0;background:none;min-width:36px;min-height:44px;font-size:16px;padding:0}
+.ver{font-size:calc(11px*var(--z));color:var(--muted);white-space:nowrap}
+@media (max-width:600px){ html.big .ver{display:none} }   /* large text on a phone: the list name gets the room; version stays in Settings */
+.icon{border:0;background:none;min-width:calc(44px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));padding:0}
+.stat{border:0;background:none;min-width:calc(36px*var(--z));min-height:calc(44px*var(--z));font-size:calc(16px*var(--z));padding:0}
 .stat.ok,.stat.local{color:var(--ok)} .stat.sync{color:var(--accent)} .stat.offline,.stat.signedout{color:var(--danger)}
 .stat.conflict{color:var(--warn)} .stat.demo,.stat.off{color:var(--muted)}
 
@@ -52,67 +54,67 @@ header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bo
 main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 #scroller{flex:1;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 #rows{width:max-content;min-width:100%;padding-bottom:12px}
-.row{display:flex;align-items:stretch;min-height:44px;border-bottom:1px solid var(--line)}
-.row>.pfx{position:sticky;left:0;z-index:2;flex:0 0 44px;display:flex;align-items:center;justify-content:center;background:var(--bg)}
-.row>.ttl{flex:1 0 auto;display:flex;align-items:center;white-space:nowrap;padding:0 10px 0 4px;cursor:pointer;font-size:16px;user-select:none}
+.row{display:flex;align-items:stretch;min-height:calc(44px*var(--z));border-bottom:1px solid var(--line)}
+.row>.pfx{position:sticky;left:0;z-index:2;flex:0 0 calc(44px*var(--z));display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.row>.ttl{flex:1 0 auto;display:flex;align-items:center;white-space:nowrap;padding:0 10px 0 4px;cursor:pointer;font-size:calc(16px*var(--z));user-select:none}
 .row>.act{position:sticky;right:0;z-index:2;flex:0 0 auto;display:flex;align-items:center;background:var(--bg);padding-left:2px}
 .row.sub>.ttl::before{content:"↳";color:var(--muted);margin-right:6px}
 .row.done>.ttl{color:var(--muted);text-decoration:line-through}
 .row.new-unsaved>.ttl{color:var(--accent)}
-.ck{width:44px;height:44px;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center;position:relative}
-.ck .box{width:20px;height:20px;border:2px solid var(--muted);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+.ck{width:calc(44px*var(--z));height:calc(44px*var(--z));border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center;position:relative}
+.ck .box{width:calc(20px*var(--z));height:calc(20px*var(--z));border:2px solid var(--muted);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:calc(14px*var(--z));line-height:1}
 .ck.done .box{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff}
 .ck .dot{position:absolute;right:8px;top:9px;width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--bg)}
 .ck.unknown .box{border-color:var(--warn)}
 .ck:disabled{cursor:not-allowed}
-.bullet{font-size:22px;color:var(--muted)}
-.wflag{color:var(--warn);font-size:13px;margin-left:6px}
-.badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:12px;min-width:44px;height:30px;padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums}
+.bullet{font-size:calc(22px*var(--z));color:var(--muted)}
+.wflag{color:var(--warn);font-size:calc(13px*var(--z));margin-left:6px}
+.badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));min-width:calc(44px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums}
 .badge.open{background:rgba(227,156,255,.12)}
-.more{border:0;background:none;width:40px;min-height:44px;font-size:20px;color:var(--muted);padding:0}
+.more{border:0;background:none;width:calc(40px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));color:var(--muted);padding:0}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center}
-.group-head{position:sticky;left:0;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:14px 12px 4px;width:100vw}
-#snap{position:absolute;left:10px;bottom:10px;z-index:5;width:44px;height:44px;border-radius:22px;background:var(--accent-strong);color:#fff;border:0;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.group-head{position:sticky;left:0;font-size:calc(12px*var(--z));color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:14px 12px 4px;width:100vw}
+#snap{position:absolute;left:10px;bottom:10px;z-index:5;width:calc(44px*var(--z));height:calc(44px*var(--z));border-radius:22px;background:var(--accent-strong);color:#fff;border:0;font-size:calc(20px*var(--z));box-shadow:0 2px 10px rgba(0,0,0,.5)}
 #snap[hidden]{display:none}
 
 /* quick-add */
 footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
-#qa{width:100%;min-height:44px;font-size:16px}
+#qa{width:100%;min-height:calc(44px*var(--z));font-size:calc(16px*var(--z))}
 
 /* start / sign-in screen */
 .start{max-width:520px;margin:40px auto;padding:0 18px;text-align:center}
 .start h2{margin:0 0 10px}
 .start p{color:var(--muted)}
 .start .btns{display:flex;flex-direction:column;gap:10px;margin-top:18px}
-.start .btns button{min-height:44px}
+.start .btns button{min-height:calc(44px*var(--z))}
 
 /* drawer (full screen on phones) */
 #drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.25);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .18s ease;z-index:20}
 #drawer.open{transform:none}
 .d-head{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
-.d-head .dirty{color:var(--warn);font-size:12px;visibility:hidden}
+.d-head .dirty{color:var(--warn);font-size:calc(12px*var(--z));visibility:hidden}
 .d-head .dirty.on{visibility:visible}
 .d-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px}
-.d-fields label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+.d-fields label{display:flex;flex-direction:column;font-size:calc(11px*var(--z));color:var(--muted);gap:3px}
 .d-fields .wide{grid-column:span 4}
-#f-title{font-size:17px;font-weight:600}
-.d-note{font-size:12px;color:var(--muted);padding:0 12px 6px}
+#f-title{font-size:calc(17px*var(--z));font-weight:600}
+.d-note{font-size:calc(12px*var(--z));color:var(--muted);padding:0 12px 6px}
 .d-note.warn{color:var(--warn)}
 .d-note:empty{display:none}
-.d-banner{margin:0 12px 8px;padding:6px 10px;border-radius:6px;border:1px solid var(--warn);color:var(--warn);font-size:12px;display:none}
+.d-banner{margin:0 12px 8px;padding:6px 10px;border-radius:6px;border:1px solid var(--warn);color:var(--warn);font-size:calc(12px*var(--z));display:none}
 .d-banner.on{display:block}
 #editor-wrap{flex:1;min-height:200px;padding:0 12px}
 .d-checklist{padding:8px 12px;border-top:1px solid var(--line);max-height:22vh;overflow:auto}
-.d-checklist h4{margin:0 0 4px;font-size:12px;color:var(--muted)}
-.ck-item{display:flex;gap:8px;align-items:center;padding:2px 0;font-size:13px}
+.d-checklist h4{margin:0 0 4px;font-size:calc(12px*var(--z));color:var(--muted)}
+.ck-item{display:flex;gap:8px;align-items:center;padding:2px 0;font-size:calc(13px*var(--z))}
 .ck-item span{flex:1}
 .ck-item.checked span{text-decoration:line-through;color:var(--muted)}
-.ck-item button{font-size:12px;padding:2px 8px}
+.ck-item button{font-size:calc(12px*var(--z));padding:2px 8px}
 .d-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
-.d-foot .file{flex:1 1 100%;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d-foot .file{flex:1 1 100%;font-size:calc(12px*var(--z));color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:700px){
   .d-fields{grid-template-columns:1fr 1fr} .d-fields .wide{grid-column:span 2}
-  .d-head button,.d-foot button{min-height:40px}
+  .d-head button,.d-foot button{min-height:calc(40px*var(--z))}
 }
 
 /* modal / sheet / popover / toast */
@@ -124,24 +126,24 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 #modal h3{margin:0 0 10px}
 #modal .opts label{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
 #modal .btns{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:14px}
-#modal .btns button{min-height:40px}
-#modal pre{background:var(--col);padding:8px;border-radius:6px;font-size:12px;white-space:pre-wrap;max-height:180px;overflow:auto}
+#modal .btns button{min-height:calc(40px*var(--z))}
+#modal pre{background:var(--col);padding:8px;border-radius:6px;font-size:calc(12px*var(--z));white-space:pre-wrap;max-height:180px;overflow:auto}
 #modal select,#modal input[type=text]{width:100%}
 #modal fieldset{border:1px solid var(--line);border-radius:6px;margin:10px 0;padding:6px 10px}
-#modal legend{font-size:12px;color:var(--muted)}
+#modal legend{font-size:calc(12px*var(--z));color:var(--muted)}
 .pick{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line)}
-.pick button.go{flex:1;text-align:left;border:0;background:none;min-height:48px;font-size:17px;padding:0 6px}
+.pick button.go{flex:1;text-align:left;border:0;background:none;min-height:calc(48px*var(--z));font-size:calc(17px*var(--z));padding:0 6px}
 .pick.on button.go{color:var(--accent);font-weight:600}
-.pick .cnt{color:var(--muted);font-size:13px;min-width:28px;text-align:right}
-.pick .ren{border:0;background:none;min-width:44px;min-height:44px;color:var(--muted)}
+.pick .cnt{color:var(--muted);font-size:calc(13px*var(--z));min-width:28px;text-align:right}
+.pick .ren{border:0;background:none;min-width:calc(44px*var(--z));min-height:calc(44px*var(--z));color:var(--muted)}
 #pop{position:fixed;display:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:30;padding:4px;min-width:200px}
 #pop.on{display:block}
-#pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;min-height:44px}
+#pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;min-height:calc(44px*var(--z))}
 #pop button:hover{background:var(--accent-soft)}
 #pop .sep{border-top:1px solid var(--line);margin:4px 0}
-#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#e6edf3;color:#0f1318;padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:92vw}
+#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#e6edf3;color:#0f1318;padding:8px 14px;border-radius:8px;font-size:calc(13px*var(--z));opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:92vw}
 #toast.on{opacity:.95}
-.chip{white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
+.chip{white-space:nowrap;font-size:calc(11px*var(--z));padding:1px 6px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
 /* Toast UI editor: match the app palette */
 .toastui-editor-defaultUI{border-color:var(--line)!important}
 .toastui-editor-dark .toastui-editor-md-container,.toastui-editor-dark .toastui-editor-ww-container,
@@ -150,9 +152,10 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 .toastui-editor-dark .toastui-editor-contents,.toastui-editor-dark .toastui-editor-contents p{color:var(--text)}
 .toastui-editor-dark .toastui-editor-contents a{color:var(--accent)}
 .toastui-editor-dark .toastui-editor-contents .task-list-item.checked::before{background-color:var(--accent-strong);border-color:var(--accent-strong)}
+.toastui-editor-contents,.toastui-editor-contents p,.toastui-editor-md-container .ProseMirror{font-size:calc(14px*var(--z))!important;line-height:1.55!important}
 /* the toolbar's overflow ("more") button has no visible icon in the dark theme — draw one */
 .toastui-editor-toolbar-icons.more{background-image:none!important;position:relative}
-.toastui-editor-toolbar-icons.more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text)}
+.toastui-editor-toolbar-icons.more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(20px*var(--z));color:var(--text)}
 </style>
 </head>
 <body>
@@ -236,6 +239,10 @@ const ls = { get(k, d){ try{ const v = localStorage.getItem(k); return v==null ?
              set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} },
              del(k){ try{ localStorage.removeItem(k); }catch{} } };
 const POLL_MS = ls.get('todo.pollMs', IS_PHONE ? 10000 : 5000);   // S-4: ~10 s phone, ~5 s PC
+const TEXT_SIZES = [100, 125, 150, 175];
+function textSize(){ return ls.get('todo.textSize', IS_PHONE ? 125 : 100); }   // R1-4: per device; phones default 125%
+function applyTextSize(pct){ document.documentElement.style.setProperty('--z', String(pct / 100)); document.documentElement.classList.toggle('big', pct >= 150); }
+applyTextSize(textSize());
 
 const S = {
   tasks: new Map(), lists: [], cfgVersion: null, cfgExtra: {}, store: null, auth: null,
@@ -1210,6 +1217,10 @@ function searchDialog(){
 function settingsDialog(){
   const src = ls.get('todo.source', 'onedrive');
   modal(`<h3>Settings</h3>
+    <fieldset><legend>Text size (this device)</legend>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${TEXT_SIZES.map(s =>
+        `<label style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:6px 10px"><input type="radio" name="tsz" value="${s}" ${s===textSize()?'checked':''}> ${s}%</label>`).join('')}</div>
+    </fieldset>
     <fieldset><legend>Where your task files are</legend>
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="onedrive" ${src==='onedrive'?'checked':''}> OneDrive (phone + PC)</label>
       <label style="display:block;font-size:12px;color:var(--muted);margin:4px 0 8px 24px">Folder (from the top of your OneDrive)<input type="text" id="m-folder" value="${esc(ls.get('todo.folder', DEFAULT_FOLDER))}"></label>
@@ -1219,14 +1230,19 @@ function settingsDialog(){
     <p style="font-size:12px;color:var(--muted)">HTML-ToDo-App v${APP_VERSION} · data format ${DATA_FORMAT} · ${S.auth?.user() ? 'signed in as ' + esc(S.auth.user()) : 'not signed in'}</p>
     <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Apply</button></div>`,
     async a => {
-      if (a !== 'ok') return closeModal();
-      if (isDirty()) return toast('Save or close the open task first.');
+      if (a !== 'ok'){ applyTextSize(textSize()); return closeModal(); }          // cancel: undo the size preview
+      const size = +document.querySelector('input[name=tsz]:checked').value;
+      ls.set('todo.textSize', size); applyTextSize(size);
       const nsrc = document.querySelector('input[name=src]:checked').value; const folder = $('#m-folder').value.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_FOLDER;
+      const storageChanged = nsrc !== src || folder !== ls.get('todo.folder', DEFAULT_FOLDER) || !S.store;
+      if (storageChanged && isDirty()) return toast('Save or close the open task first.');
       closeModal();
+      if (!storageChanged) return;
       ls.set('todo.source', nsrc); ls.set('todo.folder', folder);
       if (nsrc === 'local'){ await pickLocalFolder(); return; }
       location.reload();
     });
+  $('#modal').addEventListener('change', e => { if (e.target.name === 'tsz') applyTextSize(+e.target.value); });   // live preview
 }
 
 /* ---------------- start-up / storage choice ---------------- */
