@@ -392,7 +392,7 @@ interface Store {
 
 | Surface | Expected path | Confidence | Test status |
 |---|---|---|---|
-| PC Claude Code CLI | 1 | High | Testing 2026-10-16 |
+| PC Claude Code CLI | 1 | High | **Passed 2026-10-16** (all 6 steps; see results below) |
 | PC desktop app, Code tab | 1 | High | Not tested |
 | PC desktop app, Cowork | 1 | Medium-high | Not tested |
 | PC desktop app, Chat | 2 (or 3, or 4) | Medium (needs setup) | Not tested |
@@ -406,6 +406,15 @@ interface Store {
 4. Claude updates its body; the change appears on both devices.
 5. Conflict: Geoff edits the same file in the app, then Claude re-reads it before writing and doesn't overwrite blindly.
 6. Claude deletes it; it disappears on both devices.
+
+**Results: PC Claude Code CLI (2026-10-16, path 1, test folder):**
+1. **Create:** created `claude-test-cli.md` and read it back.
+2. **Seen on both devices:** Geoff saw it on the phone and in the PC app.
+3. **Update:** Claude appended a line; Geoff saw it on both devices.
+4. **Conflict:** Claude snapshotted the file (22:28:02, 207 bytes). Geoff then edited it in the app (22:30:25, 219 bytes, adding "Geoff edit"). Before writing, Claude compared against the snapshot, **detected the change and did not write**, showed the diff, then re-read and merged its line below Geoff's. Both edits were kept.
+5. **Delete:** the file disappeared from the phone and the PC app; OneDrive keeps it in the online recycle bin.
+
+Note: the test folder also has `poc-test.md`, left by the PoC page's create test; it is not Claude's.
 
 **Rules for Claude when editing task files (all paths):**
 - Re-read right before writing.
@@ -482,6 +491,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | S-12 | **PC Claude Code CLI passed all steps:** create, read, update and delete on the OneDrive-synced test folder, seen on the phone and PC; a manual version check caught Geoff's concurrent edit, and nothing was overwritten | Next: the other five surfaces |
 | 2026-10-16 | S-12 | **Added requirement:** Claude CRUD on the same task files from six surfaces (PC CLI, desktop Code, desktop Cowork, desktop Chat, Android Chat, Android Cowork). "No server" clarified as app-only; a custom remote MCP server for Claude's access is acceptable (personal) | Testing starts with the PC CLI |
 | 2026-10-16 | S-4 | **B + three rules**; work OneDrive uses listing (or root delta), since folder delta is personal-only | Decided |
 | 2026-10-16 | S-11 | Added (future feature: checklist line → task file in a folder named after the parent). Decided **A**: `parent:` stays the truth. Naming: a one-way dash slug with Windows/OneDrive safety rules; the original text is preserved in `title:` | Feature deferred; rules apply now |
