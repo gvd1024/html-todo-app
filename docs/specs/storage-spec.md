@@ -476,7 +476,7 @@ interface Store {
 |---|---|---|
 | 0 Prep | **Built**, except 0.3 | 0.1 tag `v0.1.1` pushed. 0.2 `0.2.0-dev` / data format 2 in code. **0.3 (Azure redirect URIs) waits on Geoff.** 0.4 Playwright + Chromium installed. 0.5 test folder reseeded: `poc-test.md` removed; 13 varied tasks plus `_todo.json` added (18 tasks total). |
 | 1 Storage refactor | **Built** | `app/todo.html` → `app/index.html` (`todo.html` now redirects). Path keys, opaque versions, `create`/`remove(expected)`/`changes()`/`caps`; `_todo.json` version check and merge; S-11 slugs. The shared store suite passes for MemStore and FsStore. |
-| 2 OneDrive + sign-in | **Built**, awaiting Geoff's real-device check | `GraphStore` ported from the PoC; `MsalAuth` with the automatic bounce and loop guard; drafts survive the redirect; folder setting; Keep both; status icon; parallel loading. Passes the store suite and the app flows against a strict fake Graph (no unconditional writes). The live page loads the real MSAL and reaches Microsoft with the right client ID and redirect URI. |
+| 2 OneDrive + sign-in | **Verified** 2026-10-17 (phone and PC sign-in, live two-way sync, sign-in persists overnight) | `GraphStore` ported from the PoC; `MsalAuth` with the automatic bounce and loop guard; drafts survive the redirect; folder setting; Keep both; status icon; parallel loading. Passes the store suite and the app flows against a strict fake Graph (no unconditional writes). The live page loads the real MSAL and reaches Microsoft with the right client ID and redirect URI. |
 | 3 Phone list view | **First cut built**, awaiting Geoff's review | R1-12 layout: list picker, one-line rows, prefixes and active dot, subtask badges, sideways scroll with pinned columns, ⇤ and 3 s snap-back, quick-add, ⋯ menu, full-screen editor with a prefix selector, ⚠ for unrecognized frontmatter, by-due-date view. Board and Outline retired. Screenshots in `tests/screenshots/`. |
 
 **Automated tests:** `python tests/run_tests.py` → 119 checks, all passing (2026-10-17).
@@ -638,6 +638,7 @@ Note: the test folder also has `poc-test.md`, left by the PoC page's create test
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | S-9 | **Phase 2 verified by Geoff:** sign-in on phone and PC; a phone check-off showed on the PC and a PC quick-add showed on the phone within seconds; no sign-in needed after the night | S-10 A acceptance met |
 | 2026-10-17 | S-9 | Overnight build: Phases 0 (except 0.3), 1, 2 and a Phase 3 first cut **Built**; 119 automated checks pass; 10 assumptions listed in the S-9 build log | Awaiting Geoff: Azure redirect URIs, then phone and PC check |
 | 2026-10-17 | S-9 | MVP build plan accepted (Phases 0–6); versioning `0.2.0-dev` / data format 2; Playwright; app at `/app/`; build on `main` with the `v0.1.1` tag | Phases are approved one at a time |
 | 2026-10-16 | S-6, S-7, S-8 | Prototype trims: **S-6 C** (one folder setting), **S-7 C** (recycle bin plus 5 s Undo, confirm for subtasks), **S-8 C** (no cache, parallel loading) | Decided |

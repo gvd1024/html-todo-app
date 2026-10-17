@@ -34,7 +34,8 @@
   - Quick-add.
   - Scroll the long title sideways (in Test List).
   - Expand **Plan the garden** with its badge.
-- [ ] **3. PC:** the same address in Chrome. Edit something on one device and watch it appear on the other within about 10 s.
+- [x] **3. PC: passed 2026-10-17.** Signed in on PC Chrome; a phone check-off appeared on the PC, and a PC quick-add appeared on the phone, each within seconds.
+- ~~3. PC:~~ the same address in Chrome. Edit something on one device and watch it appear on the other within about 10 s.
 - [ ] **4. Review** the 10 assumptions in storage-spec S-9 → *Build log*, and the screenshots in `tests/screenshots/` (or just use the app). Tell Claude what to change.
 - [x] **5. Sign-in persistence retest: passed (experience), 2026-10-17 morning.** Opening the app showed the list after about 3 s, with no Microsoft screens and no typing. Unverified whether Chrome had been fully closed (silent bounce) or kept its session. To prove the harder case: swipe Chrome out of Android's recent apps, wait, reopen.
 - ~~5. Sign-in persistence retest~~ (pending since 2026-10-16, R1-10 finding 5): after Chrome has been fully closed for a while, open the app. Pass = Microsoft signs you back in **without typing your email or password** (the app bounces there automatically).
