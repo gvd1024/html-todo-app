@@ -27,7 +27,10 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
 7. **Resolve the hardest or most architecturally dependent problems first** (Geoff's design approach). The storage and phone requirements (R1-9, R1-10) come before UI polish.
 8. **Verify before saying something doesn't exist.** Geoff has caught wrong "that's not possible" answers before.
 9. **Prefer open, swappable, low-lock-in choices** (Geoff's principle). Data stays in plain `.md` and `.json`.
-10. **Test data only.** Builds and tests use the OneDrive folder `HTML-ToDo-App-Test` (copies), never real task files. Preserving the `.md` files is the top priority.
+10. **Test data for builds and tests.** Builds and tests use the OneDrive folder `HTML-ToDo-App-Test` (copies). Preserving the `.md` files is the top priority.
+    - **Until the MVP runs**, the existing "real" tasks (Google Drive `AI Brain/HTML_ToDo_Files`) aren't important, and Claude may fix or migrate them by hand (Geoff, 2026-10-16).
+    - **Once the MVP runs**, Geoff will use the app for real (rapid prototyping in his personal life). From then on, real task files are protected: never touch them unless Geoff asks, and show changes first.
+    - `AI Brain/ToDo App/` belongs to a different, older app (Vue plus `server.js`). Don't modify it.
 11. **OneDrive is the committed datastore** (personal now, work later; decided 2026-10-16). The architecture lives in `docs/specs/storage-spec.md`.
 
 ## Task file contract (don't break it)

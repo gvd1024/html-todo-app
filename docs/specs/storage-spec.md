@@ -29,9 +29,9 @@ Same rules as the round specs: no code until Geoff approves; only named items ge
 | S-3 | Conflict safety per service | **Decided** | A + E: the strongest check per service (OneDrive `If-Match`), and a **Keep both** button |
 | S-4 | Change detection | **Decided** | B + three rules: delta on personal OneDrive, listing (or root delta) on work OneDrive |
 | S-5 | Sign-in and staying signed in | **Decided** (confirm after the 2026-10-17 retest) | B (automatic redirect), with A (button) as fallback |
-| S-6 | Locations and switching | Open | A: a saved list of locations in the browser |
-| S-7 | Delete behavior | Open | A: recoverable deletes everywhere |
-| S-8 | Caching and offline | Open | A: cache by version, read-only offline |
+| S-6 | Locations and switching | **Decided** | C for the prototype (one folder setting, default `HTML-ToDo-App-Test`); A later |
+| S-7 | Delete behavior | **Decided** | Recoverable: OneDrive recycle bin plus a 5 s in-app Undo; confirm before deleting a parent's subtasks |
+| S-8 | Caching and offline | **Decided** | C for the prototype (no cache, parallel loading); A when startup feels slow |
 | S-9 | Build order | Open | OneDrive connector first, then Google Drive |
 | S-12 | Claude can create, read, update and delete the same files | **Open**, requirement | Synced folder on the PC; a local MCP server for desktop Chat; a remote MCP server for Android and the web |
 | S-11 | File and folder naming rules | **Decided** (rules); feature is future | One-way slug with dashes, plus Windows/OneDrive safety rules; `parent:` stays the hierarchy's source of truth |
@@ -303,9 +303,16 @@ interface Store {
     - **Pros:** set up once for all devices.
     - **Cons:** chicken-and-egg (which service holds it?); leaks the work location's details into personal storage.
 
-**Recommendation:** A. Set-up per device is a one-time minute.
+- **C — One location for the prototype:** a single folder setting (default `HTML-ToDo-App-Test`), changeable in Settings.
+    - **Pros:** fastest; it's all the prototype needs.
+    - **Cons:** switching folders means changing a setting, not a picker.
 
-**Decision:** —
+**Recommendation:** C now, A later. Set-up per device is a one-time minute.
+
+**Decision (Geoff, 2026-10-16):** **C for the prototype, A later.**
+- **Now:** after sign-in, the app opens one OneDrive folder from a setting.
+- **Code:** "location" is one object (`{name, type, folder}`), so the list of locations (A) is additive later.
+- **When A arrives:** with work OneDrive, or the per-device choice from S-10 (C).
 
 ---
 
@@ -323,10 +330,18 @@ interface Store {
 - **B — Permanent everywhere.**
     - **Pros:** uniform.
     - **Cons:** risky on the phone, where it's easy to tap the wrong thing.
+- **C — Recoverable plus in-app Undo:** like A, plus a 5 s Undo bar that re-creates the file from the copy still in memory.
+    - **Pros:** matches the checkbox Undo (R1-12).
+    - **Cons:** a little more code; the restored file gets a new OneDrive item ID (harmless, because the app works by path).
 
-**Recommendation:** A.
+**Recommendation:** C.
 
-**Decision:** —
+**Decision (Geoff, 2026-10-16):** **C (recoverable plus in-app Undo).**
+- **OneDrive:** `DELETE` sends the item to the OneDrive recycle bin (personal and work).
+- **Confirm:** *"Delete 'X'? You can restore it from the OneDrive recycle bin."*
+- **Undo:** a 5 s bar re-creates the file with `create()`.
+- **A parent with subtasks:** *"Also delete its N subtasks?"* → Delete all / Cancel. Everything goes to the recycle bin, and Undo restores all of it.
+- **Local folder:** still permanent (the browser API can't use the Windows recycle bin), and the confirm text says so.
 
 ---
 
@@ -345,9 +360,12 @@ interface Store {
     - **Pros:** simplest.
     - **Cons:** slow start every time.
 
-**Recommendation:** A now, with B as a possible later round.
+**Recommendation (revised for the prototype):** C plus parallel loading now; A next; B as a possible later round.
 
-**Decision:** —
+**Decision (Geoff, 2026-10-16):** **C for the prototype.**
+- **Loading:** no browser cache. Each open lists the folder, then reads files in parallel (about 6 at a time).
+- **Offline:** the header status icon shows "offline", and edits are blocked with a message.
+- **Next step:** move to **A** (IndexedDB cache by version, read-only offline) when startup feels slow, or once real tasks grow past a few dozen.
 
 ---
 
@@ -491,6 +509,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | S-6, S-7, S-8 | Prototype trims: **S-6 C** (one folder setting), **S-7 C** (recycle bin plus 5 s Undo, confirm for subtasks), **S-8 C** (no cache, parallel loading) | Decided |
 | 2026-10-16 | S-12 | **PC Claude Code CLI passed all steps:** create, read, update and delete on the OneDrive-synced test folder, seen on the phone and PC; a manual version check caught Geoff's concurrent edit, and nothing was overwritten | Next: the other five surfaces |
 | 2026-10-16 | S-12 | **Added requirement:** Claude CRUD on the same task files from six surfaces (PC CLI, desktop Code, desktop Cowork, desktop Chat, Android Chat, Android Cowork). "No server" clarified as app-only; a custom remote MCP server for Claude's access is acceptable (personal) | Testing starts with the PC CLI |
 | 2026-10-16 | S-4 | **B + three rules**; work OneDrive uses listing (or root delta), since folder delta is personal-only | Decided |
@@ -504,6 +523,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 ## Change history of this spec
 
+- 2026-10-16 — v8: S-6 (C), S-7 (C: recoverable plus Undo) and S-8 (C) decided for the prototype.
 - 2026-10-16 — v7: S-4 decided; S-12 added (Claude CRUD requirement, access paths, test checklist).
 - 2026-10-16 — v6: S-3 decided (A + E); S-11 added and decided (A).
 - 2026-10-16 — v5: S-2 decided (A + D); options D, E and F added.
