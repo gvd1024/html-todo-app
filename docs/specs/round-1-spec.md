@@ -32,6 +32,7 @@
 | R1-9 | Use the board from an Android phone (**key requirement**) | Discussing | C (Drive backend) | — |
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
+| R1-12 | Phone list view (main phone layout) | Discussing | — | Mostly decided; 7a (sideways scroll) and 13a (drag-to-nest gesture) open |
 
 ---
 
@@ -505,10 +506,97 @@ The app's existing conflict handling works across OneDrive sync with no code cha
 
 ---
 
+## R1-12 — Phone list view (the main phone layout)
+
+**Reported** (Geoff, 2026-10-16): "I probably won't use the board view (at least not initially)... i would like to be able to change from one list of .md files to another easily so maybe some tap to open button that then lets me choose which list I am looking at. I want the list to show just the .md file titles with some kind of title prefix (checked checkbox, unchecked checkbox, bullet, none). The prefix should be saved in the frontmatter in a standard way. if you tap on a checkbox (either checked or unchecked) it should toggle between the 2 states. If it is a dash or none then nothing happens. if you tap on the task text, it automatically opens the taske (.md file) in the toast editor mode … I want the list of file titles to be scrollable and nto take up too much unwanted space with anything other than the title prefix or maybe a 3 dots (or a similar edit file icon) at the right of the file title. I may want to add more quick action buttons. if the title is too long to fit in the line the 3 dots or other quick actions should remain in place at the far right but scrolling left right allows you to see rest of the file title … so the main android / phone layout should be a simple name of the list at the top somewhere pronounced, and a scrollable left right up down list of file titles."
+
+Also: "the ability to longpress any item, have it flash to indicate it is ready to move and so i can then drag it up, down or under another existing file title as a child (taking all its children with it)."
+
+**Problem (restated):** the board is built for desktop and barely works on a phone: there's one small-screen CSS rule, and dragging isn't tuned for touch. Geoff wants a compact, title-only list for one list at a time, as the main phone layout. It should be dense vertically, quick to check off, and quick to open in the editor. This replaces the earlier idea of defaulting the phone to the Outline view.
+
+**Decisions (Geoff, 2026-10-16)** — numbered as discussed in chat:
+
+1. **Lists:** a "list" is the `list:` frontmatter field (Inbox, Test List, …), not a folder.
+2. **Subtasks hidden by default; zero vertical space when collapsed.** A parent with children shows a small **subtask count badge** in an accent color (distinct from the title color), inline in its row. Tapping the badge expands the children, indented below; tapping again collapses them. Collapsed children take **no** rows or spacer.
+3. **Checked items:** behavior will be configurable in Settings later. Defaults for now:
+    - Checking an item **hides it** from the list.
+    - If the item has **unchecked subtasks or unchecked `- [ ]` lines in its body**, a dialog asks instead: **Check all** (subtasks and body checklist lines) / **Check only this** (leave the rest as is) / **Cancel**.
+    - A way to **see done items and uncheck them** (e.g. a "Show done" toggle in the list-picker sheet or the header menu). Done items show as checked boxes and can be tapped to uncheck.
+4. **Adding tasks:** a quick-add box at the bottom. Type a title and press Enter: the task is created in the current list with the default prefix. Focus stays in the box, so several can be added quickly. This also covers R1-2's "Enter saves."
+5. **Board view retired**, on the PC too. The phone layout is designed first. Afterwards, the **PC layout should match the phone's layout, look and feel** as closely as possible, adding only extra information and quality-of-life features that only make sense on a PC.
+6. **Prefix and status** (a file contract change):
+    - New frontmatter key **`prefix`**: `checkbox` | `bullet` | `none`. **Missing means `checkbox`**, so existing files need no change. Key order: right after `status`.
+    - **`status`:** `open` | `active` | `done` for now (Geoff may change this later). `archived` stays, because demote relies on it.
+        - **Checkbox display:** `open` → unchecked; `active` → unchecked with a **small green dot**; `done` → checked.
+        - **Tapping a checkbox** toggles `done` ↔ `open` (or `active` → `done`).
+        - **Bullet and none:** shown as `•` or nothing; tapping the prefix does nothing.
+    - **No `waiting`** status. Existing values are read gracefully: `doing` shows as `active`, and `waiting` shows as `open`. They're rewritten only when the task is next saved.
+    - **The editor** lets the user change the prefix type (checkbox / bullet / none).
+7. **Long titles: the whole list scrolls sideways together** (not per row). The prefix column (left) and the actions column (right) stay pinned (CSS `position: sticky`). **No second lines:** one row per title, to save vertical space. *How to handle a list scrolled far right as you scroll down: see open question 7a.*
+8. **Toggle safety:** after any checkbox toggle, an **Undo** bar shows for **5 seconds**. All tap targets are at least **44 px** tall, even with compact visuals.
+9. **List picker:** the current list's name is large at the top. Tapping it opens a sheet with all lists and their task counts. The phone remembers the last list viewed.
+10. **The ⋯ menu per row** (room for more quick actions later): *Edit* (same as tapping the title), *Move to list…*, *Change prefix*, *Delete* (with confirm).
+11. **A tiny status icon in the header:** signed in / syncing / offline / conflict.
+12. **This item (R1-12)** holds the phone layout spec.
+13. **Long-press to move:**
+    - A long press (~400 ms) on a row makes it **flash or lift** to show it's ready to move.
+    - Dragging up or down reorders it among its siblings.
+    - Dropping it **onto** another title makes it that task's **child**. Its own children come along: their `parent:` links are unchanged, and their `list` is updated to match the new parent's.
+    - The list auto-scrolls when dragging near the top or bottom edge.
+    - Moving to a **different list** uses ⋯ → *Move to list…* (only one list is shown at a time).
+
+**Open sub-questions**
+
+- **7a. Scrolled sideways, then scrolling down.** Options:
+    - **A — Snap back:** the list returns to the left edge as soon as you start scrolling vertically.
+        - **Pros:** you never land on a screen of half-hidden titles.
+        - **Cons:** you can't scroll down while keeping a right offset (e.g. comparing several long titles).
+    - **B — Keep the offset, plus a floating ⇤ button** that appears while scrolled right and returns to the left edge in one tap.
+        - **Pros:** full control.
+        - **Cons:** you must remember to tap it; the button covers a little content.
+    - **C — Snap back after ~3 s idle**, or when you open a task, switch lists or return from the editor.
+        - **Pros:** self-correcting without fighting a deliberate scroll.
+        - **Cons:** a timer-driven snap can surprise you mid-read.
+    - **D — Long-press the title to show it in full** in a popover, with no sideways scrolling at all.
+        - **Cons:** conflicts with long-press-to-move (13).
+    - **Recommendation:** **B + C**: keep the offset while you're actively scrolling, show the ⇤ button, and snap back automatically on list switch, editor close or 3 s idle.
+- **13a. Reorder vs make-child while dragging.** The drop target must be unambiguous. Options:
+    - **A — Drop zone:** the middle ~50% of a row = make child (that row highlights); the top/bottom edges = insert above or below (a line shows).
+    - **B — Horizontal offset:** drag right past an indent threshold = child of the row above; drag left = un-nest (the common outliner gesture).
+    - **Recommendation:** A for nesting, plus B's *drag left* to un-nest (move out to the parent's level). A visible indicator (highlight vs line) always shows what will happen before release.
+- **13b. Collapsed parent as a drop target:** dropping onto a collapsed parent adds the item as its **last** child, and the badge count updates with a short pulse.
+- **Hidden done items and ordering:** reordering among visible items keeps hidden done items' relative positions (fractional `order`), so showing done items later doesn't scramble the list.
+
+**Implementation notes (draft):**
+- **New view, `list`:**
+    - Uses SortableJS with `delay: 400`, `delayOnTouchOnly: true` and a nested group for children. A long press starts a drag; normal swipes scroll.
+    - Vertical scroll is on the list container; horizontal scroll is on an inner wrapper so the header stays fixed.
+    - Rows: a 44 px minimum height, sticky left prefix cell, sticky right actions cell, and `white-space: nowrap` titles.
+- **Shared code:**
+    - The checkbox toggle and the "check all" dialog reuse `saveTask` and `checklistBlocks()`.
+    - The editor drawer is reused full-screen on narrow screens.
+- **Contract:** `prefix` is added to `KNOWN` after `status`; the status values change. This is the first data-format change, so it ties into R1-6's data-format version.
+
+**Acceptance criteria (draft):**
+- On Android Chrome:
+    - One list at a time.
+    - Rows are a single line, at least 44 px tall; no vertical space for collapsed children.
+    - Sideways scrolling moves all titles together, with the prefix and ⋯ pinned.
+    - A checkbox tap toggles and saves, with a 5 s Undo.
+    - A title tap opens the editor.
+    - Long press → flash → drag reorders or nests, with children following.
+    - Quick-add creates tasks in the current list.
+- Existing files without `prefix` display as checkboxes, and nothing is rewritten until a task is saved.
+
+**Status:** Discussing. Most points decided; 7a and 13a are open.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-16 | R1-12 | Added: phone list view. Decided: lists = `list:` field; subtasks hidden behind a count badge; checking hides the item, with a dialog when subtasks or body checkboxes are unchecked; quick-add at the bottom; **board view retired** (the PC will later match the phone); new key **`prefix`** (checkbox / bullet / none); status `open` / `active` (green dot) / `done`; whole-list sideways scroll with pinned prefix and ⋯ and no second lines; 5 s Undo, 44 px targets; list picker sheet; ⋯ menu; header status icon; long-press drag to reorder or nest | Open: 7a, 13a |
 | 2026-10-16 | R1-10 | Sign-in persistence: the page and Microsoft had both forgotten the session overnight. Cause (a), MSAL's session-cookie encryption key, confirmed in code; cause (b), no "Stay signed in", fixed by Geoff tapping Yes. Leading fix: automatic redirect when no cached account | Retest 2026-10-17 morning |
 | 2026-10-15 | R1-10 | Dual-access test passed, 5/5: the real app on the PC (OneDrive-synced folder) and the PoC on the phone, same files. **Correction:** an earlier row said silent next-day sign-in passed on 2026-10-16. Wrong: it was the same day, about 12 h later, and it **failed** (password required). Step 1 is 4/5; sign-in persistence is an open issue | Retest with "Stay signed in? Yes" and check the MSAL cache options |
 | 2026-10-15 | R1-10 | Log findings recorded: change-event bursts, own-delete echo, background pauses | — |
@@ -529,6 +617,7 @@ The app's existing conflict handling works across OneDrive sync with no code cha
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-16 — v12: added R1-12 (phone list view) with Geoff's decisions and open sub-questions.
 - 2026-10-16 — v11: sign-in persistence causes confirmed (MSAL session-cookie key; Microsoft cookie not kept); "Stay signed in" set; retest planned.
 - 2026-10-15 — v10: dual-access test results; corrected the silent sign-in result (failed, not passed; same day, not next day).
 - 2026-10-15 — v9: R1-10 Step 1 results and log findings.
