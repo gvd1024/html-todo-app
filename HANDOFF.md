@@ -12,19 +12,21 @@
 |---|---|
 | App `app/index.html` | **v0.2.0-dev**, data format 2. Built overnight 2026-10-17: S-9 Phases 0 (except 0.3), 1 and 2, plus a **Phase 3 first cut** (the R1-12 phone list view). OneDrive connector, sign-in with the automatic bounce, conflict dialog with Keep both. Live at `https://gvd1024.github.io/html-todo-app/app/`. `app/todo.html` redirects there. Restore point for v0.1.1: git tag `v0.1.1`. |
 | Automated tests | `python tests/run_tests.py` → **119 checks pass** (store suite for all 3 connectors, phone list view, fake-OneDrive flows, sign-in bounce, draft restore, expired change feed, expired sign-in). Screenshots: `tests/screenshots/`. |
-| **Blocker for real use** | **Azure redirect URI for the app isn't registered yet (S-9 step 0.3).** Until then, signing in on `/app/` ends in Microsoft error AADSTS50011. |
+| Real-device status | Azure `/app/` redirect URI added and **first phone sign-in and use passed** (2026-10-17 ~01:49). PC check, assumption review and sign-in persistence retest still to do. |
 | OneDrive test folder `HTML-ToDo-App-Test` | Reseeded 2026-10-17: 18 varied test tasks plus `_todo.json` (format 2). Includes deliberate test cases: a long title, 2-level subtasks, done, active, bullet, none, a body checklist, an unknown key (`priority`), and an old status (`waiting`). `poc-test.md` removed. |
 | Specs | storage-spec: S-2 to S-8 and S-10 to S-12 decided; S-9 decided, with a build log listing **10 assumptions to confirm**. round-1: R1-7 and R1-8 obsolete; R1-11 built; R1-12 first cut built. |
 | OneDrive PoC `poc/` | v0.0.2. R1-10 Step 1: 4 of 5 pass; **sign-in persistence retest still pending** (see below). Kept as a reference and test tool. |
 | Repository / Pages | `https://github.com/gvd1024/html-todo-app` (public, `main`), via the `gh` CLI (`C:\Program Files\GitHub CLI\gh.exe`, logged in as `gvd1024`, repo-local noreply identity). Pages serves `main`, root. |
-| Azure registration | `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, in Geoff's free Azure "Default Directory". Redirect URIs so far: `/html-todo-app/poc/` only. |
+| Azure registration | `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, in Geoff's free Azure "Default Directory". Redirect URIs: `/html-todo-app/poc/` and `/html-todo-app/app/` (SPA). The Azure portal now uses a 'Preview' Authentication page that saves an added URI right away. A banner says end users can't consent to new multitenant apps without a verified publisher: irrelevant for personal accounts (Geoff consented himself), but check it in the work-account test. |
 
 ## Next steps (Geoff), in order
-- [ ] **1. Azure (about 1 minute, S-9 step 0.3):** portal.azure.com → App registrations → `HTML-ToDo-App PoC` → **Authentication** → under *Single-page application*, **Add URI**:
+- [x] **1. Azure (S-9 step 0.3): done 2026-10-17 ~01:45** (the `/app/` redirect URI was added; localhost not added).
+- ~~1. Azure (about 1 minute, S-9 step 0.3):~~ portal.azure.com → App registrations → `HTML-ToDo-App PoC` → **Authentication** → under *Single-page application*, **Add URI**:
   - `https://gvd1024.github.io/html-todo-app/app/`
   - `http://localhost:8000/app/` (optional, for local testing)
   - → **Save**.
-- [ ] **2. Phone:** open `https://gvd1024.github.io/html-todo-app/app/` in Chrome → **Sign in with Microsoft** → the **Home** list from the test folder should appear. Try it out:
+- [x] **2. Phone: first real test passed 2026-10-17 ~01:49.** Signed in on Android Chrome; the test folder loaded (Inbox, then Home); switching lists, the badge expand and a checkbox toggle all worked. Prefixes, the active dot, done styling and the ⚠ displayed as designed. Cosmetic: a grey horizontal scrollbar line shows above the quick-add box. Hide it next round.
+- ~~2. Phone:~~ open `https://gvd1024.github.io/html-todo-app/app/` in Chrome → **Sign in with Microsoft** → the **Home** list from the test folder should appear. Try it out:
   - Switch lists (tap the big name).
   - Check and uncheck items.
   - Open a task.
