@@ -395,6 +395,41 @@ def test_signed_out(browser):
     ctx.close()
 
 
+def test_resilience(browser):
+    print("\n[6] Resilience: expired change feed, expired sign-in at start-up")
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=TEST_AUTH + ls_init(**{
+        "todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.list": "Feedback", "todo.everSignedIn": True}))
+    fg.install(page)
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    # phone asleep long enough for OneDrive to expire the change token; meanwhile another device edits
+    fg.expire_before = fg.seq + 1   # every token the app holds is now expired (tokens issued after the edit work)
+    lists_before = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    fg.ext_edit("board-view.md", fg.files()["board-view.md"].replace("title: Board View", "title: Board View (edited while asleep)"))
+    page.wait_for_selector(".ttl:has-text('edited while asleep')", timeout=5000)
+    got410 = any(p.endswith(":/delta") for m, p, _ in fg.requests)  # delta was polled
+    reloaded = sum(1 for m, p, _ in fg.requests if p.endswith(":/children")) > lists_before
+    check("expired change feed → full reload picks up edits made in the gap", got410 and reloaded, (got410, reloaded))
+    check("resilience: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # remembered account, but the token can't be refreshed (Microsoft's 24 h limit) → one automatic bounce
+    ctx, page, errors = new_page(browser, phone=True, init="""window.__TEST_AUTH__ = { async init(){ return { account:{ username:'test@example.com' } }; },
+      async token(){ throw new __todo.AuthError('interaction_required'); },
+      signIn(){ window.__signInCalls = (window.__signInCalls||0) + 1; }, signOut(){}, user(){ return 'test@example.com'; } };""" + ls_init(**{
+        "todo.source": "onedrive", "todo.folder": FOLDER, "todo.everSignedIn": True}))
+    page.goto(APP)
+    page.wait_for_timeout(800)
+    check("expired sign-in at start-up bounces to Microsoft once", page.evaluate("window.__signInCalls") == 1, page.evaluate("window.__signInCalls"))
+    page.reload()
+    page.wait_for_timeout(800)
+    check("…and if that didn't help, shows 'sign in again' instead of looping", not page.evaluate("window.__signInCalls")
+          and "expired" in page.inner_text("#rows"), page.inner_text("#rows")[:120])
+    check("expired sign-in: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -403,7 +438,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
-                 ("desktop", test_desktop_smoke), ("signedout", test_signed_out)]
+                 ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience)]
         for name, fn in tests:
             if not only or name in only:
                 try:

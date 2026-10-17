@@ -32,7 +32,7 @@
 | R1-9 | Use the board from an Android phone (**key requirement**) | Discussing | C (Drive backend) | — |
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
-| R1-12 | Phone list view (main phone layout) | Decided | — | See the item; 7a = B + C, 13a = A plus drag-left to un-nest |
+| R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
 
 ---
 
@@ -605,7 +605,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - Quick-add creates tasks in the current list.
 - Existing files without `prefix` display as checkboxes, and nothing is rewritten until a task is saved.
 
-**Status:** Decided (2026-10-16). Not yet approved for build.
+**Status:** Decided 2026-10-16. **First cut built 2026-10-17** (storage-spec S-9 Phase 3; see its build log for the assumptions). Still to build: #3, #8 and #14 in Phase 4, and #13 in Phase 5.
 
 ---
 
@@ -638,6 +638,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v17: R1-12 first cut built.
 - 2026-10-17 — v16: R1-7 and R1-8 marked obsolete.
 - 2026-10-17 — v15: R1-12 point 14 (done files, `completed` key).
 - 2026-10-16 — v14: unrecognized-frontmatter policy (warn, never delete; Claude migrates by hand).

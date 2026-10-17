@@ -468,6 +468,39 @@ interface Store {
     2. Claude migrates the current real tasks (from Google Drive `HTML_ToDo_Files`) into it, by hand, showing the changes.
     3. **Rule 10's protection of real files takes effect from here.**
 
+### Build log
+
+**2026-10-17 (overnight, Claude alone; Geoff approved "0–2 plus Phase 3 first cut"):**
+
+| Phase | Status | What happened |
+|---|---|---|
+| 0 Prep | **Built**, except 0.3 | 0.1 tag `v0.1.1` pushed. 0.2 `0.2.0-dev` / data format 2 in code. **0.3 (Azure redirect URIs) waits on Geoff.** 0.4 Playwright + Chromium installed. 0.5 test folder reseeded: `poc-test.md` removed; 13 varied tasks plus `_todo.json` added (18 tasks total). |
+| 1 Storage refactor | **Built** | `app/todo.html` → `app/index.html` (`todo.html` now redirects). Path keys, opaque versions, `create`/`remove(expected)`/`changes()`/`caps`; `_todo.json` version check and merge; S-11 slugs. The shared store suite passes for MemStore and FsStore. |
+| 2 OneDrive + sign-in | **Built**, awaiting Geoff's real-device check | `GraphStore` ported from the PoC; `MsalAuth` with the automatic bounce and loop guard; drafts survive the redirect; folder setting; Keep both; status icon; parallel loading. Passes the store suite and the app flows against a strict fake Graph (no unconditional writes). The live page loads the real MSAL and reaches Microsoft with the right client ID and redirect URI. |
+| 3 Phone list view | **First cut built**, awaiting Geoff's review | R1-12 layout: list picker, one-line rows, prefixes and active dot, subtask badges, sideways scroll with pinned columns, ⇤ and 3 s snap-back, quick-add, ⋯ menu, full-screen editor with a prefix selector, ⚠ for unrecognized frontmatter, by-due-date view. Board and Outline retired. Screenshots in `tests/screenshots/`. |
+
+**Automated tests:** `python tests/run_tests.py` → 119 checks, all passing (2026-10-17).
+
+**Hardening added after the first pass (same night):**
+- **Expired sign-in at start-up** (account remembered, but Microsoft's 24 h limit has passed) now bounces to Microsoft once, instead of showing a load error.
+- **No repeated "signed out" messages** on every poll.
+- **Expired change feed** (OneDrive returns 410 after a long sleep) triggers a full reload, so edits made in the gap aren't missed.
+- **The bounce passes a login hint** (the last account used), so Microsoft can skip the account picker.
+- **The one-automatic-bounce guard lasts for the whole browser session** (cleared when Chrome restarts), so an account whose token can never be refreshed can't cause a redirect loop.
+- **Editor toolbar on phones:** checklist and list buttons come first, and the overflow ⋯ button is visible.
+
+**Assumptions made while building (please confirm or change):**
+1. **Subtask badge position:** in the pinned right column next to ⋯, not right after the title, so it stays visible and tappable even when a long title is cut off.
+2. **"Show done" is ON by default for now.** Hiding items on check (R1-12 #3) arrives in Phase 4, together with the 5 s Undo, so a mis-tap can't make a task vanish with no way back.
+3. **Outline view retired too** (it was the board's sibling). *By due date* is kept, as an entry in the list picker.
+4. **Search** moved into the ⋯ app menu. **Add subtask** added to the row ⋯ menu (not in the R1-12 list, but the old card menu had it).
+5. **Delete in this cut** still moves subtasks up a level (the v0.1.1 behavior). S-7's "also delete N subtasks" plus Undo arrives in Phase 4.
+6. **The automatic sign-in bounce applies only to returning users** (once signed in on that browser). A first visit shows the Sign in button.
+7. **No `ssoSilent` attempt** before redirecting: Chrome's third-party-cookie limits make the hidden-iframe method unreliable, so the bounce is a plain redirect.
+8. **The status icon is tappable:** it signs in when signed out; otherwise it shows its explanation.
+9. **`completed:` isn't written yet** (Phase 4); the key is already recognized, so it isn't flagged.
+10. **The Azure client ID** is built in; an override is possible via `localStorage` (`todo.clientId`) only, with no UI.
+
 ### After the MVP (not in this plan)
 
 - **PC layout parity extras** (R1-12 #5).
@@ -482,6 +515,67 @@ interface Store {
 - **The checklist → task-in-folder feature** (S-11).
 
 **Decision (Geoff, 2026-10-17):** plan accepted. Phase 0 questions: (1) `0.2.0-dev` plus data format 2: yes; (2) install Playwright: yes; (3) the app moves to `app/index.html` (`/app/`): yes; (4) build on `main` with the `v0.1.1` tag as the safety net: yes. R1-7 and R1-8 obsolete. Phases still start only when Geoff approves each one.
+
+---
+
+## S-10 — How the PC reaches the files
+
+**Problem:** the phone must use the OneDrive web connection (Microsoft Graph). The PC can either open the folder the OneDrive sync app keeps on disk (`FsStore`, works today) or use the same web connection.
+
+**Options**
+- **A — The web connection on both devices.**
+    - **Pros:** one storage path to build and test; the PC and phone behave the same, with OneDrive's true conditional save everywhere; no dependence on the OneDrive sync app or Chrome folder access on a locked-down work PC.
+    - **Cons:** the PC must sign in too; about 1 s per save; no PC editing offline.
+- **B — Synced folder on the PC, web connection on the phone.**
+    - **Pros:** works today (dual-access test, 2026-10-15); instant saves; the PC works offline.
+    - **Cons:** two paths; a weaker conflict check on the PC (modified time, with sync timing in between); depends on the sync app and Chrome folder access at work.
+- **C — Both available, chosen per device** (the location list, S-6).
+    - **Pros:** most flexible.
+    - **Cons:** more UI and choices; not needed for a prototype.
+
+Claude's access is the same in all options: Claude edits the synced folder on the PC, and OneDrive carries the change to both devices.
+
+**Decision (Geoff, 2026-10-16):** **A for the initial prototype.** The prototype is built and tested around the OneDrive web connection on both PC and Android. `FsStore` stays in the code unchanged. **Pivot to C later:** Geoff wants per-device choice (synced folder or web connection) after the prototype, through the location list in S-6.
+
+**Implementation notes:** the PC signs in through the same MSAL redirect flow as the phone. The same Azure registration works (`HTML-ToDo-App PoC`), but its redirect URI must also include the app's address (e.g. `https://gvd1024.github.io/html-todo-app/app/`). Add `http://localhost:8000/app/` for local testing.
+
+**Acceptance criteria:** the prototype on PC Chrome and on Android Chrome, both signed in to personal OneDrive, shows the same `HTML-ToDo-App-Test` tasks, and edits on either appear on the other.
+
+---
+
+## S-11 — File and folder naming rules
+
+**Reported** (Geoff, 2026-10-16): "Eventually I want to incorporate the ability to turn a markdown style todo item (with the .md - [ ] plain text) into its own task. in a folder that has the name of the parent task file. … The key is having a standard way to translate regular text into unique file and/or folder names that work on windows file explorer."
+
+**The future feature (not in the prototype):** turn a checklist line like `- [ ] Buy filters` inside `rental.md` into a task file `rental/buy-filters.md`; deeper levels nest the same way. It's the reverse of the existing demote, for lines that were never tasks. S-2's path keys (D) make this possible without changing the interface.
+
+**Key points (discussed 2026-10-16):**
+1. **One-way conversion is enough.** The exact original text is stored in the file's frontmatter `title:` (e.g. `title: Buy-Filters` vs `title: Buy Filters`). Demote rebuilds the checkbox line from `title`, as the current `demoteLines()` already does, so checkbox → task → checkbox returns identical text. The file name is only a handle and never needs converting back. This matches the existing contract rule: "file names are a slug of the title when created; renaming the title doesn't rename the file."
+2. **Separator: dash.**
+    - It's readable, already used, and safe in Windows, OneDrive, URLs and Markdown links.
+    - Underscore clashes with the "names starting with `_` are not tasks" rule.
+    - Rare characters (`·`, `~`, `+`) risk breaking URLs and tools.
+3. **Slug rules** (extend the current `slug()`):
+    - strip `< > : " / \ | ? *` and control characters; no trailing dot or space;
+    - keep Unicode letters and digits (today, non-English titles can collapse to `task`);
+    - lowercase, with spaces and punctuation runs → single `-`;
+    - avoid Windows reserved names (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`; append `-task`);
+    - max **40** characters per name;
+    - uniqueness is **case-insensitive within the folder**, with `-2`, `-3`… suffixes;
+    - avoid OneDrive-blocked names (e.g. `desktop.ini`, `.lock`, names containing `_vti_`).
+4. **Path length:** keep full paths well under Windows' ~260-character limit. With 40-character names, cap nesting at about 4 levels, and warn before exceeding it.
+5. **A file and a folder with the same base name** (`rental.md` beside `rental/`) are fine on Windows and OneDrive. It's the Obsidian "folder note" convention.
+6. **Links:** demote's `[↗](…)` link must encode each path segment separately, not the whole path with `encodeURIComponent` (that would turn `/` into `%2F`), and should be relative to the file that contains it.
+
+**Options for the hierarchy's source of truth**
+- **A — `parent:` stays the truth; folders are organization only.** New subtasks made from a checklist line go into the parent's folder, but the app works wherever a file sits (including today's flat subtasks). Dragging to a new parent does not move files.
+    - **Pros:** simple; nothing breaks if folders and `parent:` drift apart.
+    - **Cons:** the folder layout can drift from the board hierarchy.
+- **B — The folder is the truth.** Re-parenting moves the file (cheap on OneDrive; the ID is kept).
+    - **Pros:** folders always mirror the board.
+    - **Cons:** more to build; moves can break links; Claude and other tools must move files correctly too.
+
+**Decision (Geoff, 2026-10-16):** **A.** `parent:` remains the source of truth. The slug rules above apply to every new file from the prototype on. The checklist → task-in-folder feature is a **future item**, not part of the prototype. A "tidy folders" action (move files to match `parent:`) can be considered later if drift bothers Geoff.
 
 ---
 
@@ -540,71 +634,11 @@ Note: the test folder also has `poc-test.md`, left by the PoC page's create test
 
 ---
 
-## S-11 — File and folder naming rules
-
-**Reported** (Geoff, 2026-10-16): "Eventually I want to incorporate the ability to turn a markdown style todo item (with the .md - [ ] plain text) into its own task. in a folder that has the name of the parent task file. … The key is having a standard way to translate regular text into unique file and/or folder names that work on windows file explorer."
-
-**The future feature (not in the prototype):** turn a checklist line like `- [ ] Buy filters` inside `rental.md` into a task file `rental/buy-filters.md`; deeper levels nest the same way. It's the reverse of the existing demote, for lines that were never tasks. S-2's path keys (D) make this possible without changing the interface.
-
-**Key points (discussed 2026-10-16):**
-1. **One-way conversion is enough.** The exact original text is stored in the file's frontmatter `title:` (e.g. `title: Buy-Filters` vs `title: Buy Filters`). Demote rebuilds the checkbox line from `title`, as the current `demoteLines()` already does, so checkbox → task → checkbox returns identical text. The file name is only a handle and never needs converting back. This matches the existing contract rule: "file names are a slug of the title when created; renaming the title doesn't rename the file."
-2. **Separator: dash.**
-    - It's readable, already used, and safe in Windows, OneDrive, URLs and Markdown links.
-    - Underscore clashes with the "names starting with `_` are not tasks" rule.
-    - Rare characters (`·`, `~`, `+`) risk breaking URLs and tools.
-3. **Slug rules** (extend the current `slug()`):
-    - strip `< > : " / \ | ? *` and control characters; no trailing dot or space;
-    - keep Unicode letters and digits (today, non-English titles can collapse to `task`);
-    - lowercase, with spaces and punctuation runs → single `-`;
-    - avoid Windows reserved names (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`; append `-task`);
-    - max **40** characters per name;
-    - uniqueness is **case-insensitive within the folder**, with `-2`, `-3`… suffixes;
-    - avoid OneDrive-blocked names (e.g. `desktop.ini`, `.lock`, names containing `_vti_`).
-4. **Path length:** keep full paths well under Windows' ~260-character limit. With 40-character names, cap nesting at about 4 levels, and warn before exceeding it.
-5. **A file and a folder with the same base name** (`rental.md` beside `rental/`) are fine on Windows and OneDrive. It's the Obsidian "folder note" convention.
-6. **Links:** demote's `[↗](…)` link must encode each path segment separately, not the whole path with `encodeURIComponent` (that would turn `/` into `%2F`), and should be relative to the file that contains it.
-
-**Options for the hierarchy's source of truth**
-- **A — `parent:` stays the truth; folders are organization only.** New subtasks made from a checklist line go into the parent's folder, but the app works wherever a file sits (including today's flat subtasks). Dragging to a new parent does not move files.
-    - **Pros:** simple; nothing breaks if folders and `parent:` drift apart.
-    - **Cons:** the folder layout can drift from the board hierarchy.
-- **B — The folder is the truth.** Re-parenting moves the file (cheap on OneDrive; the ID is kept).
-    - **Pros:** folders always mirror the board.
-    - **Cons:** more to build; moves can break links; Claude and other tools must move files correctly too.
-
-**Decision (Geoff, 2026-10-16):** **A.** `parent:` remains the source of truth. The slug rules above apply to every new file from the prototype on. The checklist → task-in-folder feature is a **future item**, not part of the prototype. A "tidy folders" action (move files to match `parent:`) can be considered later if drift bothers Geoff.
-
----
-
-## S-10 — How the PC reaches the files
-
-**Problem:** the phone must use the OneDrive web connection (Microsoft Graph). The PC can either open the folder the OneDrive sync app keeps on disk (`FsStore`, works today) or use the same web connection.
-
-**Options**
-- **A — The web connection on both devices.**
-    - **Pros:** one storage path to build and test; the PC and phone behave the same, with OneDrive's true conditional save everywhere; no dependence on the OneDrive sync app or Chrome folder access on a locked-down work PC.
-    - **Cons:** the PC must sign in too; about 1 s per save; no PC editing offline.
-- **B — Synced folder on the PC, web connection on the phone.**
-    - **Pros:** works today (dual-access test, 2026-10-15); instant saves; the PC works offline.
-    - **Cons:** two paths; a weaker conflict check on the PC (modified time, with sync timing in between); depends on the sync app and Chrome folder access at work.
-- **C — Both available, chosen per device** (the location list, S-6).
-    - **Pros:** most flexible.
-    - **Cons:** more UI and choices; not needed for a prototype.
-
-Claude's access is the same in all options: Claude edits the synced folder on the PC, and OneDrive carries the change to both devices.
-
-**Decision (Geoff, 2026-10-16):** **A for the initial prototype.** The prototype is built and tested around the OneDrive web connection on both PC and Android. `FsStore` stays in the code unchanged. **Pivot to C later:** Geoff wants per-device choice (synced folder or web connection) after the prototype, through the location list in S-6.
-
-**Implementation notes:** the PC signs in through the same MSAL redirect flow as the phone. The same Azure registration works (`HTML-ToDo-App PoC`), but its redirect URI must also include the app's address (e.g. `https://gvd1024.github.io/html-todo-app/app/`). Add `http://localhost:8000/app/` for local testing.
-
-**Acceptance criteria:** the prototype on PC Chrome and on Android Chrome, both signed in to personal OneDrive, shows the same `HTML-ToDo-App-Test` tasks, and edits on either appear on the other.
-
----
-
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | S-9 | Overnight build: Phases 0 (except 0.3), 1, 2 and a Phase 3 first cut **Built**; 119 automated checks pass; 10 assumptions listed in the S-9 build log | Awaiting Geoff: Azure redirect URIs, then phone and PC check |
 | 2026-10-17 | S-9 | MVP build plan accepted (Phases 0–6); versioning `0.2.0-dev` / data format 2; Playwright; app at `/app/`; build on `main` with the `v0.1.1` tag | Phases are approved one at a time |
 | 2026-10-16 | S-6, S-7, S-8 | Prototype trims: **S-6 C** (one folder setting), **S-7 C** (recycle bin plus 5 s Undo, confirm for subtasks), **S-8 C** (no cache, parallel loading) | Decided |
 | 2026-10-16 | S-12 | **PC Claude Code CLI passed all steps:** create, read, update and delete on the OneDrive-synced test folder, seen on the phone and PC; a manual version check caught Geoff's concurrent edit, and nothing was overwritten | Next: the other five surfaces |
@@ -620,6 +654,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 ## Change history of this spec
 
+- 2026-10-17 — v11: S-9 build log (Phases 0–2 and Phase 3 first cut built; assumptions listed).
 - 2026-10-17 — v10: S-9 decided; Phase 0 questions answered.
 - 2026-10-17 — v9: S-9 rewritten as the phased MVP build plan (draft).
 - 2026-10-16 — v8: S-6 (C), S-7 (C: recoverable plus Undo) and S-8 (C) decided for the prototype.

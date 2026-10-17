@@ -21,6 +21,7 @@ class FakeGraph:
         self.n = 0               # eTag counter
         self.requests = []       # (method, path, if_match)
         self.violations = []
+        self.expire_before = 0   # delta tokens below this return 410 (simulates an expired change feed)
         for name, text in files.items():
             self._create(name, text)
 
@@ -140,6 +141,8 @@ class FakeGraph:
                 if unquote(rest[: -len(":/delta")]) != self.folder:
                     return self._error(route, 404, "folder not found")
                 token = int(q.get("token", ["0"])[0])
+                if token and token < self.expire_before:
+                    return self._error(route, 410, "resyncRequired")
                 changed = [self.item_json(it) for it in self.items.values() if it["seq"] > token and (token or not it["deleted"])]
                 link = f"{GRAPH}/me/drive/root:/{self.folder}:/delta?token={self.seq}"
                 return self._reply(route, 200, {"value": changed, "@odata.deltaLink": link})

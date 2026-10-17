@@ -382,6 +382,7 @@ class GraphStore {                            // OneDrive through Microsoft Grap
   async changes(){
     if (!this.deltaOk) return listDiff(this);       // work OneDrive: folder delta unsupported → listing (S-4)
     let url = this.deltaLink || `/me/drive/root:/${this.fp()}:/delta`; const first = !this.deltaLink; const out = [];
+    const resync = first && this.baselined;          // the feed was reset (e.g. token expired while asleep) → reload everything
     try {
       while (url){
         const r = await this.req('GET', url);
@@ -396,10 +397,11 @@ class GraphStore {                            // OneDrive through Microsoft Grap
         if (r['@odata.nextLink']) url = r['@odata.nextLink']; else { this.deltaLink = r['@odata.deltaLink']; url = null; }
       }
     } catch (e){
-      if ([400, 403, 501].includes(e.status)){ this.deltaOk = false; this._snap = null; await listDiff(this); return []; }
+      if ([400, 403, 501].includes(e.status)){ this.deltaOk = false; this._snap = null; await listDiff(this); return [{ resync:true }]; }
       this.deltaLink = null; throw e;
     }
-    return out;
+    this.baselined = true;
+    return resync ? [{ resync:true }] : out;
   }
 }
 
@@ -422,7 +424,8 @@ class MsalAuth {
     try { return (await this.pca.acquireTokenSilent({ scopes:SCOPES, account:this.account })).accessToken; }
     catch (e){ throw new AuthError(e.errorCode || e.message); }
   }
-  signIn(){ return this.pca.loginRedirect({ scopes:SCOPES }); }
+  signIn(){ const hint = ls.get('todo.lastUser', '');                 // pre-fill the account so the bounce can skip the picker
+    return this.pca.loginRedirect({ scopes:SCOPES, ...(hint ? { loginHint:hint } : {}) }); }
   signOut(){ return this.pca.logoutRedirect({ account:this.account }); }
   user(){ return this.account?.username || ''; }
 }
@@ -678,6 +681,10 @@ async function poll(force){
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 async function applyChanges(ch){
+  if (ch.some(c => c.resync)){                      // change feed was reset: reload everything (unless mid-edit)
+    if (isDirty()) return;
+    const keep = S.editing; await loadAll(); if (keep && get(keep)) fillDrawer(get(keep)); return;
+  }
   let changed = false;
   const seen = new Set();
   for (const c of ch){
@@ -1227,7 +1234,14 @@ async function useStore(store){
   if (S.editing) closeDrawer(true);
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
   try { await loadAll(); }
-  catch (e){ S.store = null; render(); showStart(e instanceof FolderError ? e.message : 'Could not load the task files: ' + e.message); return; }
+  catch (e){
+    S.store = null; render();
+    if (e instanceof AuthError){                  // remembered account, but Microsoft wants a fresh sign-in (e.g. 24 h limit)
+      if (!sessionStorage.getItem('todo.autoTried')){ sessionStorage.setItem('todo.autoTried', '1'); S.signedOut = true; signIn(); }
+      else { S.signedOut = true; showStart('Your sign-in expired — sign in again.'); }
+      return;
+    }
+    showStart(e instanceof FolderError ? e.message : e instanceof OfflineError ? "You're offline — connect and reload." : 'Could not load the task files: ' + e.message); return; }
   if (store.kind !== 'demo' && S.tasks.size === 0 && !S.cfgVersion) offerSeed();
   restoreDraft();
   schedulePoll();
@@ -1261,6 +1275,7 @@ function signIn(){
   Promise.resolve(S.auth.signIn()).catch(e => { S.redirecting = false; showStart('Sign-in failed: ' + (e.errorCode || e.message)); });
 }
 function reauth(){                       // session gone mid-use: bounce once automatically, else show the button (S-5)
+  if (S.signedOut) return;                // already handled — don't repeat on every poll
   S.signedOut = true; setStat();
   if (!sessionStorage.getItem('todo.autoTried')){ sessionStorage.setItem('todo.autoTried', '1'); signIn(); }
   else toast('Signed out — tap the status icon to sign in again.');
@@ -1272,7 +1287,7 @@ async function startOneDrive(){
   try { ({ account } = await S.auth.init()); }
   catch (e){ showStart('Sign-in problem: ' + (e.errorCode || e.message) + (/redirect_uri|AADSTS50011/i.test(e.message) ? ` — this page's address (${REDIRECT}) must be added to the Azure app registration.` : '')); return; }
   if (account){
-    ls.set('todo.everSignedIn', true); sessionStorage.removeItem('todo.autoTried');
+    ls.set('todo.everSignedIn', true); if (account.username) ls.set('todo.lastUser', account.username);
     await useStore(new GraphStore(S.auth, folder));
   } else if (ls.get('todo.everSignedIn', false) && !sessionStorage.getItem('todo.autoTried')){
     sessionStorage.setItem('todo.autoTried', '1'); signIn();          // automatic bounce through Microsoft (S-5 B)
