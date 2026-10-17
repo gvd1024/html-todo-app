@@ -32,7 +32,7 @@ Same rules as the round specs: no code until Geoff approves; only named items ge
 | S-6 | Locations and switching | **Decided** | C for the prototype (one folder setting, default `HTML-ToDo-App-Test`); A later |
 | S-7 | Delete behavior | **Decided** | Recoverable: OneDrive recycle bin plus a 5 s in-app Undo; confirm before deleting a parent's subtasks |
 | S-8 | Caching and offline | **Decided** | C for the prototype (no cache, parallel loading); A when startup feels slow |
-| S-9 | Build order (MVP build plan) | **Discussing** (draft) | Phases 0–6: prep → storage refactor → OneDrive + sign-in → phone list view → checking/done/delete → long-press move → acceptance and go-live |
+| S-9 | Build order (MVP build plan) | **Decided** | Phases 0–6: prep → storage refactor → OneDrive + sign-in → phone list view → checking/done/delete → long-press move → acceptance and go-live |
 | S-12 | Claude can create, read, update and delete the same files | **Open**, requirement | Synced folder on the PC; a local MCP server for desktop Chat; a remote MCP server for Android and the web |
 | S-11 | File and folder naming rules | **Decided** (rules); feature is future | One-way slug with dashes, plus Windows/OneDrive safety rules; `parent:` stays the hierarchy's source of truth |
 | S-10 | How the PC reaches the files | **Decided** | A for the prototype (OneDrive web connection on PC and phone); pivot to C later |
@@ -481,7 +481,7 @@ interface Store {
     - **R1-7 and R1-8** were board-only and become obsolete when the board is retired, pending Geoff's confirmation.
 - **The checklist → task-in-folder feature** (S-11).
 
-**Decision:** — (draft; awaiting Geoff's review of the phases and the Phase 0 questions)
+**Decision (Geoff, 2026-10-17):** plan accepted. Phase 0 questions: (1) `0.2.0-dev` plus data format 2: yes; (2) install Playwright: yes; (3) the app moves to `app/index.html` (`/app/`): yes; (4) build on `main` with the `v0.1.1` tag as the safety net: yes. R1-7 and R1-8 obsolete. Phases still start only when Geoff approves each one.
 
 ---
 
@@ -605,6 +605,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | S-9 | MVP build plan accepted (Phases 0–6); versioning `0.2.0-dev` / data format 2; Playwright; app at `/app/`; build on `main` with the `v0.1.1` tag | Phases are approved one at a time |
 | 2026-10-16 | S-6, S-7, S-8 | Prototype trims: **S-6 C** (one folder setting), **S-7 C** (recycle bin plus 5 s Undo, confirm for subtasks), **S-8 C** (no cache, parallel loading) | Decided |
 | 2026-10-16 | S-12 | **PC Claude Code CLI passed all steps:** create, read, update and delete on the OneDrive-synced test folder, seen on the phone and PC; a manual version check caught Geoff's concurrent edit, and nothing was overwritten | Next: the other five surfaces |
 | 2026-10-16 | S-12 | **Added requirement:** Claude CRUD on the same task files from six surfaces (PC CLI, desktop Code, desktop Cowork, desktop Chat, Android Chat, Android Cowork). "No server" clarified as app-only; a custom remote MCP server for Claude's access is acceptable (personal) | Testing starts with the PC CLI |
@@ -619,6 +620,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 
 ## Change history of this spec
 
+- 2026-10-17 — v10: S-9 decided; Phase 0 questions answered.
 - 2026-10-17 — v9: S-9 rewritten as the phased MVP build plan (draft).
 - 2026-10-16 — v8: S-6 (C), S-7 (C: recoverable plus Undo) and S-8 (C) decided for the prototype.
 - 2026-10-16 — v7: S-4 decided; S-12 added (Claude CRUD requirement, access paths, test checklist).

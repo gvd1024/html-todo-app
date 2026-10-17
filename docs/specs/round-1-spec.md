@@ -27,8 +27,8 @@
 | R1-4 | Font is too small | Open | A | — |
 | R1-5 | What is Collections for? | Open | A | — |
 | R1-6 | Track the app version | Open | A + C | — |
-| R1-7 | Reorder lists by dragging | Open | A | — |
-| R1-8 | Clicking the open task again should close the editor | Open | A + B | — |
+| R1-7 | Reorder lists by dragging | **Obsolete** | — | Board view retired (R1-12) |
+| R1-8 | Clicking the open task again should close the editor | **Obsolete** | — | Board view retired (R1-12) |
 | R1-9 | Use the board from an Android phone (**key requirement**) | Discussing | C (Drive backend) | — |
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
@@ -613,6 +613,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-7, R1-8 | **Obsolete:** both were board-only, and the board view is retired (R1-12) | Geoff confirmed |
 | 2026-10-17 | R1-12 | Done files: stay in place for the prototype, with archive-after-N-days later; new key `completed: YYYY-MM-DD`; unchecking a parent leaves subtasks; no auto-check of the parent; badge shows open/total | Decided |
 | 2026-10-16 | R1-12 | Old status values: **no automatic translation**. Claude migrates files by hand (real files only when Geoff says). The app keeps unrecognized frontmatter untouched and shows a ⚠ warning | Test folder already compliant |
 | 2026-10-16 | R1-12 | 7a: keep the sideways offset plus a ⇤ button, and snap back on list switch, editor close or 3 s idle. 13a: drop on a row's middle = make child, edges = reorder, drag left = un-nest, with a visible indicator | R1-12 Decided |
@@ -637,6 +638,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v16: R1-7 and R1-8 marked obsolete.
 - 2026-10-17 — v15: R1-12 point 14 (done files, `completed` key).
 - 2026-10-16 — v14: unrecognized-frontmatter policy (warn, never delete; Claude migrates by hand).
 - 2026-10-16 — v13: R1-12 7a and 13a decided; R1-12 Decided.
