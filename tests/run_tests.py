@@ -129,7 +129,7 @@ def test_phone_demo(browser):
     page.goto(APP)
     page.wait_for_selector(".row")
     check("header shows the list name", page.inner_text("#list-label").strip() == "Home", page.inner_text("#list-label"))
-    check("version shown in header", "0.2.0-dev" in page.inner_text("#ver"), page.inner_text("#ver"))
+    check("version is in the page (shown in the header on PCs, in Settings on phones)", "0.2.0-dev" in page.text_content("#ver"), page.text_content("#ver"))
     page.screenshot(path=str(SHOTS / "01-phone-list-home.png"))
 
     fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
@@ -243,6 +243,15 @@ def test_phone_demo(browser):
           (live, after, box))
     page.screenshot(path=str(SHOTS / "13-phone-text-175.png"))
     check("text size is remembered per device", page.evaluate("localStorage.getItem('todo.textSize')") == "175")
+    page.click("#list-name")
+    page.click("#modal button:has-text('New list')")
+    page.fill("#m-name", "Feedback")
+    page.click("#modal button:has-text('Add')")
+    page.wait_for_timeout(300)
+    fit = page.eval_on_selector("#list-name", "el => [el.scrollWidth, el.clientWidth, parseFloat(el.style.fontSize)]")
+    check("list name shrinks to fit at 175% (\"Feedback\" not cut off)", fit[0] <= fit[1] + 1 and fit[2] >= 18, fit)
+    check("phone header hides the version but keeps the status dot", not page.locator("#ver").is_visible() and page.locator("#stat").is_visible())
+    page.screenshot(path=str(SHOTS / "14-phone-175-feedback-header.png"))
     page.evaluate("() => { localStorage.setItem('todo.textSize', '125'); document.documentElement.style.setProperty('--z', '1.25'); }")
 
     # by due date

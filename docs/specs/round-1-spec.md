@@ -189,7 +189,15 @@
 - The choice survives reloads.
 - (Automated: `run_tests.py` demo group; Geoff confirms comfort on his phone.)
 
-**Status:** Built 2026-10-17; awaiting Geoff's check on the phone.
+**Follow-up 2 (Geoff, 2026-10-17):** "the font for the list name (with dropdown got too big, so bit that the word feedback gets cut off and only shows "Feedba..."" and "any ideas on how i can read longer text on the phone?"
+- **Header (options A: cap / B: shrink to fit / C: free up header space).**
+    - **Decision: B + C, keeping the green status dot.** The list name uses the biggest size that fits, from the setting's size down to 18 px.
+    - Phones never show the version in the header (it's in Settings).
+    - The status button is slimmer.
+- **Long titles** (A: sideways scroll / B: wrapped title in the editor / C: a "wrap long titles" toggle / D: landscape / E: slimmer row chrome).
+    - **Decision: A only.** Keep the existing sideways scroll; Geoff finds the titles readable for now.
+
+**Status:** Built 2026-10-17 (the header fix built the same day); awaiting Geoff's check on the phone.
 
 ---
 
@@ -630,6 +638,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-17 | R1-4 | Header follow-up: **shrink-to-fit list name + no version on the phone header** (status dot kept). Long titles: keep sideways scroll only | Built |
 | 2026-10-17 | R1-4 | **C: a text-size setting** (100/125/150/175 %), per device, phones default 125 %; text and tap targets scale together. Built immediately at Geoff's request | Awaiting phone check |
 | 2026-10-17 | R1-10 | Sign-in persistence retest (the app v0.2.0-dev after the night, with "Stay signed in" set): the list appeared after about 3 s with no Microsoft screens or typing. **Experience passes.** Not yet proven after a forced Chrome close | Criterion 5 effectively met; confirm with a forced-close test |
 | 2026-10-17 | R1-7, R1-8 | **Obsolete:** both were board-only, and the board view is retired (R1-12) | Geoff confirmed |
@@ -657,6 +666,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-17 — v19: R1-4 header follow-up decided and built.
 - 2026-10-17 — v18: R1-4 decided (C) and built.
 - 2026-10-17 — v17: R1-12 first cut built.
 - 2026-10-17 — v16: R1-7 and R1-8 marked obsolete.
