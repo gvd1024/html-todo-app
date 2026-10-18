@@ -33,6 +33,7 @@
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
 | R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
+| R1-13 | Open the app from a home-screen icon | **Built** | B | Installable web app: own window, icon, no-cache service worker |
 
 ---
 
@@ -641,10 +642,43 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 ---
 
+## R1-13 — Open the app from a home-screen icon
+
+**Reported** (Geoff, 2026-10-18): "i want to open the html todo app on my phone by just tapping an icon on the home screen. is there any way to do this without having to open the chrome app?"
+
+**Options**
+- **A — Chrome's "Add to Home screen" shortcut.**
+    - **Pros:** no code.
+    - **Cons:** it opens a normal Chrome tab, with the address bar and menus.
+- **B — Make the app installable** (a web app manifest, icons, a service worker).
+    - **Pros:** Chrome offers "Install app"; you get a home-screen and app-drawer icon; the app runs in its own full-screen window with no browser UI, and shows as its own app in Android's recents.
+    - **Cons:** a small build. Chrome still runs it underneath (inherent to web apps on Android). Microsoft sign-in opens in a small in-app sheet.
+
+**Decision (Geoff, 2026-10-18):** **B.**
+
+**Implementation notes:**
+- **`app/manifest.webmanifest`:** name "HTML-ToDo-App", short name "ToDo", `display: standalone`, scope and start URL `/app/`, dark theme colors.
+- **Icons:** `app/icons/` (SVG source, with PNGs at 192/512, a maskable 512 and the Apple touch icon), a blue checkbox with a green check.
+- **`app/sw.js`:**
+    - Network-only for page loads and **caches nothing**, so the installed app always runs the latest version.
+    - Doesn't touch OneDrive or API requests.
+    - Registered only on https (not in local tests).
+- **Verified 2026-10-18 on the live site:** Chrome's installability check shows no errors, and the manifest parses cleanly.
+
+**Acceptance criteria:**
+- Chrome on Android offers Install, and the icon appears on the home screen.
+- Tapping it opens the app full-screen with no address bar.
+- Sign-in and sync work as in the browser.
+
+**Status:** Built 2026-10-18; awaiting Geoff's install on the phone.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-18 | R1-13 | Added and decided **B (installable web app)**; built and verified as installable on the live site | Awaiting install on the phone |
 | 2026-10-17 | R1-12 | #15 pull to refresh, in-app: re-reads the file list from OneDrive; refuses while an edit is unsaved | Built |
 | 2026-10-17 | R1-4 | Phone header: ⋯ flush right, status dot right beside it | Built |
 | 2026-10-17 | R1-4 | Header follow-up: **shrink-to-fit list name + no version on the phone header** (status dot kept). Long titles: keep sideways scroll only | Built |
@@ -675,6 +709,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-18 — v21: R1-13 (home-screen app) added, decided and built.
 - 2026-10-17 — v20: R1-12 #15 pull to refresh.
 - 2026-10-17 — v19: R1-4 header follow-up decided and built.
 - 2026-10-17 — v18: R1-4 decided (C) and built.
