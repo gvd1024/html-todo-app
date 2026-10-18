@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HTML-ToDo-App</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#161b22">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/toastui-editor.css">
 <link rel="stylesheet" href="vendor/toastui-editor-dark.css">
 <style>
@@ -1420,6 +1424,9 @@ function sampleFiles(){
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, APP_VERSION, DATA_FORMAT };
+/* installable app (home-screen icon, own window): register the no-cache service worker */
+if ('serviceWorker' in navigator && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
 (async () => {
   render();
   if (window.__TEST_NO_BOOT__) return;
