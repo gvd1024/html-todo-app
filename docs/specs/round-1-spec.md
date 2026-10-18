@@ -33,7 +33,7 @@
 | R1-10 | Work tasks on work OneDrive, usable from Android (**requirement**) | Discussing | Check with IT first, then A | — |
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
 | R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
-| R1-13 | Open the app from a home-screen icon | **Built** | B | Installable web app: own window, icon, no-cache service worker |
+| R1-13 | Open the app from a home-screen icon | **Verified** | B | Installable web app: own window, icon, no-cache service worker |
 
 ---
 
@@ -670,7 +670,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 - Tapping it opens the app full-screen with no address bar.
 - Sign-in and sync work as in the browser.
 
-**Status:** Built 2026-10-18; awaiting Geoff's install on the phone.
+**Status:** Verified 2026-10-18: Geoff installed it on Android; it opens full screen with no address bar.
 
 ---
 
@@ -678,6 +678,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-18 | R1-13 | Verified on Geoff's phone (installed; full screen, no address bar) | Done |
 | 2026-10-18 | R1-13 | Added and decided **B (installable web app)**; built and verified as installable on the live site | Awaiting install on the phone |
 | 2026-10-17 | R1-12 | #15 pull to refresh, in-app: re-reads the file list from OneDrive; refuses while an edit is unsaved | Built |
 | 2026-10-17 | R1-4 | Phone header: ⋯ flush right, status dot right beside it | Built |
