@@ -9,5 +9,6 @@ A personal task app. Every task is one Markdown file with YAML frontmatter, and 
 | `tests/` | Automated tests (Playwright + a simulated OneDrive): `python tests/run_tests.py`. |
 | `docs/specs/` | Feedback-round specs and the storage spec. |
 | `CLAUDE.md`, `HANDOFF.md` | Context and working rules for Claude Code. |
+| `SECURITY-REVIEW.md` | Security self-review: network destinations, library checksums, findings, and how to verify. |
 
 Live (GitHub Pages): `https://gvd1024.github.io/html-todo-app/app/` (the app) and `https://gvd1024.github.io/html-todo-app/poc/` (the proof of concept). The last released version, v0.1.1, is tagged `v0.1.1` in git.

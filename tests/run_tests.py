@@ -472,6 +472,47 @@ def test_resilience(browser):
     ctx.close()
 
 
+def test_hostile_files(browser):
+    print("\n[7] Security: hostile task files can't run code (XSS)")
+    evil = "<img src=x onerror=\"window.__xss=(window.__xss||0)+1\">"
+    files = {
+        "evil-title.md": f"---\nid: t-x1\ntitle: '{evil} title'\nstatus: open\nlist: '{evil}List'\norder: 1\n---\n",
+        "evil-status.md": f"---\nid: t-x2\ntitle: Evil status\nstatus: '{evil}'\nprefix: '{evil}'\nlist: Evil\norder: 2\nhack: '{evil}'\n---\n",
+        "evil-body.md": "---\nid: t-x3\ntitle: Evil body\nstatus: open\nlist: Evil\norder: 3\n---\n"
+                        f"Hello {evil}\n\n<script>window.__xss=(window.__xss||0)+100</script>\n\n[click](javascript:window.__xss=1000)\n\n- [ ] {evil} checklist\n",
+        "_todo.json": json.dumps({"format": 2, "lists": ["Evil", f"{evil}List"]}),
+    }
+    fg = FakeGraph(FOLDER, files)
+    ctx, page, errors = new_page(browser, phone=True, init=TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.list": "Evil"}))
+    fg.install(page)
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    page.wait_for_timeout(500)
+    for title in ["Evil status", "Evil body"]:
+        row(page, title).locator(".ttl").click()
+        page.wait_for_selector("#drawer.open")
+        page.wait_for_timeout(800)
+        page.click("#d-mode")              # formatted ↔ raw: render both ways
+        page.wait_for_timeout(400)
+        page.click("#d-mode")
+        page.wait_for_timeout(400)
+        page.click("#d-close")
+        page.wait_for_timeout(300)
+    page.click("#list-name")
+    page.wait_for_timeout(300)
+    page.locator("#modal .pick .go").nth(1).click()   # the list whose name is the injection
+    page.wait_for_timeout(500)
+    row(page, "title").locator(".more").click()
+    page.wait_for_timeout(200)
+    page.keyboard.press("Escape")
+    check("hostile titles, lists, statuses, keys and bodies never execute", not page.evaluate("window.__xss") and not dialogs,
+          (page.evaluate("window.__xss"), dialogs))
+    check("injected markup is shown as text, not elements", page.locator("#rows img").count() == 0 and "<img" in page.inner_text("#rows"))
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -480,7 +521,8 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
-                 ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience)]
+                 ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
+                 ("security", test_hostile_files)]
         for name, fn in tests:
             if not only or name in only:
                 try:
