@@ -35,11 +35,16 @@
    - Only the `app/` folder is needed (`index.html` plus `vendor/` plus `icons/`).
 2. **Put it somewhere local,** e.g. `C:\Users\<you>\Apps\HTML-ToDo-App\` (not inside OneDrive, so it can't sync or auto-change).
 3. **Make a test folder.** The most conservative choice is a plain local folder (e.g. `Documents\HTML-ToDo-App-Test`). Next step: a folder inside the **work OneDrive sync folder**, so tasks are backed up and visible in OneDrive (still no Graph and no sign-in, since OneDrive's own sync app moves the files).
-4. **Open `app\index.html` in Edge or Chrome** (double-click, or drag into the browser) → ⋯ → **Settings** → **A local folder on this PC** → Apply → pick the test folder → allow edit access. An empty folder offers **Add sample tasks**.
+4. **Open `app\index.html` in Edge or Chrome** (double-click, or drag into the browser) → ⋯ → **Settings** → tick **Network lock** and choose **A local folder on this PC** → Apply (the page reloads) → pick the test folder → allow edit access. An empty folder offers **Add sample tasks**. Optional check: press F12 → Console. Any blocked connection attempt would show as a Content-Security-Policy violation.
 5. **Each new browser session,** Chrome/Edge asks again for permission to the folder: click **Reconnect "<folder>"**. That's expected for local files.
 6. **Optional:** create a desktop shortcut to the local `index.html`.
 
-**Optional hardening, a "local edition" (proposed, NOT built; needs Geoff's OK):** a copy of the app with the MSAL library removed, the default set to *local folder*, and a Content Security Policy that **blocks all network access** (`connect-src 'none'`). The browser itself then guarantees nothing leaves the PC. It's the strongest statement for IS, and a small build.
+**Network lock: built 2026-10-18 (R1-14).** Same app file for personal and work. ⋯ → **Settings → Network lock: Block all network access** → Apply (the page reloads).
+- **What it does:** before anything else loads, the page installs a Content Security Policy that blocks **every** connection it could make (fetch/XHR, images, frames, forms, workers). The browser enforces it; blocked attempts show as CSP violations in DevTools.
+- **While it's on:** OneDrive sign-in is off. Use a local folder (or demo).
+- **Verified by automated tests,** served and from disk: calls to Microsoft, an image beacon, and an analytics ping are all blocked, and the app works normally.
+- **Caveat:** the switch is stored in that browser's `localStorage`. It's enforced by the browser once on, but it's a setting rather than a hard-coded build.
+- **At work, step 4 becomes:** Settings → tick **Network lock** + choose **A local folder on this PC** → Apply → pick the folder.
 
 **Known limits in local mode:** PC only (Chrome/Edge desktop); no phone; the conflict check uses modified time (weaker than OneDrive's `If-Match`, fine for one person); polling every ~5 s picks up edits made elsewhere (Claude, other PCs via OneDrive sync).
 

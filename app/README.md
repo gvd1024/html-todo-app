@@ -8,6 +8,8 @@ A task list where each task is its own Markdown file. The same files open on you
   - After the first sign-in, the app re-signs you in automatically when the browser forgets the session (with "Stay signed in" on, that's a quick bounce, no typing).
 - **A local folder (desktop Chrome/Edge):** ⋯ → Settings → *A local folder on this PC*.
 - **Demo data:** ⋯ → Settings → *Demo data* (nothing is saved).
+- **Network lock:** ⋯ → Settings → *Block all network access*. The browser then stops the page from connecting anywhere (use a local folder). Good for a work PC where tasks must stay local.
+- **From disk, no web server:** double-click `app/index.html`. It makes no network requests unless you sign in.
 - **Locally:** `python -m http.server 8000` from the repository root, then `http://localhost:8000/app/`.
 
 ## Using it

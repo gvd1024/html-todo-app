@@ -513,6 +513,69 @@ def test_hostile_files(browser):
     ctx.close()
 
 
+def test_network_lock(browser):
+    print("\n[8] Network lock (Settings): the browser blocks every connection")
+    from urllib.parse import urlparse
+    attempts = """async () => {
+      const out = {};
+      try { await fetch('https://graph.microsoft.com/v1.0/me'); out.fetch = 'ALLOWED'; } catch (e) { out.fetch = 'blocked'; }
+      await new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = 'https://example.com/beacon.png?d=secret'; setTimeout(r, 1500); });
+      try { await fetch('https://www.google-analytics.com/collect?v=1'); out.ga = 'ALLOWED'; } catch (e) { out.ga = 'blocked'; }
+      return out; }"""
+    for where, url in [("served", APP), ("from disk", (ROOT / "app" / "index.html").resolve().as_uri())]:
+        fg = FakeGraph(FOLDER, dict(TEST_FILES))
+        ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.netLock": True, "todo.list": "Home"}))
+        fg.install(page)
+        hosts = set()   # hosts that actually answered (blocked attempts fail with reason "csp" and never get a response)
+        ctx.on("response", lambda r: hosts.add(urlparse(r.url).netloc))
+        violations = []
+        page.expose_function("__cspv", lambda d: violations.append(d))
+        page.add_init_script("document.addEventListener('securitypolicyviolation', e => window.__cspv(e.violatedDirective + ' ' + e.blockedURI));")
+        page.goto(url)
+        page.wait_for_selector(".row")
+        res = page.evaluate(attempts)
+        page.wait_for_timeout(300)
+        outside = {h for h in hosts if h and not h.startswith("localhost")}
+        check(f"lock on ({where}): the app still works (demo list loads, scripts and styles load)", page.locator(".row").count() >= 3 and page.evaluate("!!window.toastui && !!window.jsyaml"))
+        check(f"lock on ({where}): fetch to Microsoft, image beacon and analytics are all blocked", res == {"fetch": "blocked", "ga": "blocked"} and not outside,
+              (res, outside))
+        check(f"lock on ({where}): the browser reports the blocks as policy violations", len(violations) >= 3, violations)
+        ctx.close()
+
+    # lock off: the same calls go out normally (control)
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    fg.install(page)
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    check("lock off (control): the same fetch to Microsoft is allowed", page.evaluate("fetch('https://graph.microsoft.com/v1.0/me').then(r => r.ok)"))
+    # the Settings switch turns it on (reload) and disables OneDrive
+    page.click("#app-menu")
+    page.locator("#pop button", has_text="Settings").click()
+    page.check("#m-netlock")
+    page.click("#modal button:has-text('Apply')")
+    page.wait_for_selector(".row")
+    page.wait_for_timeout(300)
+    check("Settings switch turns the lock on (after reload)", page.evaluate("!!window.__NETLOCK__"))
+    page.click("#app-menu")
+    page.locator("#pop button", has_text="Settings").click()
+    check("with the lock on, OneDrive can't be chosen", page.is_disabled("input[name=src][value=onedrive]"))
+    page.screenshot(path=str(SHOTS / "15-pc-settings-network-lock.png"))
+    page.click("#modal button:has-text('Cancel')")
+    ctx.close()
+
+    # OneDrive selected but locked → start screen without sign-in, no Microsoft contact
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "onedrive", "todo.netLock": True}))
+    hosts = set()
+    ctx.on("request", lambda r: hosts.add(urlparse(r.url).netloc))
+    page.goto(APP)
+    page.wait_for_selector(".start")
+    check("OneDrive + lock: explains the lock, offers no sign-in, contacts nobody", "Network lock is on" in page.inner_text(".start")
+          and page.locator("button:has-text('Sign in with Microsoft')").count() == 0 and not {h for h in hosts if h and not h.startswith("localhost")})
+    check("network lock: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -522,7 +585,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock)]
         for name, fn in tests:
             if not only or name in only:
                 try:

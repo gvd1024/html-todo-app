@@ -65,7 +65,9 @@ Free-form Markdown body; checklists are - [ ] / - [x].
   - **Files:** `parseTask` and `serializeTask` use js-yaml with CORE_SCHEMA, so dates stay strings.
   - **UI (R1-12):** the phone-first list view (one list at a time, sticky prefix and ⋯ columns, sideways scroll with ⇤ and snap-back, subtask badges, quick-add), list-picker sheet, by-due-date view, full-screen Toast UI editor on phones with a prefix selector, demote and promote. The board view is retired.
   - **Sync (S-4):** `poll()` every ~10 s on phones / ~5 s on PCs plus on `visibilitychange`; reloads a file only when its version differs from the loaded one; conflict dialog with *Use theirs / Overwrite / Keep both*.
-  - Settings (⋯ menu): storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App-Test`, client ID of the Azure registration `HTML-ToDo-App PoC`.
+  - Settings (⋯ menu): text size; **Network lock** (R1-14: a CSP written at the top of `<head>` blocks all connections; OneDrive is off while on); storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App-Test`, client ID of the Azure registration `HTML-ToDo-App PoC`.
+  - Installable app (R1-13): `app/manifest.webmanifest`, `app/icons/`, `app/sw.js` (no caching).
+  - Security: see `SECURITY-REVIEW.md`. Tests include hostile task files (XSS) and the network lock.
 - `app/vendor/` — libraries kept in the repository so the app works offline:
   - Toast UI Editor, bundled with ProseMirror by esbuild (the npm package has no "all" bundle)
   - MSAL Browser 5.22.0 (`msal-browser.min.js`, same file as the PoC)

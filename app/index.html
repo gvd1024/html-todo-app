@@ -3,6 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+/* Network lock (Settings → "Network lock"): runs before anything else loads. When on, a Content Security
+   Policy blocks every network connection this page could make (fetch/XHR, images, frames, forms, workers);
+   the browser enforces it. Local files (scripts, styles, icons) still load. */
+(function(){ try {
+  if (JSON.parse(localStorage.getItem('todo.netLock') || 'false')){
+    document.write('<meta http-equiv="Content-Security-Policy" content="' +
+      "connect-src 'none'; img-src 'self' data: blob: file:; media-src 'none'; frame-src 'none'; child-src 'none'; " +
+      "worker-src 'none'; object-src 'none'; form-action 'none'; manifest-src 'self' file:; font-src 'self' data: file:" + '">');
+    window.__NETLOCK__ = true;
+  }
+} catch (e) {} })();
+</script>
 <title>HTML-ToDo-App</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#161b22">
@@ -539,6 +552,7 @@ function setStat(){
   else if (S.busy || S.syncing){ s = 'sync'; tip = 'Syncing…'; }
   else { s = S.store.kind === 'demo' ? 'demo' : S.store.kind === 'local' ? 'local' : 'ok';
          tip = S.store.kind === 'demo' ? 'Demo data — not saved' : S.store.kind === 'local' ? 'Local folder: ' + S.store.name : 'Signed in' + (S.auth?.user() ? ' as ' + S.auth.user() : '') + ' · ' + S.store.name; }
+  if (window.__NETLOCK__) tip += ' · network locked (no connections)';
   el.className = 'stat ' + s;
   el.textContent = { ok:'●', local:'●', sync:'⟳', offline:'⚠', signedout:'○', conflict:'!', demo:'◌', off:'○' }[s];
   el.title = tip; el.dataset.state = s;
@@ -1266,8 +1280,11 @@ function settingsDialog(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${TEXT_SIZES.map(s =>
         `<label style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:6px 10px"><input type="radio" name="tsz" value="${s}" ${s===textSize()?'checked':''}> ${s}%</label>`).join('')}</div>
     </fieldset>
+    <fieldset><legend>Network lock</legend>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="checkbox" id="m-netlock" ${window.__NETLOCK__?'checked':''}> <span><b>Block all network access</b> — the browser stops this page from connecting anywhere (OneDrive sign-in is off; use a local folder). Applies on reload.</span></label>
+    </fieldset>
     <fieldset><legend>Where your task files are</legend>
-      <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="onedrive" ${src==='onedrive'?'checked':''}> OneDrive (phone + PC)</label>
+      <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="onedrive" ${src==='onedrive'?'checked':''} ${window.__NETLOCK__?'disabled':''}> OneDrive (phone + PC)${window.__NETLOCK__?' — off while the network lock is on':''}</label>
       <label style="display:block;font-size:12px;color:var(--muted);margin:4px 0 8px 24px">Folder (from the top of your OneDrive)<input type="text" id="m-folder" value="${esc(ls.get('todo.folder', DEFAULT_FOLDER))}"></label>
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="local" ${src==='local'?'checked':''} ${window.showDirectoryPicker?'':'disabled'}> A local folder on this PC (desktop Chrome/Edge)</label>
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="demo" ${src==='demo'?'checked':''}> Demo data (nothing is saved)</label>
@@ -1279,11 +1296,14 @@ function settingsDialog(){
       const size = +document.querySelector('input[name=tsz]:checked').value;
       ls.set('todo.textSize', size); applyTextSize(size);
       const nsrc = document.querySelector('input[name=src]:checked').value; const folder = $('#m-folder').value.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_FOLDER;
-      const storageChanged = nsrc !== src || folder !== ls.get('todo.folder', DEFAULT_FOLDER) || !S.store;
+      const lock = $('#m-netlock').checked; const lockChanged = lock !== !!window.__NETLOCK__;
+      if (lock && nsrc === 'onedrive') return toast('With the network lock on, choose a local folder (or demo data).');
+      const storageChanged = nsrc !== src || folder !== ls.get('todo.folder', DEFAULT_FOLDER) || !S.store || lockChanged;
       if (storageChanged && isDirty()) return toast('Save or close the open task first.');
       closeModal();
       if (!storageChanged) return;
       ls.set('todo.source', nsrc); ls.set('todo.folder', folder);
+      if (lockChanged){ ls.set('todo.netLock', lock); location.reload(); return; }
       if (nsrc === 'local'){ await pickLocalFolder(); return; }
       location.reload();
     });
@@ -1316,7 +1336,7 @@ function showStart(msg){
     <h2>${src === 'onedrive' ? 'Sign in to your OneDrive' : 'Choose your task files'}</h2>
     <p>${msg ? esc(msg) : src === 'onedrive' ? `Your tasks are plain <code>.md</code> files in the OneDrive folder <b>${esc(ls.get('todo.folder', DEFAULT_FOLDER))}</b>. The same files open on your phone and PC.` : 'Open a folder of task files.'}</p>
     <div class="btns">
-      ${src === 'onedrive' ? '<button class="primary" data-start="signin">Sign in with Microsoft</button>' : ''}
+      ${src === 'onedrive' && !window.__NETLOCK__ ? '<button class="primary" data-start="signin">Sign in with Microsoft</button>' : ''}
       ${window.showDirectoryPicker ? '<button data-start="local">Open a local folder…</button>' : ''}
       <button data-start="demo">Try the demo data</button>
       <button data-start="settings">Settings…</button>
@@ -1425,7 +1445,7 @@ window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, Exi
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
-if ('serviceWorker' in navigator && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
+if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
 (async () => {
   render();
@@ -1434,6 +1454,7 @@ if ('serviceWorker' in navigator && !window.__TEST_AUTH__ && !window.__TEST_NO_B
   try {
     if (src === 'demo') await useStore(new MemStore(sampleFiles()));
     else if (src === 'local'){ if (!(await tryRestoreFolder().catch(() => false))) showStart(); }
+    else if (window.__NETLOCK__) showStart('Network lock is on, so OneDrive is off. Open a local folder, or turn the lock off in Settings.');
     else await startOneDrive();
   } catch (e){ console.error(e); showStart('Start-up failed: ' + e.message); }
 })();

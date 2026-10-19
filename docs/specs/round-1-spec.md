@@ -34,6 +34,7 @@
 | R1-11 | Rename the app to HTML-ToDo-App | Built | — | Display name HTML-ToDo-App; slugs stay `html-todo-app` |
 | R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
 | R1-13 | Open the app from a home-screen icon | **Verified** | B | Installable web app: own window, icon, no-cache service worker |
+| R1-14 | Network lock (block all connections) | **Built** | B | Settings switch; CSP before anything loads; same file for personal and work |
 
 ---
 
@@ -674,10 +675,44 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 
 ---
 
+## R1-14 — Network lock (block all network access)
+
+**Reported** (Geoff, 2026-10-18): "keep the microsoft sign-in library but is there a way to let me (in settings) toggle the browser rule blocking network access from the app? this way I can keep the same version of the app for both personal and work use?"
+
+**Context:** for the work PC, the most conservative setup is local-folder mode with no network at all (HANDOFF, "WORK PC"). Claude had offered a separate "local edition" (without MSAL, with a hard-coded CSP).
+
+**Options**
+- **A — A separate local edition** (no MSAL, CSP always on).
+    - **Pros:** strongest guarantee.
+    - **Cons:** two versions to maintain.
+- **B — One app with a Settings switch.**
+    - **Pros:** same file everywhere; when on, a CSP installed before anything loads blocks all connections, enforced by the browser.
+    - **Cons:** the switch lives in `localStorage` (a setting, not a hard-coded build).
+
+**Decision (Geoff, 2026-10-18):** **B.**
+
+**Implementation notes:**
+- **Lock on:** an inline script at the top of `<head>` `document.write`s a CSP meta tag (`connect-src 'none'`; images only from self, data, blob and file; no media, frames, workers, objects or forms) and sets `window.__NETLOCK__`.
+- **While locked:** OneDrive can't be selected, the start screen explains why (no Sign in button), and the service worker isn't registered.
+- **The status tooltip** says "network locked".
+- **Toggling** reloads the page.
+
+**Acceptance criteria:** with the lock on, from a web server **and** from disk:
+- a Graph fetch, an image beacon and an analytics fetch are blocked (Chrome failure reason `csp`), with no response from any outside host;
+- CSP violations are reported;
+- the app works normally.
+
+With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py` group `netlock`, all passing.)*
+
+**Status:** Built 2026-10-18.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-18 | R1-14 | Added and decided **B (a Settings switch)**; built and tested (blocks fetch, beacon and analytics, served and from disk) | — |
 | 2026-10-18 | R1-13 | Verified on Geoff's phone (installed; full screen, no address bar) | Done |
 | 2026-10-18 | R1-13 | Added and decided **B (installable web app)**; built and verified as installable on the live site | Awaiting install on the phone |
 | 2026-10-17 | R1-12 | #15 pull to refresh, in-app: re-reads the file list from OneDrive; refuses while an edit is unsaved | Built |
@@ -710,6 +745,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-18 — v22: R1-14 network lock.
 - 2026-10-18 — v21: R1-13 (home-screen app) added, decided and built.
 - 2026-10-17 — v20: R1-12 #15 pull to refresh.
 - 2026-10-17 — v19: R1-4 header follow-up decided and built.

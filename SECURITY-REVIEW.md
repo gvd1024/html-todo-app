@@ -80,13 +80,27 @@ The official npm `@azure/msal-browser@5.22.0` `lib/msal-browser.min.js` has SHA-
 | **F3** | Info | The Toast UI bundle can't be verified byte-for-byte, and it contains Toast UI's usage-statistics code (Google Analytics). The app sets `usageStatistics: false`, and the runtime capture confirmed no request to Google. | Keep it disabled. Optionally, commit a reproducible build script (`npm i @toast-ui/editor@3.2.2` + esbuild) so the bundle can be rebuilt and compared. **Note: Toast UI Editor's last release (3.2.2) was 2023-02-17**, so the project looks unmaintained. Consider a maintained editor before wider or work use. |
 | **F4** | **Medium (work)** | `Files.ReadWrite` lets the app read and write **every file in the user's OneDrive**, not just the task folder. The app only touches the one configured folder, but the permission allows more. | For work: use `Files.ReadWrite.AppFolder` (only `/Apps/<app name>/`) or a selected-files permission if IT prefers, at the cost of the task folder living in the app folder. |
 | **F5** | **Medium (work)** | The code that runs with access to your files is served from a **personal GitHub account's Pages site**. Whoever controls that account controls the code. | Enable 2FA (and branch protection) on the GitHub account. For work: host a **reviewed, pinned copy** on company infrastructure (SharePoint, an internal static host, or Azure Static Web Apps in the company tenant) with the company's own app registration. The app is just static files, so this is easy. |
-| **F6** | Low | No Content Security Policy. | Add a CSP that allows scripts only from the app's own origin, and network calls only to `login.microsoftonline.com`, `graph.microsoft.com` and OneDrive's download hosts. The browser then enforces the "data goes only to Microsoft" promise. Test on real devices before relying on it. |
+| **F6** | Low (partly addressed) | No *always-on* Content Security Policy. **Since 2026-10-18 there's an opt-in Network lock** (Settings): a CSP blocking all connections (`connect-src 'none'`, plus images, frames, forms and workers), tested served and from disk. | Add a CSP that allows scripts only from the app's own origin, and network calls only to `login.microsoftonline.com`, `graph.microsoft.com` and OneDrive's download hosts. The browser then enforces the "data goes only to Microsoft" promise. Test on real devices before relying on it. |
 
 **Other observations (no action needed):**
 - Tokens are short-lived, and MSAL encrypts its cache.
 - No secrets in the repository: the Azure client ID is public by design.
 - Data stays in plain `.md`/`.json` files in the user's own OneDrive.
 - **The work-OneDrive path hasn't been tested yet.**
+
+## Network lock (added 2026-10-18)
+- **Where:** Settings → *Network lock: Block all network access*.
+- **What happens when on:** an inline script at the top of `<head>` writes this policy before any other resource loads:
+  `connect-src 'none'; img-src 'self' data: blob: file:; media-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; manifest-src 'self' file:; font-src 'self' data: file:`
+- **The app with the lock on:** OneDrive/MSAL is disabled and the service worker isn't registered.
+- **Tests** (`tests/run_tests.py`, group `netlock`), from a web server and from `file://`:
+    - a Graph fetch, an image beacon and an analytics fetch are all blocked (Chrome failure reason `csp`), with no response from any outside host;
+    - CSP violation events are raised;
+    - with the lock off, the same fetch goes through (control).
+- **Limits:**
+    - The setting lives in the browser's `localStorage`.
+    - Top-level navigation isn't covered by CSP; the app performs none while locked.
+    - Script sources aren't restricted, but all scripts are the app's own local files.
 
 ## How to verify this yourself
 ```bash
