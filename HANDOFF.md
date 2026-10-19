@@ -25,6 +25,8 @@
 - **No IS proposal yet.** First prove the conservative local setup.
 
 ### Plan: the most conservative way to run it at work (local-only, no sign-in)
+**Short, email-friendly version:** `docs/WORK-PC-SETUP.md`. Pinned download: `https://github.com/gvd1024/html-todo-app/archive/refs/tags/work-test-1.zip` (git tag `work-test-1`, with SHA-256 checksums in that file).
+
 **Verified 2026-10-18:** opened straight from disk (`file://…/app/index.html`), the app makes **no network requests at all** in any mode. MSAL only contacts Microsoft if Sign in is pressed. The browser's folder picker (File System Access API) works from disk in Chrome and Edge.
 
 **Steps:**
