@@ -88,7 +88,7 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .row>.pfx{position:sticky;left:0;z-index:2;flex:0 0 calc(44px*var(--z));display:flex;align-items:center;justify-content:center;background:var(--bg)}
 .row>.ttl{flex:1 0 auto;display:flex;align-items:center;white-space:nowrap;padding:0 10px 0 4px;cursor:pointer;font-size:calc(16px*var(--z));user-select:none}
 .row>.act{position:sticky;right:0;z-index:2;flex:0 0 auto;display:flex;align-items:center;background:var(--bg);padding-left:2px}
-.row.sub>.ttl::before{content:"↳";color:var(--muted);margin-right:6px}
+.row>.ind{position:sticky;left:0;z-index:2;flex:0 0 auto;background:var(--bg)}   /* subtask indent: keeps the checkbox next to its title */
 .row.done>.ttl{color:var(--muted);text-decoration:line-through}
 /* long-press move (R1-12 #13) */
 .row{-webkit-touch-callout:none;user-select:none}
@@ -135,6 +135,8 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 #drawer.open{transform:none}
 .d-head{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
 .d-head .dirty{color:var(--warn);font-size:calc(12px*var(--z));visibility:hidden}
+@media (max-width:600px){ .d-head .d-title{display:none} .d-head .dirty{flex:1} }   /* phones: room for Save + Save & close */
+html.phone .d-head .d-title{display:none} html.phone .d-head .dirty{flex:1}
 .d-head .dirty.on{visibility:visible}
 .d-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px}
 .d-fields label{display:flex;flex-direction:column;font-size:calc(11px*var(--z));color:var(--muted);gap:3px}
@@ -224,10 +226,11 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 <aside id="drawer" aria-label="Task editor">
   <div class="d-head">
     <button id="d-close" class="ghost" title="Close (Esc)">✕</button>
-    <strong style="flex:1">Edit task</strong>
+    <strong class="d-title" style="flex:1">Edit task</strong>
     <span class="dirty" id="d-dirty">● unsaved</span>
     <button id="d-mode" title="Switch between formatted and raw Markdown">Raw</button>
-    <button id="d-save" class="primary" disabled>Save</button>
+    <button id="d-save" disabled>Save</button>
+    <button id="d-saveclose" class="primary" title="Save and close the editor">Save &amp; close</button>
   </div>
   <div class="d-fields">
     <label class="wide">Title<input type="text" id="f-title"></label>
@@ -271,7 +274,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19d';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
@@ -818,8 +821,8 @@ function rowHTML(t, depth, opts = {}){
   const warnTip = t.readonly ? 'Unreadable frontmatter' : t.dupOf ? `Two files share id ${t.dupOf} — often a conflict copy` : 'Unrecognized frontmatter: ' + (t.unknown || []).join(', ');
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
-    <div class="pfx">${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" style="padding-left:${4 + depth*22}px">${esc(t.title)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
+    ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
+    <div class="ttl" data-act="open" style="padding-left:4px">${esc(t.title)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
     <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
@@ -1307,6 +1310,7 @@ async function saveDrawer(){
   onDirtyCheck(); syncLists(); render(); return ok;
 }
 $('#d-save').onclick = saveDrawer;
+$('#d-saveclose').onclick = async () => { if (!isDirty()) return closeDrawer(); if (await saveDrawer()) closeDrawer(true); };   // R1-3
 $('#d-close').onclick = () => closeDrawer();
 function discardNew(){ const t = S.editing && get(S.editing); if (t?.isNew) S.tasks.delete(t.id); }
 function closeDrawer(force){

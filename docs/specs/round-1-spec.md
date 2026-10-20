@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | R1-1 | Checklist toolbar icon looks like a dropdown | Open | A + B | — |
 | R1-2 | Enter in the title box should save and close | Open | B | — |
-| R1-3 | Save & close button (keep plain Save?) | Open | A | — |
+| R1-3 | Save & close button (keep plain Save?) | **Built** | — | Both: Save and Save & close (2026-10-19) |
 | R1-4 | Font is too small | **Built** | C | Text-size setting 100–175 %, per device; phones default 125 % |
 | R1-5 | What is Collections for? | Open | A | — |
 | R1-6 | Track the app version | Open | A + C | — |
@@ -141,6 +141,16 @@
 **Implementation notes:** —
 
 **Acceptance criteria:** —
+
+**Decision (Geoff, 2026-10-19):** "when in the edit mode, I need a save and close button in addition to the save button." **Keep both.**
+
+**Implementation notes:**
+- The editor header has **Save** (saves and stays open) and **Save & close** (the primary button: saves, then closes; with no changes it just closes).
+- On phones, the "Edit task" label is hidden to make room.
+
+**Acceptance criteria:** Save & close writes the file and closes the editor; with no changes, it closes without writing. *(Automated: group `indent`.)*
+
+**Status:** Built 2026-10-19 (build 2026-10-19d).
 
 ---
 
@@ -590,6 +600,9 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - **All subtasks checked** does **not** auto-check the parent.
     - **The subtask badge** shows **done/total** (e.g. `3/10` = 3 of 10 done). *Changed 2026-10-19 at Geoff's request: "if i have 10 total tasks but 3 are done I want to see 3/10 not 7/10". It was open/total.* When expanded, done subtasks stay hidden unless "Show done" is on.
 
+16. **Subtask indentation** (Geoff, 2026-10-19): "the check boxes for subtasks should be indented along with the task, i.e. all tasks and subtasks should have their bullet point or checkbox the same distance on the left".
+    - **Built:** the checkbox or bullet moves in with its title (22 px × text size per level), so the box-to-title gap is identical at every level; the "↳" marker is gone.
+    - While scrolling sideways, each row's checkbox stays pinned at its own indent.
 15. **Pull to refresh** (Geoff, 2026-10-17: "when i scroll all the way to the top of the list and continue to scroll up it should do a page refresh … if not it should also refresh the file list").
     - **Built in-app:** at the top of the list, pull down until it says "Release to refresh", then let go. The app re-lists the folder and re-reads the files from OneDrive (`loadAll`), then shows "Up to date".
     - **Why in-app and not Chrome's page reload:** Chrome's own pull-to-refresh can't fire, because the list scrolls in its own panel. A full reload would also redo sign-in checks and could discard an open, unsaved edit, which the in-app refresh refuses to do.
@@ -745,6 +758,8 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-3 | **Both buttons:** Save, plus Save & close (primary) | Built |
+| 2026-10-19 | R1-12 | #16: subtask checkboxes/bullets indent with their titles (same gap at every level) | Built |
 | 2026-10-19 | R1-15 | Verified on Geoff's phone | Done |
 | 2026-10-19 | R1-12 | #13 long-press move **built**: middle = subtask, edges = above/below, drag left = out a level, subtasks follow, 5 s Undo | Awaiting phone check |
 | 2026-10-19 | R1-12 | #13 long-press move **approved for build** (S-9 Phase 5) | Approved |
@@ -785,6 +800,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-19 — v24: R1-3 decided and built; R1-12 #16 indentation.
 - 2026-10-19 — v23: R1-12 #14 badge → done/total; R1-15 added and built.
 - 2026-10-18 — v22: R1-14 network lock.
 - 2026-10-18 — v21: R1-13 (home-screen app) added, decided and built.

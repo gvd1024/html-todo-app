@@ -814,6 +814,50 @@ def test_phase5(browser):
     ctx.close()
 
 
+def test_indent_saveclose(browser):
+    print("\n[12] Subtask checkboxes indent with their titles; Save & close (R1-3)")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.showDone": True}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    row(page, "Solar panel cleaning").locator(".badge").click()
+    row(page, "Compare inverter readings").locator(".badge").click()
+    page.wait_for_timeout(200)
+    def geo(title):
+        r = row(page, title)
+        bx = r.locator(".pfx").bounding_box(); tx = r.locator(".ttl").bounding_box()
+        return bx["x"], tx["x"] - (bx["x"] + bx["width"])
+    p0, g0 = geo("Solar panel cleaning"); p1, g1 = geo("Get three cleaning quotes"); p2, g2 = geo("Export last 90 days")
+    step = 22 * 1.25
+    check("each subtask level moves its checkbox right by one indent step", abs((p1 - p0) - step) < 1 and abs((p2 - p1) - step) < 1, (p0, p1, p2))
+    check("checkbox-to-title gap is the same at every level", abs(g0 - g1) < 1 and abs(g1 - g2) < 1, (g0, g1, g2))
+    page.screenshot(path=str(SHOTS / "21-phone-indented-subtasks.png"))
+    page.locator("#scroller").evaluate("s => s.scrollLeft = 300")
+    page.wait_for_timeout(150)
+    p1s, _ = geo("Get three cleaning quotes")
+    check("while scrolled sideways, a subtask's checkbox stays at its indent", abs(p1s - p1) < 1.5, (p1, p1s))
+    page.locator("#scroller").evaluate("s => s.scrollLeft = 0")
+
+    # Save & close
+    row(page, "Fix gate latch").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    check("editor shows Save and Save & close", page.locator("#d-save").is_visible() and page.locator("#d-saveclose").is_visible())
+    page.screenshot(path=str(SHOTS / "22-phone-editor-save-close.png"))
+    page.fill("#f-title", "Fix gate latch (saved and closed)")
+    page.click("#d-saveclose")
+    page.wait_for_timeout(400)
+    txt = page.evaluate("() => __todo.S.store.files.get('fix-gate-latch.md').text")
+    check("Save & close saves the file and closes the editor", "saved and closed" in txt and page.locator("#drawer.open").count() == 0, txt[:120])
+    row(page, "Water the plants").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    page.click("#d-saveclose")
+    page.wait_for_timeout(300)
+    check("Save & close with no changes just closes", page.locator("#drawer.open").count() == 0)
+    check("indent/save-close: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -823,7 +867,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose)]
         for name, fn in tests:
             if not only or name in only:
                 try:
