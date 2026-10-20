@@ -105,6 +105,9 @@ def test_store_suite(browser):
       out.push(...await storeSuite('FsStore', fs, {
         edit: async (p, t) => { await new Promise(r => setTimeout(r, 5)); const h = await dir.getFileHandle(p, { create: true }); const w = await h.createWritable(); await w.write(t); await w.close(); },
         del: async p => dir.removeEntry(p) }));
+      const trashed = []; try { const tr = await dir.getDirectoryHandle('.trash'); for await (const [n] of tr.entries()) trashed.push(n); } catch {}
+      out.push({ name: 'FsStore: a deleted file is kept in the hidden .trash folder', ok: trashed.some(n => n.endsWith(' gamma.md')), detail: trashed.join(',') });
+      out.push({ name: 'FsStore: .trash is never listed as tasks', ok: !(await fs.list()).some(e => e.path.includes('.trash')), detail: '' });
       // GraphStore against the fake Graph
       const gs = new T.GraphStore(window.__TEST_AUTH__, 'HTML-ToDo-App-Test');
       const post = (u, b) => fetch('https://graph.microsoft.com/v1.0/__test/' + u, { method: 'POST', body: JSON.stringify(b) });
@@ -125,7 +128,7 @@ def row(page, title):
 
 def test_phone_demo(browser):
     print("\n[2] Phone list view on demo data (R1-12)")
-    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.showDone": True}))
     page.goto(APP)
     page.wait_for_selector(".row")
     check("header shows the list name", page.inner_text("#list-label").strip() == "Home", page.inner_text("#list-label"))
@@ -174,6 +177,7 @@ def test_phone_demo(browser):
 
     # checkbox toggle saves the file
     row(page, "Fix gate latch").locator(".ck").click()
+    page.click("#modal button:has-text('Check only this')")
     page.wait_for_timeout(200)
     txt = page.evaluate("() => __todo.S.store.files.get('fix-gate-latch.md').text")
     check("tapping a checkbox marks it done and saves the file", "status: done" in txt and "done" in row(page, "Fix gate latch").get_attribute("class"), txt[:80])
@@ -279,7 +283,7 @@ def test_onedrive(browser):
     print("\n[3] The app on a fake OneDrive (S-3, S-4, S-5, S-7)")
     fg = FakeGraph(FOLDER, dict(TEST_FILES))
     ctx, page, errors = new_page(browser, phone=True, init=TEST_AUTH + ls_init(**{
-        "todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.list": "Test List", "todo.everSignedIn": True}))
+        "todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.list": "Test List", "todo.everSignedIn": True, "todo.showDone": True}))
     fg.install(page)
     page.goto(APP)
     page.wait_for_selector(".row")
@@ -306,6 +310,7 @@ def test_onedrive(browser):
 
     # toggle → conditional PUT
     row(page, "Sub 2").locator(".ck").click()
+    page.click("#modal button:has-text('Check only this')")
     page.wait_for_timeout(400)
     check("checkbox saves to OneDrive with If-Match", "status: done" in fg.files()["sub-2.md"]
           and any(m == "PUT" and p.endswith("/content") and im for m, p, im in fg.requests))
@@ -576,6 +581,109 @@ def test_network_lock(browser):
     ctx.close()
 
 
+def test_phase4(browser):
+    print("\n[9] Phase 4: check-off, done items, delete (R1-12 #3/#8/#14, S-7) + work findings")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Inbox"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    f = lambda name: page.evaluate(f"() => __todo.S.store.files.get('{name}')?.text")
+
+    # simple check-off: hides, saves done + completed, Undo bar
+    today = page.evaluate("() => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }")
+    row(page, "Call insurance agent").locator(".ck").click()
+    page.wait_for_timeout(250)
+    txt = f("call-insurance-agent.md")
+    check("no open subtasks/lines → checks off without asking", page.locator("#modal-bg.on").count() == 0)
+    check("checked item disappears (Show done is off by default)", row(page, "Call insurance agent").count() == 0)
+    check("file gets status: done and completed: today", "status: done" in txt and f"completed: {today}" in txt, txt[:160])
+    check("Undo bar appears", page.locator("#undo.on").count() == 1 and "Call insurance agent" in page.inner_text("#undo-msg"))
+    page.screenshot(path=str(SHOTS / "16-phone-undo-bar.png"))
+    page.click("#undo-btn")
+    page.wait_for_timeout(300)
+    txt = f("call-insurance-agent.md")
+    check("Undo brings it back as open and removes completed", row(page, "Call insurance agent").count() == 1 and "status: open" in txt and "completed:" not in txt, txt[:160])
+    row(page, "Call insurance agent").locator(".ck").click()
+    page.wait_for_timeout(5600)
+    check("Undo bar disappears after 5 s", page.locator("#undo.on").count() == 0)
+
+    # body checklist lines → dialog → Check all ticks them
+    row(page, "Tap a title").locator(".ck").click()
+    page.wait_for_selector("#modal-bg.on")
+    check("open checklist lines → asks 'Check all / Check only this / Cancel'", "unchecked checklist item" in page.inner_text("#modal") and page.locator("#modal .btns button").count() == 3)
+    page.screenshot(path=str(SHOTS / "17-phone-check-all-dialog.png"))
+    page.click("#modal button:has-text('Check all')")
+    page.wait_for_timeout(300)
+    txt = f("try-the-list.md")
+    check("Check all ticks every - [ ] line in the notes and checks the task", "- [ ]" not in txt and txt.count("- [x]") == 3 and "status: done" in txt, txt[-200:])
+    page.click("#undo-btn")
+    page.wait_for_timeout(300)
+    txt = f("try-the-list.md")
+    check("Undo restores the notes exactly", txt.count("- [ ]") == 2 and "status: open" in txt)
+
+    # subtasks → Check only this leaves them open; Check all checks them
+    page.click("#list-name")
+    page.locator("#modal .pick .go", has_text="Home").click()
+    page.wait_for_timeout(200)
+    row(page, "Solar panel cleaning").locator(".ck").click()
+    page.wait_for_selector("#modal-bg.on")
+    check("open subtasks → dialog names them", "2 open subtasks" in page.inner_text("#modal"))
+    page.click("#modal button:has-text('Check only this')")
+    page.wait_for_timeout(300)
+    check("Check only this: parent done, subtasks stay open", "status: done" in f("solar-panel-cleaning.md") and "status: open" in f("get-quotes.md")
+          and "hidden with it" in page.inner_text("#undo-msg"), page.inner_text("#undo-msg"))
+    page.click("#undo-btn")
+    page.wait_for_timeout(300)
+    row(page, "Solar panel cleaning").locator(".ck").click()
+    page.click("#modal button:has-text('Check all')")
+    page.wait_for_timeout(300)
+    check("Check all: parent and open subtasks are all done with completed dates",
+          all("status: done" in f(n) and "completed:" in f(n) for n in ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md"]))
+
+    # Show done → see and uncheck; completed removed
+    page.click("#app-menu")
+    page.locator("#pop button", has_text="Show done").click()
+    page.wait_for_timeout(200)
+    check("Show done reveals checked items", row(page, "Solar panel cleaning").count() == 1 and row(page, "Water the plants").count() == 1)
+    row(page, "Water the plants").locator(".ck").click()
+    page.wait_for_timeout(300)
+    check("unchecking removes completed (work finding 1)", "status: open" in f("water-plants.md") and "completed:" not in f("water-plants.md"), f("water-plants.md"))
+
+    # editor status change keeps completed in step
+    row(page, "Water the plants").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    page.select_option("#f-status", "done")
+    page.click("#d-save")
+    page.wait_for_timeout(300)
+    check("setting done in the editor writes completed", f"completed: {today}" in f("water-plants.md"))
+    page.click("#d-close")
+    page.wait_for_timeout(200)
+
+    # delete a parent: asks about subtasks, deletes all, Undo restores all
+    before = {n: f(n) for n in ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md", "export-readings-csv.md"]}
+    row(page, "Solar panel cleaning").locator(".more").click()
+    page.locator("#pop button", has_text="Delete").click()
+    check("deleting a parent asks 'Also delete its 3 subtasks?'", "Also delete its 3 subtasks" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
+    page.click("#modal button:has-text('Delete all')")
+    page.wait_for_timeout(300)
+    check("Delete all removes the parent and every subtask", all(f(n) is None for n in before))
+    page.click("#undo-btn")
+    page.wait_for_timeout(400)
+    check("Undo recreates all four files with identical content", all(f(n) == before[n] for n in before) and row(page, "Solar panel cleaning").count() == 1)
+    check("phase 4: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # work finding 2: a touchscreen laptop is a PC, not a phone
+    ctx = browser.new_context(viewport={"width": 1280, "height": 800}, has_touch=True)
+    page = ctx.new_page()
+    page.add_init_script(ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
+    check("touchscreen laptop gets PC defaults (100 % text)", abs(fs - 16) < 0.1, fs)
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -585,7 +693,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4)]
         for name, fn in tests:
             if not only or name in only:
                 try:

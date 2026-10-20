@@ -46,7 +46,7 @@ collections: [repairs]     # optional (R1-5 may rename this to tags; read both i
 parent: t-20261010-cd34    # optional → subtask
 order: 3.5                 # fractional ordering among siblings
 due: 2026-10-20            # optional, YYYY-MM-DD
-completed: 2026-10-17      # optional: set when checked done, removed when unchecked (written from Phase 4)
+completed: 2026-10-17      # optional: set when checked done, removed when unchecked
 demoted_into: t-...        # only on archived tasks that were demoted
 ---
 Free-form Markdown body; checklists are - [ ] / - [x].
@@ -61,7 +61,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 
 ## Code map
 - `app/index.html` — the whole app (vanilla JS, single file), **v0.2.0-dev** (MVP build in progress, see storage-spec S-9). Served at `/app/`; `app/todo.html` just redirects there. Main parts:
-  - **Storage (storage-spec S-2):** one interface — `list / read / write(path, text, expectedVersion) / create / remove / changes()` keyed by relative path with an opaque version. Connectors: `MemStore` (demo), `FsStore` (local folder, File System Access API), `GraphStore` (OneDrive via Microsoft Graph: `If-Match` writes → 412, `conflictBehavior=fail` creates → 409, deletes to the recycle bin, folder delta for changes, listing fallback for work OneDrive).
+  - **Storage (storage-spec S-2):** one interface — `list / read / write(path, text, expectedVersion) / create / remove / changes()` keyed by relative path with an opaque version. Connectors: `MemStore` (demo), `FsStore` (local folder, File System Access API; deletes keep a copy in the folder's hidden `.trash`), `GraphStore` (OneDrive via Microsoft Graph: `If-Match` writes → 412, `conflictBehavior=fail` creates → 409, deletes to the recycle bin, folder delta for changes, listing fallback for work OneDrive).
   - **Sign-in (S-5):** `MsalAuth` (MSAL Browser 5.22.0, redirect flow). Automatic bounce through Microsoft once per session when the cached sign-in is gone; unsaved edits are stashed in `localStorage` and restored after.
   - **Files:** `parseTask` and `serializeTask` use js-yaml with CORE_SCHEMA, so dates stay strings.
   - **UI (R1-12):** the phone-first list view (one list at a time, sticky prefix and ⋯ columns, sideways scroll with ⇤ and snap-back, subtask badges, quick-add), list-picker sheet, by-due-date view, full-screen Toast UI editor on phones with a prefix selector, demote and promote. The board view is retired.

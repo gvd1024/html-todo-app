@@ -166,6 +166,9 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 #pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;min-height:calc(44px*var(--z))}
 #pop button:hover{background:var(--accent-soft)}
 #pop .sep{border-top:1px solid var(--line);margin:4px 0}
+#undo{position:fixed;left:50%;bottom:calc(76px*var(--z));transform:translateX(-50%);display:none;align-items:center;gap:12px;background:#e6edf3;color:#0f1318;padding:6px 8px 6px 14px;border-radius:10px;font-size:calc(14px*var(--z));z-index:45;box-shadow:0 4px 18px rgba(0,0,0,.5);max-width:94vw}
+#undo.on{display:flex} #undo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#undo button{background:var(--accent-strong);color:#fff;border:0;font-weight:600;min-height:calc(40px*var(--z));padding:0 14px}
 #toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#e6edf3;color:#0f1318;padding:8px 14px;border-radius:8px;font-size:calc(13px*var(--z));opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:92vw}
 #toast.on{opacity:.95}
 .chip{white-space:nowrap;font-size:calc(11px*var(--z));padding:1px 6px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
@@ -232,6 +235,7 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 <div id="modal-bg"><div id="modal"></div></div>
 <div id="pop"></div>
 <div id="toast"></div>
+<div id="undo" role="status"><span id="undo-msg"></span><button id="undo-btn">Undo</button></div>
 
 <script src="vendor/js-yaml.min.js"></script>
 <script src="vendor/toastui-editor-all.min.js"></script>
@@ -257,7 +261,7 @@ const DEFAULT_FOLDER = 'HTML-ToDo-App-Test';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['Files.ReadWrite', 'User.Read'];
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
-const IS_PHONE = /Android|iPhone|iPad/i.test(navigator.userAgent) || matchMedia('(pointer:coarse)').matches;
+const IS_PHONE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);   // device type, not "has a touchscreen" (touch laptops are PCs)
 const DEVICE = IS_PHONE ? 'Phone' : 'PC';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -272,7 +276,7 @@ applyTextSize(textSize());
 
 const S = {
   tasks: new Map(), lists: [], cfgVersion: null, cfgExtra: {}, store: null, auth: null,
-  view: ls.get('todo.view2', 'list'), list: ls.get('todo.list', ''), showDone: ls.get('todo.showDone', true), showArchived: false, q: '',
+  view: ls.get('todo.view2', 'list'), list: ls.get('todo.list', ''), showDone: ls.get('todo.showDone', false), showArchived: false, q: '',
   expanded: new Set(ls.get('todo.expanded', [])), editing: null, snapshot: null,
   busy: 0, syncing: false, offline: false, conflict: false, signedOut: false, redirecting: false, editor: null,
 };
@@ -321,7 +325,7 @@ class MemStore {
 
 class FsStore {                               // a local folder (desktop Chrome/Edge, File System Access API)
   constructor(dir){ this.dir = dir; this.name = dir.name; this.kind = 'local'; this.demo = false;
-    this.caps = { trueConditionalWrite:false, recoverableDelete:false, watch:'list' }; }
+    this.caps = { trueConditionalWrite:false, recoverableDelete:true, trash:'.trash', watch:'list' }; }
   static ver(f){ return f.lastModified + ':' + f.size; }
   async _dir(path, create){ let d = this.dir; const parts = path.split('/'); parts.pop();
     for (const p of parts) d = await d.getDirectoryHandle(p, { create }); return d; }
@@ -340,7 +344,13 @@ class FsStore {                               // a local folder (desktop Chrome/
   async create(path, text){ if (await this._handle(path)) throw new ExistsError(path);
     const h = await (await this._dir(path, true)).getFileHandle(baseName(path), { create:true }); return this._put(h, text); }
   async remove(path, expected){ const h = await this._handle(path); if (!h) return;
-    if (expected != null && FsStore.ver(await h.getFile()) !== expected) throw new ConflictError(path);
+    const f = await h.getFile();
+    if (expected != null && FsStore.ver(f) !== expected) throw new ConflictError(path);
+    // recoverable delete: keep a copy in the folder's hidden .trash (names starting with "." are never tasks)
+    const trash = await this.dir.getDirectoryHandle('.trash', { create:true });
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const th = await trash.getFileHandle(`${stamp} ${baseName(path)}`, { create:true });
+    await this._put(th, await f.text());
     await (await this._dir(path, false)).removeEntry(baseName(path)); }
   changes(){ return listDiff(this); }
 }
@@ -858,16 +868,52 @@ $('#rows').addEventListener('click', async e => {
   else if (act === 'menu') rowMenu(t, actEl);
 });
 function persistExpanded(){ ls.set('todo.expanded', [...S.expanded]); }
-async function toggleDone(t){            // first cut: immediate save (Undo + "check all" dialog arrive in Phase 4)
+/* ---------------- check-off (Phase 4: R1-12 #3, #8, #14) ---------------- */
+const openLinesIn = body => (body || '').split('\n').filter(l => { const m = l.match(CK_RE); return m && m[2] === ' '; }).length;
+function snap(t){ return { id:t.id, status:t.status, completed:t.completed, body:t.body }; }
+async function toggleDone(t){
   if (!STATUSES.includes(t.status)) return toast('Unrecognized status — fix it in the editor first.');
-  if (S.editing === t.id && isDirty()) return toast('Save or close the open editor first.');
-  const prev = t.status;
-  t.status = prev === 'done' ? 'open' : 'done';
-  render();
-  if (!t.isNew && !(await saveTask(t))){ if (get(t.id) === t) t.status = prev; }
-  render();
-  if (S.editing === t.id){ fillStatusSelect(t.status); $('#f-status').value = t.status; updateSnapshotField('status', t.status); }
+  if (S.editing && isDirty()) return toast('Save or close the open editor first.');
+  if (t.status === 'done') return setDone([t], false, { label:`Unchecked “${t.title}”` });
+  const openSubs = descendants(t.id).filter(d => STATUSES.includes(d.status) && d.status !== 'done' && d.status !== 'archived');
+  const openLines = openLinesIn(t.body);
+  if (!openSubs.length && !openLines) return setDone([t], true, { label:`Checked “${t.title}”` });
+  const what = [openSubs.length ? `${openSubs.length} open subtask${openSubs.length>1?'s':''}` : '', openLines ? `${openLines} unchecked checklist item${openLines>1?'s':''} in its notes` : ''].filter(Boolean).join(' and ');
+  modal(`<h3>Check off “${esc(t.title)}”?</h3><p>It still has ${esc(what)}.</p>
+    <div class="btns"><button data-a="cancel">Cancel</button><button data-a="one">Check only this</button><button class="primary" data-a="all">Check all</button></div>`,
+    async a => { closeModal();
+      if (a === 'all') await setDone([t, ...openSubs], true, { lines:[t, ...openSubs], label:`Checked “${t.title}” and everything under it` });
+      else if (a === 'one') await setDone([t], true, { label:`Checked “${t.title}”` + (openSubs.length && !S.showDone ? ` — its ${openSubs.length} open subtask${openSubs.length>1?'s are':' is'} hidden with it` : '') });
+    });
 }
+async function setDone(tasks, done, { lines = [], label = '' } = {}){
+  const before = tasks.map(snap);
+  for (const x of tasks){
+    if (done){ x.status = 'done'; x.completed = x.completed || today(); }
+    else { x.status = 'open'; x.completed = ''; }                 // finding 1: unchecking clears completed
+    if (lines.includes(x)) x.body = (x.body || '').split('\n').map(l => l.replace(/^(\s*[-*+] )\[ \]/, '$1[x]')).join('\n');
+  }
+  render();
+  const ok = await saveMany(tasks.filter(x => !x.isNew));
+  if (!ok){ for (const s of before){ const x = get(s.id); if (x && x.status !== s.status && !x.diskChanged) Object.assign(x, s); } render(); return; }
+  render(); syncEditorStatus(tasks);
+  showUndo(label || (done ? 'Checked' : 'Unchecked'), async () => {
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body }); return x; }).filter(Boolean);
+    render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
+  });
+}
+function syncEditorStatus(tasks){ const t = tasks.find(x => x.id === S.editing); if (!t) return;
+  fillStatusSelect(t.status); $('#f-status').value = t.status; updateSnapshotField('status', t.status); }
+
+/* Undo bar: 5 s, one at a time (a new action replaces the previous offer) */
+let undoTimer = null, undoFn = null;
+function showUndo(msg, fn){
+  clearTimeout(undoTimer); undoFn = fn;
+  $('#undo-msg').textContent = msg; $('#undo').classList.add('on');
+  undoTimer = setTimeout(hideUndo, 5000);
+}
+function hideUndo(){ clearTimeout(undoTimer); undoFn = null; $('#undo').classList.remove('on'); }
+$('#undo-btn').onclick = async () => { const fn = undoFn; hideUndo(); if (fn){ await fn(); toast('Undone'); } };
 
 function popover(anchor, items){
   const pop = $('#pop');
@@ -907,15 +953,34 @@ function prefixDialog(t){
       t.prefix = v; if (!t.isNew) await saveTask(t); render(); }, { sheet:true });
 }
 function deleteDialog(t){
-  const ch = kids(t.id);
-  modal(`<h3>Delete task?</h3><p><b>${esc(t.title)}</b> — <code>${esc(t.file || '(unsaved)')}</code> will be deleted${S.store?.caps.recoverableDelete ? ' (it goes to the OneDrive recycle bin, so it can be restored)' : ' permanently from the folder'}.</p>
-    ${ch.length ? `<p>Its ${ch.length} subtask(s) will move up one level.</p>` : ''}
-    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary danger" data-a="ok">Delete</button></div>`,
+  const subs = descendants(t.id);
+  const where = !S.store ? '' : S.store.kind === 'onedrive' ? ' It goes to the OneDrive recycle bin, so it can be restored there.'
+    : S.store.kind === 'local' ? ' A copy is kept in the folder\'s hidden <code>.trash</code> folder.' : '';
+  modal(`<h3>Delete task?</h3><p><b>${esc(t.title)}</b> — <code>${esc(t.file || '(unsaved)')}</code> will be deleted.${where}</p>
+    ${subs.length ? `<p><b>Also delete its ${subs.length} subtask${subs.length>1?'s':''}?</b></p>` : ''}
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary danger" data-a="ok">${subs.length ? 'Delete all' : 'Delete'}</button></div>`,
     async a => { closeModal(); if (a !== 'ok') return;
-      if (S.editing === t.id) closeDrawer(true);
-      if (!(await removeTask(t))) return render();
-      for (const c of ch){ c.parent = t.parent; } await saveMany(ch.filter(c => !c.isNew));
-      render(); });
+      if (S.editing && [t, ...subs].some(x => x.id === S.editing)) closeDrawer(true);
+      const gone = [];
+      for (const x of [...subs].reverse().concat(t)){          // subtasks first, the parent last
+        const text = x.isNew ? null : serializeTask(x);
+        if (await removeTask(x)) { if (text) gone.push({ file:x.file, text }); } else break;
+      }
+      render();
+      if (!gone.length) return;
+      showUndo(gone.length > 1 ? `Deleted “${t.title}” and ${gone.length - 1} subtask${gone.length>2?'s':''}` : `Deleted “${t.title}”`, async () => {
+        busy(1);
+        try {
+          for (const g of gone.reverse()){
+            let file = g.file;
+            for (let i = 0; ; i++){
+              try { const v = await S.store.create(file, g.text); addParsed(S.tasks, parseTask(file, g.text, v)); break; }
+              catch (e){ if (e instanceof ExistsError && i < 5){ file = uniqueFile(baseName(g.file).replace(/\.md$/i, ''), '', [file]); continue; } throw e; }
+            }
+          }
+        } catch (e){ storeError(e, 'undo'); } finally { busy(-1); syncLists(); render(); }
+      });
+    });
 }
 
 /* ---------------- list picker sheet ---------------- */
@@ -1049,7 +1114,10 @@ $('#d-parent').addEventListener('click', e => { const a = e.target.closest('[dat
 
 function readDrawerInto(t){
   const oldList = t.list;
+  const wasDone = t.status === 'done';
   t.title = $('#f-title').value.trim() || 'Untitled'; t.status = $('#f-status').value;
+  if (t.status === 'done' && !wasDone && !t.completed) t.completed = today();
+  if (t.status !== 'done') t.completed = '';                    // finding 1
   const pv = $('#f-prefix').value; t.prefix = (pv === 'checkbox' && !t.prefix) ? '' : pv;
   if (!hasParent(t)) t.list = $('#f-list').value === '__new' ? t.list : $('#f-list').value;
   t.due = $('#f-due').value; t.collections = asArr($('#f-coll').value);
@@ -1080,7 +1148,7 @@ function confirmDiscard(onDiscard){
 }
 $('#d-loaddisk').onclick = async () => { const t = get(S.editing);
   try { const f = await reloadOne(t); fillDrawer(f); render(); }
-  catch (e){ if (e instanceof NotFoundError){ toast('It was deleted elsewhere — Save will recreate it, or close to discard.'); t.isNew = true; t.file = t.file; } else storeError(e, 'reload'); } };
+  catch (e){ if (e instanceof NotFoundError){ toast('It was deleted elsewhere — Save will recreate it, or close to discard.'); t.isNew = true; } else storeError(e, 'reload'); } };
 $('#d-sub').onclick = async () => { const t = get(S.editing); if (t.isNew || isDirty()){ if (!await saveDrawer()) return; } newTask({ parent: t.id }); };
 $('#d-demote').onclick = async () => { const t = get(S.editing); if (isDirty() && !await saveDrawer()) return; demoteDialog(t); };
 $('#d-delete').onclick = () => { const t = get(S.editing); if (t.isNew){ closeDrawer(true); return; } deleteDialog(t); };
@@ -1443,7 +1511,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));

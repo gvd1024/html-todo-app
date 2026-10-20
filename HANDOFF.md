@@ -94,13 +94,14 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 - [x] **1. Work PC, local-only setup: done and passed 2026-10-19** (see "Work-PC results" below). Optional later: the Graph sign-in test.
 - [ ] **1b. Answer the work Claude's two cleanup questions (in that session):** delete the two `claude-crud-*` test tasks (finishes the D in CRUD)? Restore or keep the three edited samples?
 - [ ] **2. Review** the 10 assumptions in storage-spec S-9 → *Build log* (or just keep using the app and report what feels off).
-- [ ] **3. Approve Phase 4** when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
+- [ ] **3. Check Phase 4 on the phone and PC** (built 2026-10-19). Then approve **Phase 5** (long-press move) when ready.
+- ~~3. Approve Phase 4~~ when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
 - [ ] Optional: prove sign-in persistence after a **forced** Chrome close (swipe it out of recents, wait, open the ToDo app).
 
 ## Next steps (Claude, only once Geoff asks)
 - Log the work-test results in round-1 R1-10 (and adjust S-4/S-6 if the work fallback misbehaves).
 - Phase 4, then Phase 5, each only after approval (storage-spec S-9).
-- **Findings from the work-PC code read (2026-10-19), awaiting Geoff's decision:**
+- **Findings from the work-PC code read (2026-10-19): all addressed in Phase 4** (built 2026-10-19; see the S-9 build log). Kept below for reference:
   1. Unchecking a task leaves a stale `completed:` date (`toggleDone()` doesn't clear it; app check-offs don't set it yet). Fix in Phase 4.
   2. `IS_PHONE` includes `(pointer:coarse)`, so a touchscreen laptop gets the phone defaults (10 s poll, 125 % text).
   3. Local-folder deletes are permanent (the browser API can't use the recycle bin). At work, the OneDrive sync folder's recycle bin softens this; the in-app Undo (S-7, Phase 4) matters more in local mode.

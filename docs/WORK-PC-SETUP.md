@@ -39,6 +39,8 @@ What this is: a to-do app that's a single web page. In this setup it runs from f
    - The app made no network requests when opened from disk (tested). With the network lock on, the browser blocks them even if something tried.
 
 Notes
+- Settings are stored per browser, and for pages opened from disk Chrome/Edge likely share that storage among ALL local HTML files. So the Network lock and other settings aren't isolated to this app. Fine for one app; just be aware.
+- Deleting a task in local-folder mode keeps a copy in a hidden ".trash" folder inside your task folder (from the version after work-test-1).
 - To use Claude at work on this: clone or unzip the repo and run Claude Code in it. It reads CLAUDE.md and HANDOFF.md (section "WORK PC — read this first").
 - Security review with full details: SECURITY-REVIEW.md in the ZIP.
 - Later (optional): put the task folder inside your work OneDrive sync folder for backup. Still no sign-in needed.

@@ -30,7 +30,7 @@ Same rules as the round specs: no code until Geoff approves; only named items ge
 | S-4 | Change detection | **Decided** | B + three rules: delta on personal OneDrive, listing (or root delta) on work OneDrive |
 | S-5 | Sign-in and staying signed in | **Decided** (confirm after the 2026-10-17 retest) | B (automatic redirect), with A (button) as fallback |
 | S-6 | Locations and switching | **Decided** | C for the prototype (one folder setting, default `HTML-ToDo-App-Test`); A later |
-| S-7 | Delete behavior | **Decided** | Recoverable: OneDrive recycle bin plus a 5 s in-app Undo; confirm before deleting a parent's subtasks |
+| S-7 | Delete behavior | **Built** | Recoverable: OneDrive recycle bin, or the local folder's hidden `.trash`, plus a 5 s in-app Undo; confirm before deleting a parent's subtasks |
 | S-8 | Caching and offline | **Decided** | C for the prototype (no cache, parallel loading); A when startup feels slow |
 | S-9 | Build order (MVP build plan) | **Decided** | Phases 0–6: prep → storage refactor → OneDrive + sign-in → phone list view → checking/done/delete → long-press move → acceptance and go-live |
 | S-12 | Claude can create, read, update and delete the same files | **Open**, requirement | Synced folder on the PC; a local MCP server for desktop Chat; a remote MCP server for Android and the web |
@@ -501,6 +501,18 @@ interface Store {
 9. **`completed:` isn't written yet** (Phase 4); the key is already recognized, so it isn't flagged.
 10. **The Azure client ID** is built in; an override is possible via `localStorage` (`todo.clientId`) only, with no UI.
 
+**2026-10-19, Phase 4 built** (approved the same day, with the work-PC findings):
+
+| Item | What was built |
+|---|---|
+| Check-off (R1-12 #3, #8) | Tap → saves → hides (Show done is now **off** by default) → a 5 s **Undo** bar. Open subtasks or unchecked `- [ ]` lines in the notes → *Check all / Check only this / Cancel*. Check all also ticks the body lines. |
+| `completed:` (R1-12 #14) | Set on check (also when *done* is chosen in the editor); **removed on uncheck** (work finding 1). |
+| Delete (S-7) | Confirm, then *Also delete its N subtasks?* → **Delete all**, then a 5 s Undo that recreates every file with identical content. OneDrive: recycle bin. **Local folder: a copy goes to the folder's hidden `.trash` folder** (work finding 3). |
+| Phone detection | By device type (Android/iPhone/Mobile), not "has a touchscreen", so touch laptops get PC defaults (work finding 2). |
+| Tidy-up | A no-op line removed (work finding 5). Shared settings for files opened from disk are documented in `docs/WORK-PC-SETUP.md` (work finding 4). |
+
+Tests: a new `phase4` group (20 checks) plus `.trash` checks in the store suite. **162 checks pass.** Screenshots 16–17.
+
 ### After the MVP (not in this plan)
 
 - **PC layout parity extras** (R1-12 #5).
@@ -639,6 +651,8 @@ Note: the test folder also has `poc-test.md`, left by the PoC page's create test
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | S-9 | **Phase 4 built** (check-off with Undo and the dialog, done hidden, `completed:` dates, delete with subtasks and Undo, local `.trash`, phone detection, tidy-up); 162 checks pass | Awaiting Geoff's phone and PC check |
+| 2026-10-19 | S-9 | **Phase 4 approved for build**, together with the work-PC findings: (1) clear `completed` on uncheck; (2) phone detection by device type, not touchscreen; (3) local-folder deletes move into a hidden `.trash` folder (S-7 for local); (4) document the shared settings when opening from disk; (5) code tidy-up | Approved |
 | 2026-10-19 | S-12 | Work PC: Claude Code CLI path 1 passed create/read/update on the same files HTA uses (local-folder mode, work OneDrive sync folder) | Delete and conflict pending |
 | 2026-10-17 | S-9 | **Phase 2 verified by Geoff:** sign-in on phone and PC; a phone check-off showed on the PC and a PC quick-add showed on the phone within seconds; no sign-in needed after the night | S-10 A acceptance met |
 | 2026-10-17 | S-9 | Overnight build: Phases 0 (except 0.3), 1, 2 and a Phase 3 first cut **Built**; 119 automated checks pass; 10 assumptions listed in the S-9 build log | Awaiting Geoff: Azure redirect URIs, then phone and PC check |

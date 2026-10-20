@@ -639,7 +639,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - Quick-add creates tasks in the current list.
 - Existing files without `prefix` display as checkboxes, and nothing is rewritten until a task is saved.
 
-**Status:** Decided 2026-10-16. **First cut built 2026-10-17** (storage-spec S-9 Phase 3; see its build log for the assumptions). Still to build: #3, #8 and #14 in Phase 4, and #13 in Phase 5.
+**Status:** Decided 2026-10-16. First cut built 2026-10-17 (S-9 Phase 3). **#3, #8 and #14 built 2026-10-19 (S-9 Phase 4).** Still to build: #13, long-press move (Phase 5).
 
 ---
 
@@ -712,6 +712,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-12 | #3 (done hidden + the Check all/only dialog), #8 (5 s Undo), #14 (`completed:` set and cleared) **built** in S-9 Phase 4 | Awaiting Geoff's check |
 | 2026-10-19 | R1-10 | **Work PC, conservative setup works:** a pinned copy from disk, local-folder mode, network lock, task folder inside the work OneDrive sync folder (backed up by OneDrive's sync app). No Graph, no sign-in, no app registration needed. Vendored files' checksums verified at work. Graph/phone access for work remains open (Azure registration risk, see HANDOFF) | Work PC: done. Phone: later |
 | 2026-10-18 | R1-14 | Added and decided **B (a Settings switch)**; built and tested (blocks fetch, beacon and analytics, served and from disk) | — |
 | 2026-10-18 | R1-13 | Verified on Geoff's phone (installed; full screen, no address bar) | Done |
