@@ -138,6 +138,11 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 .d-head .dirty{color:var(--warn);font-size:calc(12px*var(--z));visibility:hidden}
 @media (max-width:600px){ .d-head .d-title{display:none} .d-head .dirty{flex:1} }   /* phones: room for Save + Save & close */
 html.phone .d-head .d-title{display:none} html.phone .d-head .dirty{flex:1}
+/* phones: editor header buttons stay on one line — text capped so ✕ Raw Save "Save & close" always fit */
+.d-head button{white-space:nowrap}
+html.phone .d-head{gap:6px;padding:8px 8px}
+html.phone #drawer .d-head button{font-size:calc(14px*min(var(--z),1.15));padding:5px 9px;min-height:calc(40px*min(var(--z),1.25))}
+html.phone .d-head .dirty{min-width:0;overflow:hidden;white-space:nowrap;font-size:calc(11px*min(var(--z),1.15))}
 .d-head .dirty.on{visibility:visible}
 .d-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px}
 .d-fields label{display:flex;flex-direction:column;font-size:calc(11px*var(--z));color:var(--muted);gap:3px}
@@ -275,7 +280,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19f';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19g';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];

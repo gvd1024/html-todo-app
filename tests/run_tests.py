@@ -858,6 +858,21 @@ def test_indent_saveclose(browser):
     check("Save & close with no changes just closes", page.locator("#drawer.open").count() == 0)
     check("indent/save-close: no page errors", not errors, errors[:3])
     ctx.close()
+    # phone editor header: one line, no wrapping, even on a narrow phone at the largest text size
+    ctx = browser.new_context(viewport={"width": 360, "height": 800}, is_mobile=True, has_touch=True, user_agent="Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36")
+    page = ctx.new_page()
+    page.add_init_script(ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.textSize": 175}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    page.locator(".row .ttl").first.click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    page.fill("#f-title", "edited")
+    r = page.evaluate("""() => { const hd = document.querySelector('.d-head'); const bs = [...hd.querySelectorAll('button')].filter(b => b.offsetParent);
+      return { oneRow: new Set(bs.map(b => Math.round(b.getBoundingClientRect().top))).size === 1, fits: hd.scrollWidth <= hd.clientWidth + 1,
+               label: document.querySelector('#d-saveclose').textContent }; }""")
+    check("phone editor buttons fit on one line at 360 px and 175 % ('Save & close' unwrapped)", r["oneRow"] and r["fits"] and r["label"] == "Save & close", r)
+    ctx.close()
 
 
 # ---------------------------------------------------------------- main
