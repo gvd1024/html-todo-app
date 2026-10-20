@@ -193,6 +193,8 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 #pop button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;min-height:calc(44px*var(--z))}
 #pop button:hover{background:var(--accent-soft)}
 #pop .sep{border-top:1px solid var(--line);margin:4px 0}
+#pop .phdr{font-size:calc(11px*var(--z));color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px 2px}
+#pop{max-height:80vh;overflow:auto}
 #undo{position:fixed;left:50%;bottom:calc(76px*var(--z));transform:translateX(-50%);display:none;align-items:center;gap:12px;background:#e6edf3;color:#0f1318;padding:6px 8px 6px 14px;border-radius:10px;font-size:calc(14px*var(--z));z-index:45;box-shadow:0 4px 18px rgba(0,0,0,.5);max-width:94vw}
 #undo.on{display:flex} #undo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #undo button{background:var(--accent-strong);color:#fff;border:0;font-weight:600;min-height:calc(40px*var(--z));padding:0 14px}
@@ -208,6 +210,15 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 .toastui-editor-dark .toastui-editor-contents a{color:var(--accent)}
 .toastui-editor-dark .toastui-editor-contents .task-list-item.checked::before{background-color:var(--accent-strong);border-color:var(--accent-strong)}
 .toastui-editor-contents,.toastui-editor-contents p,.toastui-editor-md-container .ProseMirror{font-size:calc(14px*var(--z))!important;line-height:1.55!important}
+/* phone toolbar: the six buttons spread evenly across the width; no group dividers */
+html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group{display:flex;flex:1;justify-content:space-evenly}
+html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-divider{display:none}
+html.phone .toastui-editor-defaultUI-toolbar{padding:0 4px}
+html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group > button,html.phone .toastui-editor-toolbar-item-wrapper,html.phone .toastui-editor-toolbar-item-wrapper > button{margin:0!important}   /* equal spacing for all six */
+html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
+html.phone .toastui-editor-md-tab-container{display:none!important}   /* Raw mode's Write/Preview tabs squeeze the toolbar; the Raw/Formatted button covers it */
+.toastui-editor-toolbar-icons.app-more{background-image:none!important;position:relative}
+.toastui-editor-toolbar-icons.app-more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;color:var(--text)}
 /* the ⋯ overflow pop-up: keep it inside the screen and wrap onto extra rows so every hidden option shows */
 .toastui-editor-dropdown-toolbar{left:0!important;right:auto!important;max-width:calc(100vw - 24px);flex-wrap:wrap;height:auto!important;row-gap:4px;padding:4px!important}
 /* the toolbar's overflow ("more") button has no visible icon in the dark theme — draw one */
@@ -282,7 +293,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19i';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19k';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
@@ -1098,7 +1109,7 @@ $('#undo-btn').onclick = async () => { const fn = undoFn; hideUndo(); if (fn){ a
 
 function popover(anchor, items){
   const pop = $('#pop');
-  pop.innerHTML = items.map((it, i) => it.sep ? '<div class="sep"></div>' : `<button data-i="${i}" class="${it.danger?'danger':''}">${esc(it.label)}</button>`).join('');
+  pop.innerHTML = items.map((it, i) => it.sep ? '<div class="sep"></div>' : it.hdr ? `<div class="phdr">${esc(it.hdr)}</div>` : `<button data-i="${i}" class="${it.danger?'danger':''}">${esc(it.label)}</button>`).join('');
   pop.classList.add('on');
   const Z = PAGE_ZOOM, b = anchor.getBoundingClientRect();            // screen units → page units when scaled (R1-15)
   const r = { bottom: b.bottom / Z, right: b.right / Z }, vw = innerWidth / Z, vh = innerHeight / Z;
@@ -1233,13 +1244,54 @@ function newTask({ list, parent } = {}){
 }
 
 /* ---------------- drawer / editor ---------------- */
+/* Phone toolbar "More": the app's own menu, grouped by type (the library's overflow logic kept hiding buttons) */
+function phoneMoreButton(){
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'toastui-editor-toolbar-icons app-more'; b.setAttribute('aria-label', 'More formatting');
+  b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); editorMoreMenu(b); });
+  return b;
+}
+function edExec(cmd, payload){ const ed = S.editor; if (!ed) return; ed.focus(); ed.exec(cmd, payload); }
+function editorMoreMenu(anchor){
+  popover(anchor, [
+    { hdr:'Text style' },
+    { label:'Bold', fn:() => edExec('bold') }, { label:'Italic', fn:() => edExec('italic') }, { label:'Strikethrough', fn:() => edExec('strike') },
+    { hdr:'Headings' },
+    { label:'Heading 1', fn:() => edExec('heading', { level:1 }) }, { label:'Heading 2', fn:() => edExec('heading', { level:2 }) }, { label:'Heading 3', fn:() => edExec('heading', { level:3 }) },
+    { hdr:'Lists' },
+    { label:'Numbered list', fn:() => edExec('orderedList') },
+    { hdr:'Insert' },
+    { label:'Link…', fn: linkDialog }, { label:'Quote', fn:() => edExec('blockQuote') }, { label:'Horizontal line', fn:() => edExec('hr') },
+    { label:'Table…', fn: tableDialog }, { label:'Code block', fn:() => edExec('codeBlock') },
+  ]);
+}
+function linkDialog(){
+  const sel = (S.editor?.getSelectedText?.() || '').trim();
+  modal(`<h3>Insert link</h3>
+    <label style="font-size:12px;color:var(--muted)">Text</label><input type="text" id="m-ltext" value="${esc(sel)}" placeholder="What to show">
+    <label style="font-size:12px;color:var(--muted);display:block;margin-top:8px">Address</label><input type="text" id="m-lurl" placeholder="https://…" inputmode="url">
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Insert</button></div>`,
+    a => { if (a !== 'ok') return closeModal();
+      const url = $('#m-lurl').value.trim(), text = $('#m-ltext').value.trim() || url; closeModal();
+      if (!url) return; if (/^\s*(javascript|data|vbscript):/i.test(url)) return toast('That kind of link isn\'t allowed.');
+      edExec('addLink', { linkUrl:url, linkText:text }); }, { sheet:true });
+  setTimeout(() => $(sel ? '#m-lurl' : '#m-ltext')?.focus(), 0);
+}
+function tableDialog(){
+  modal(`<h3>Insert table</h3>
+    <div style="display:flex;gap:12px"><label style="flex:1;font-size:12px;color:var(--muted)">Rows<input type="text" id="m-rows" value="3" inputmode="numeric"></label>
+    <label style="flex:1;font-size:12px;color:var(--muted)">Columns<input type="text" id="m-cols" value="3" inputmode="numeric"></label></div>
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Insert</button></div>`,
+    a => { if (a !== 'ok') return closeModal();
+      const r = Math.min(20, Math.max(1, parseInt($('#m-rows').value) || 3)), c = Math.min(10, Math.max(1, parseInt($('#m-cols').value) || 3)); closeModal();
+      edExec('addTable', { rowCount:r, columnCount:c }); }, { sheet:true });
+}
 function ensureEditor(){
   if (S.editor) return S.editor;
   S.editor = new toastui.Editor({
     el: $('#editor'), height: '100%', initialEditType: ls.get('todo.mode','wysiwyg'), previewStyle: 'tab',
     hideModeSwitch: true, usageStatistics: false, theme: 'dark', autofocus: false,
-    toolbarItems: IS_PHONE   // phones: checklist + lists first; the rest go behind the ⋯ overflow button
-      ? [['task','ul','outdent','indent'],['ol','bold','italic','strike'],['heading','link','quote','hr'],['table','code','codeblock']]   // Geoff's order: checkbox, bullet, outdent, indent first
+    toolbarItems: IS_PHONE   // phones (Geoff's order): Checklist, Bullet, Outdent, Indent, Inline code, More — nothing else, so nothing gets hidden
+      ? [['task','ul','outdent','indent','code', { name:'appMore', tooltip:'More', el: phoneMoreButton() }]]
       : [['heading','bold','italic','strike'],['hr','quote'],['ul','ol','task','indent','outdent'],['table','link'],['code','codeblock']],
   });
   S.editor.on('change', () => { onDirtyCheck(); scheduleChecklist(); });

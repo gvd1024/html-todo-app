@@ -874,11 +874,51 @@ def test_indent_saveclose(browser):
     check("phone editor buttons fit on one line at 360 px and 175 % ('Save & close' unwrapped)", r["oneRow"] and r["fits"] and r["label"] == "Save & close", r)
     order = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > div button')].filter(b => b.offsetWidth > 0)
         .map(b => [...b.classList].find(c => !['toastui-editor-toolbar-icons','active'].includes(c)))""")
-    check("phone toolbar starts: checkbox, bullet, outdent, indent", order[:4] == ["task-list", "bullet-list", "outdent", "indent"], order)
-    page.locator(".toastui-editor-toolbar-icons.more").click()
-    page.wait_for_timeout(300)
-    edges = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-dropdown-toolbar button')].map(b => { const r = b.getBoundingClientRect(); return [r.left, r.right]; })""")
-    check("every option in the ⋯ pop-up is fully on screen", edges and all(l >= 0 and rgt <= 360 for l, rgt in edges), edges)
+    check("phone toolbar is exactly: Checklist, Bullet, Outdent, Indent, Inline code, More (at 360 px, 175 %)",
+          order == ["task-list", "bullet-list", "outdent", "indent", "code", "app-more"], order)
+    xs = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > div button')].filter(b => b.offsetWidth > 0)
+        .map(b => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.right]; })""")
+    gaps = [round(xs[i + 1][0] - xs[i][0], 1) for i in range(len(xs) - 1)]
+    check("the six buttons are evenly spaced and on screen", max(gaps) - min(gaps) < 3 and xs[-1][1] <= 360, gaps)
+    page.screenshot(path=str(SHOTS / "23-phone-editor-toolbar.png"))
+    page.locator(".app-more").click()
+    page.wait_for_timeout(200)
+    menu = page.eval_on_selector_all("#pop .phdr, #pop button", "els => els.map(e => e.textContent)")
+    check("More menu is grouped: Text style / Headings / Lists / Insert", menu == ["Text style", "Bold", "Italic", "Strikethrough", "Headings", "Heading 1", "Heading 2",
+          "Heading 3", "Lists", "Numbered list", "Insert", "Link…", "Quote", "Horizontal line", "Table…", "Code block"], menu)
+    pb = page.locator("#pop").bounding_box()
+    check("More menu is fully on screen", pb["x"] >= 0 and pb["x"] + pb["width"] <= 360, pb)
+    page.screenshot(path=str(SHOTS / "24-phone-editor-more-menu.png"))
+    page.keyboard.press("Escape")
+    ctx.close()
+
+    # every More item really formats (markdown mode makes results easy to read back)
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.mode": "markdown"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    page.locator(".row .ttl").first.click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(400)
+    def apply(label, *, dialog=None):
+        page.evaluate("() => { __todo.S.editor.setMarkdown('hello world'); __todo.S.editor.focus(); __todo.S.editor.setSelection([1, 1], [1, 12]); }")
+        page.locator(".app-more").click()
+        page.locator("#pop button", has_text=label).click()
+        if dialog:
+            dialog()
+        page.wait_for_timeout(150)
+        return page.evaluate("() => __todo.S.editor.getMarkdown()")
+    res = {
+        "Bold": apply("Bold"), "Italic": apply("Italic"), "Strikethrough": apply("Strikethrough"), "Heading 2": apply("Heading 2"),
+        "Numbered list": apply("Numbered list"), "Quote": apply("Quote"), "Horizontal line": apply("Horizontal line"), "Code block": apply("Code block"),
+        "Link…": apply("Link…", dialog=lambda: (page.fill("#m-lurl", "https://example.com"), page.click("#modal button:has-text('Insert')"))),
+        "Table…": apply("Table…", dialog=lambda: page.click("#modal button:has-text('Insert')")),
+    }
+    expect = {"Bold": "**hello world**", "Italic": "*hello world*", "Strikethrough": "~~hello world~~", "Heading 2": "## hello world",
+              "Numbered list": "1. hello world", "Quote": "> hello world", "Code block": "```", "Link…": "](https://example.com)", "Table…": "|"}
+    bad = {k: v for k, v in res.items() if k in expect and expect[k] not in v}
+    check("every More item formats the text (bold, italic, strike, heading, numbered, quote, code block, link, table)", not bad, bad)
+    check("horizontal line inserts a divider", any(s in res["Horizontal line"] for s in ("***", "---", "___")), res["Horizontal line"])
+    check("toolbar formatting: no page errors", not errors, errors[:3])
     ctx.close()
 
 

@@ -603,6 +603,16 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
 16. **Subtask indentation** (Geoff, 2026-10-19): "the check boxes for subtasks should be indented along with the task, i.e. all tasks and subtasks should have their bullet point or checkbox the same distance on the left".
     - **Built:** the checkbox or bullet moves in with its title (22 px × text size per level), so the box-to-title gap is identical at every level; the "↳" marker is gone.
     - While scrolling sideways, each row's checkbox stays pinned at its own indent.
+17. **Phone editor toolbar** (Geoff, 2026-10-19): "lets go with this order from left to right (spaced evenly in the available width)... Checklist, Bullet list, Outdent, Indent, Inline code, More. the rest should be in the 3 dots sub-menu, organized by type of function and your best judgment".
+    - **Built:** on phones the toolbar holds exactly those six, evenly spaced. **More** is the app's own menu (the library's overflow logic kept hiding Indent), grouped as:
+        - **Text style:** Bold, Italic, Strikethrough
+        - **Headings:** H1–H3
+        - **Lists:** Numbered list
+        - **Insert:** Link…, Quote, Horizontal line, Table…, Code block
+    - **Link** and **Table** ask for their details in a small sheet (`javascript:`/`data:` links are refused).
+    - Raw mode's Write/Preview tabs are hidden on phones (the Raw/Formatted button covers it); they squeezed the toolbar.
+    - The PC keeps the full toolbar.
+    - *Tests:* the order, even spacing and menu grouping at 360 px / 175 %; every More item verified to format text.
 15. **Pull to refresh** (Geoff, 2026-10-17: "when i scroll all the way to the top of the list and continue to scroll up it should do a page refresh … if not it should also refresh the file list").
     - **Built in-app:** at the top of the list, pull down until it says "Release to refresh", then let go. The app re-lists the folder and re-reads the files from OneDrive (`loadAll`), then shows "Up to date".
     - **Why in-app and not Chrome's page reload:** Chrome's own pull-to-refresh can't fire, because the list scrolls in its own panel. A full reload would also redo sign-in checks and could discard an open, unsaved edit, which the in-app refresh refuses to do.
@@ -758,6 +768,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-12 | #17 phone editor toolbar: Checklist, Bullet, Outdent, Indent, Inline code, More (the app's own grouped menu) | Built |
 | 2026-10-19 | R1-3 | **Both buttons:** Save, plus Save & close (primary) | Built |
 | 2026-10-19 | R1-12 | #16: subtask checkboxes/bullets indent with their titles (same gap at every level) | Built |
 | 2026-10-19 | R1-15 | Verified on Geoff's phone | Done |
