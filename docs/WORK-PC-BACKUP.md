@@ -45,8 +45,8 @@ STEP 3 — Schedule it every 30 minutes (PowerShell, same window)
 ---------------------------------------------------------------
 Paste all of this:
 
-    $args = "--headless robocopy.exe `"$src`" `"$dst`" /E /R:1 /W:1 /XF *.crswap /NFL /NDL /NP"
-    $action   = New-ScheduledTaskAction -Execute "conhost.exe" -Argument $args
+    $copyArgs = "--headless robocopy.exe `"$src`" `"$dst`" /E /R:1 /W:1 /XF *.crswap /NFL /NDL /NP"
+    $action   = New-ScheduledTaskAction -Execute "conhost.exe" -Argument $copyArgs
     $trigger  = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650)
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries
     Register-ScheduledTask -TaskName "HTML-ToDo backup" -Action $action -Trigger $trigger -Settings $settings -Description "Copies the HTML-ToDo task folder into OneDrive every 30 minutes"
