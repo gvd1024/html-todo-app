@@ -50,7 +50,7 @@ button.primary{background:var(--accent-strong);color:var(--accent-ink);border-co
 button.primary:hover:not(:disabled){background:#3d7cf0}
 button.primary:disabled{opacity:.45;cursor:default}
 button.ghost{border-color:transparent;background:transparent}
-button.ok{background:#1f9d63;color:#fff;border-color:#1f9d63} button.ok:hover{background:#27b373;border-color:#27b373}   /* green: Save & close */
+button.btn-green{background:#1f9d63;color:#fff;border-color:#1f9d63} button.btn-green:hover{background:#27b373;border-color:#27b373}   /* green: Save & close (unique name — .ok is a status-icon state) */
 button.danger{color:var(--danger)}
 input[type=text],input[type=date],input[type=search],select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 8px}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -231,7 +231,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
     <span class="dirty" id="d-dirty">● unsaved</span>
     <button id="d-mode" title="Switch between formatted and raw Markdown">Raw</button>
     <button id="d-save" class="primary" disabled>Save</button>
-    <button id="d-saveclose" class="ok" title="Save and close the editor">Save &amp; close</button>
+    <button id="d-saveclose" class="btn-green" title="Save and close the editor">Save &amp; close</button>
   </div>
   <div class="d-fields">
     <label class="wide">Title<input type="text" id="f-title"></label>
@@ -275,7 +275,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19e';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19f';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];

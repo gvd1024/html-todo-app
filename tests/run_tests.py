@@ -289,6 +289,8 @@ def test_onedrive(browser):
     page.wait_for_selector(".row")
     check("loads the OneDrive test folder", row(page, "Sub 2").count() == 1)
     check("status icon shows signed in", page.get_attribute("#stat", "data-state") == "ok", page.get_attribute("#stat", "data-state"))
+    check("status dot has no button background (only the dot is colored)", page.eval_on_selector("#stat", "e => getComputedStyle(e).backgroundColor") in ("rgba(0, 0, 0, 0)", "transparent"),
+          page.eval_on_selector("#stat", "e => getComputedStyle(e).backgroundColor"))
     check("subtask hidden; badge 0/1 (none done)", row(page, "Sub 2").locator(".badge").inner_text() == "0/1")
     page.screenshot(path=str(SHOTS / "07-onedrive-test-list.png"))
 
