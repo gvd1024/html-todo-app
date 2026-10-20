@@ -712,6 +712,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-10 | **Work PC, conservative setup works:** a pinned copy from disk, local-folder mode, network lock, task folder inside the work OneDrive sync folder (backed up by OneDrive's sync app). No Graph, no sign-in, no app registration needed. Vendored files' checksums verified at work. Graph/phone access for work remains open (Azure registration risk, see HANDOFF) | Work PC: done. Phone: later |
 | 2026-10-18 | R1-14 | Added and decided **B (a Settings switch)**; built and tested (blocks fetch, beacon and analytics, served and from disk) | — |
 | 2026-10-18 | R1-13 | Verified on Geoff's phone (installed; full screen, no address bar) | Done |
 | 2026-10-18 | R1-13 | Added and decided **B (installable web app)**; built and verified as installable on the live site | Awaiting install on the phone |

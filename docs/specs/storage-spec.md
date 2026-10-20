@@ -602,6 +602,7 @@ Claude's access is the same in all options: Claude edits the synced folder on th
 |---|---|---|---|
 | PC Claude Code CLI | 1 | High | **Passed 2026-10-16** (all 6 steps; see results below) |
 | PC desktop app, Code tab | 1 | High | Not tested |
+| **Work PC, Claude Code CLI** (local-folder mode in the work OneDrive sync folder) | 1 | High | **Passed create/read/update 2026-10-19**; delete and a concurrent edit still pending |
 | PC desktop app, Cowork | 1 | Medium-high | Not tested |
 | PC desktop app, Chat | 2 (or 3, or 4) | Medium (needs setup) | Not tested |
 | Android Claude app, Chat | 3 (or 4) | Medium (needs the remote MCP server) | Not tested |
@@ -638,6 +639,7 @@ Note: the test folder also has `poc-test.md`, left by the PoC page's create test
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | S-12 | Work PC: Claude Code CLI path 1 passed create/read/update on the same files HTA uses (local-folder mode, work OneDrive sync folder) | Delete and conflict pending |
 | 2026-10-17 | S-9 | **Phase 2 verified by Geoff:** sign-in on phone and PC; a phone check-off showed on the PC and a PC quick-add showed on the phone within seconds; no sign-in needed after the night | S-10 A acceptance met |
 | 2026-10-17 | S-9 | Overnight build: Phases 0 (except 0.3), 1, 2 and a Phase 3 first cut **Built**; 119 automated checks pass; 10 assumptions listed in the S-9 build log | Awaiting Geoff: Azure redirect URIs, then phone and PC check |
 | 2026-10-17 | S-9 | MVP build plan accepted (Phases 0–6); versioning `0.2.0-dev` / data format 2; Playwright; app at `/app/`; build on `main` with the `v0.1.1` tag | Phases are approved one at a time |

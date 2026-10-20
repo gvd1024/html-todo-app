@@ -3,7 +3,7 @@
 Claude Code reads this file automatically at the start of every session in this repository. Read `HANDOFF.md` next for the current state.
 
 ## What this is
-**HTML-ToDo-App** is a personal task app that Geoff and Claude both work on. Every task is one Markdown file with YAML frontmatter. `app/todo.html` is a board, outline and by-due-date view over a folder of those files. Claude edits the same files directly.
+**HTML-ToDo-App** is a personal task app that Geoff and Claude both work on. Every task is one Markdown file with YAML frontmatter. `app/index.html` is a phone-first list view (plus by-due-date) over a folder of those files, on phone and PC. Claude edits the same files directly. **Goal (2026-10-19):** eventually replace Super Productivity and Microsoft To Do, with Claude helping manage Geoff's personal and work tasks.
 
 The long-term goal is one board that can open task folders in several places:
 - a local folder on the PC
@@ -32,6 +32,7 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
     - **Once the MVP runs**, Geoff will use the app for real (rapid prototyping in his personal life). From then on, real task files are protected: never touch them unless Geoff asks, and show changes first.
     - `AI Brain/ToDo App/` belongs to a different, older app (Vue plus `server.js`). Don't modify it.
 11. **OneDrive is the committed datastore** (personal now, work later; decided 2026-10-16). The architecture lives in `docs/specs/storage-spec.md`.
+12. **Public repo hygiene:** never write the employer's name or work folder paths in committed files. Say "work OneDrive" / "work PC".
 
 ## Task file contract (don't break it) — data format 2
 ```markdown
@@ -92,6 +93,6 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 - **Geoff's machines:** Windows PC (C: drive only) and an Android phone.
 - **Code location:** `C:\dev\`, organized the way the code is hosted: `C:\dev\<host>\<account>\<repo>\`. Keep it **outside OneDrive**.
     - This repository: `C:\dev\github.com\gvd1024\html-todo-app\` (renamed from `taskboard` on 2026-10-14).
-    - **Naming:** the app is called **HTML-ToDo-App** everywhere people read a name (docs, app title, Azure registration `HTML-ToDo-App PoC`). Folder, repo and URLs stay lowercase `html-todo-app`. Never call it "Task Board" or "TaskBoard" (old name, dropped 2026-10-15).
+    - **Naming:** the app is called **HTML-ToDo-App** everywhere people read a name (docs, app title, Azure registration `HTML-ToDo-App PoC`). Folder, repo and URLs stay lowercase `html-todo-app`. Short form **HTA** is fine (Geoff uses it). Never call it "Task Board" or "TaskBoard" (old name, dropped 2026-10-15).
     - GitHub accounts: `gvd1024` (personal; this project) and `sivhold` (for a later project, at `C:\dev\github.com\sivhold\`).
     - Two GitHub accounts on one PC means each repository needs the right git identity and login. Set this per folder when the first `sivhold` repository is created.

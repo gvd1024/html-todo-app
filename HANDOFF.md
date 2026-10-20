@@ -1,4 +1,4 @@
-# HANDOFF — current state (updated 2026-10-18)
+# HANDOFF — current state (updated 2026-10-19)
 
 ## Read in this order
 1. `CLAUDE.md`: rules, file contract (data format 2), code map, testing.
@@ -76,8 +76,23 @@
 ### Original work-account test (Graph sign-in) — later, optional
 Only if Geoff wants to know whether the company blocks consent: open the hosted app, sign in with the work account, and **screenshot** the result. (a) a permissions screen → Accept; (b) "Need admin approval" → **stop, don't request it**; (c) a device/compliance block → stop. Dummy test folder only. Results go to round-1 R1-10.
 
+## Work-PC results (2026-10-19, from the work Claude Code session)
+- **Setup works:** a pinned copy (`work-test-1`) opened from disk in **local-folder mode**. The task folder is a test folder inside the **work OneDrive sync folder**, so OneDrive's own sync app backs it up. No Graph and no sign-in. *(Public repo: never write the employer's name or the work folder's full path. Say "work OneDrive".)*
+- **Verified:** SHA-256 of all 7 vendored files matches `SECURITY-REVIEW.md`. `app/index.html` contains only two outside addresses (Graph and Microsoft sign-in), used only in OneDrive mode.
+- **S-12, path 1 (Claude Code CLI on the work PC): passed** for create, read and update:
+    - Claude read all 18 sample tasks and `_todo.json`.
+    - It created a task plus a subtask; Geoff saw both, with the 1/1 badge.
+    - It updated three samples: done + `completed:`; a ticked body checklist item + a new item + a due-date change; `open` → `active`. All displayed correctly.
+    - Every file parses with the app's parser. No duplicate ids, every parent exists, and the unknown key was kept.
+- **Not yet exercised:** a concurrent-edit conflict, and delete (pending Geoff's answer in the work session).
+- **Already done at work:** the Super Productivity MCP (`sp-local-rest`) works in Claude Code on the work PC.
+- **Geoff's goal (new context, 2026-10-19):** HTML-ToDo-App ("HTA") should eventually **replace both Super Productivity (SPA) and Microsoft To Do**, and let Claude keep up with and help manage his work tasks.
+    - **Features those apps have that HTA doesn't yet:** recurring tasks; reminders/notifications; time tracking (SPA); and My Day plus flagged Outlook emails (MS To Do).
+    - Each becomes a spec item **only if Geoff raises it**.
+
 ## Next steps (Geoff), in order
-- [ ] **1. Work PC, local-only setup** (above; most conservative: no sign-in, no network). Optional later: the Graph sign-in test.
+- [x] **1. Work PC, local-only setup: done and passed 2026-10-19** (see "Work-PC results" below). Optional later: the Graph sign-in test.
+- [ ] **1b. Answer the work Claude's two cleanup questions (in that session):** delete the two `claude-crud-*` test tasks (finishes the D in CRUD)? Restore or keep the three edited samples?
 - [ ] **2. Review** the 10 assumptions in storage-spec S-9 → *Build log* (or just keep using the app and report what feels off).
 - [ ] **3. Approve Phase 4** when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
 - [ ] Optional: prove sign-in persistence after a **forced** Chrome close (swipe it out of recents, wait, open the ToDo app).
@@ -85,8 +100,14 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 ## Next steps (Claude, only once Geoff asks)
 - Log the work-test results in round-1 R1-10 (and adjust S-4/S-6 if the work fallback misbehaves).
 - Phase 4, then Phase 5, each only after approval (storage-spec S-9).
-- Small fixes queued: the grey horizontal scrollbar line above quick-add; `CLAUDE.md`'s "What this is" paragraph still describes the old board app.
-- Parked follow-ups: spell-check setup for the CLI (Code Spell Checker + Ctrl+G external editor); S-12 Claude-access tests for the other surfaces; connecting the Super Productivity MCP to Claude Code.
+- **Findings from the work-PC code read (2026-10-19), awaiting Geoff's decision:**
+  1. Unchecking a task leaves a stale `completed:` date (`toggleDone()` doesn't clear it; app check-offs don't set it yet). Fix in Phase 4.
+  2. `IS_PHONE` includes `(pointer:coarse)`, so a touchscreen laptop gets the phone defaults (10 s poll, 125 % text).
+  3. Local-folder deletes are permanent (the browser API can't use the recycle bin). At work, the OneDrive sync folder's recycle bin softens this; the in-app Undo (S-7, Phase 4) matters more in local mode.
+  4. Opened from disk, Chrome/Edge likely share one `localStorage` among **all** local HTML files, so settings (including the Network lock) aren't isolated per app. Document it in the work instructions.
+  5. Tidy-up: a no-op `t.file = t.file` in the `#d-loaddisk` not-found branch.
+- Small fixes queued: the grey horizontal scrollbar line above quick-add..
+- Parked follow-ups: spell-check setup for the CLI (Code Spell Checker + Ctrl+G external editor); S-12 Claude-access tests for the other surfaces; connecting the Super Productivity MCP to Claude Code on the **home** PC (already done on the work PC).
 
 ## Key decisions (details in the specs)
 - **OneDrive is the datastore** (personal now, work later). Builds and tests use test data; the current "real" tasks may be changed until the MVP runs, then they're protected (CLAUDE.md rule 10).
