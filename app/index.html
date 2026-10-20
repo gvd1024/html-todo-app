@@ -216,7 +216,7 @@ html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-divider{dis
 html.phone .toastui-editor-defaultUI-toolbar{padding:0 4px}
 html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group > button,html.phone .toastui-editor-toolbar-item-wrapper,html.phone .toastui-editor-toolbar-item-wrapper > button{margin:0!important}   /* equal spacing for all six */
 html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
-html.phone .toastui-editor-md-tab-container{display:none!important}   /* Raw mode's Write/Preview tabs squeeze the toolbar; the Raw/Formatted button covers it */
+.toastui-editor-md-tab-container{display:none!important}   /* Raw mode's Write/Preview tabs squeeze the toolbar; the Raw/Formatted button covers it */
 .toastui-editor-toolbar-icons.app-more{background-image:none!important;position:relative}
 .toastui-editor-toolbar-icons.app-more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;color:var(--text)}
 /* the ⋯ overflow pop-up: keep it inside the screen and wrap onto extra rows so every hidden option shows */
@@ -293,7 +293,7 @@ html.phone .toastui-editor-md-tab-container{display:none!important}   /* Raw mod
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19k';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19m';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
@@ -1251,18 +1251,42 @@ function phoneMoreButton(){
   return b;
 }
 function edExec(cmd, payload){ const ed = S.editor; if (!ed) return; ed.focus(); ed.exec(cmd, payload); }
+/* Toolbar (R1-12 #17, #18): always Checklist, Bullet, Outdent, Indent, Inline code … More. On a PC, as many of the
+   EXTRAS as fit go between them (in this order); whatever doesn't fit is listed under More, grouped by type. */
+const TB_PRIMARY = ['task','ul','outdent','indent','code'];
+const TB_EXTRAS = ['bold','italic','strike','heading','ol','link','quote','hr','table','codeblock'];
+const MORE_GROUPS = [
+  ['Text style', [['bold','Bold',() => edExec('bold')], ['italic','Italic',() => edExec('italic')], ['strike','Strikethrough',() => edExec('strike')]]],
+  ['Headings', [['heading','Heading 1',() => edExec('heading', { level:1 })], ['heading','Heading 2',() => edExec('heading', { level:2 })], ['heading','Heading 3',() => edExec('heading', { level:3 })]]],
+  ['Lists', [['ol','Numbered list',() => edExec('orderedList')]]],
+  ['Insert', [['link','Link…',() => linkDialog()], ['quote','Quote',() => edExec('blockQuote')], ['hr','Horizontal line',() => edExec('hr')],
+              ['table','Table…',() => tableDialog()], ['codeblock','Code block',() => edExec('codeBlock')]]],
+];
+S.tbShown = new Set();   // extras currently on the toolbar
+function editorToolbar(){
+  const extras = IS_PHONE ? [] : [...TB_EXTRAS];                      // PC: start with all extras; fitToolbar() trims to what fits
+  S.tbShown = new Set(extras);
+  const more = { name:'appMore', tooltip:'More', el: phoneMoreButton() };
+  return extras.length ? [TB_PRIMARY, extras, [more]] : [[...TB_PRIMARY, more]];
+}
+/* PC: if the library starts hiding buttons (its own ⋯ appears), remove extras from the END until everything fits */
+const libOverflow = () => [...document.querySelectorAll('#editor .toastui-editor-toolbar-icons.more')].some(b => b.offsetWidth > 0);
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+async function fitToolbar(){
+  if (IS_PHONE || !S.editor) return;
+  await nextFrame();
+  for (const name of [...TB_EXTRAS].reverse()){
+    if (!libOverflow()) break;
+    if (!S.tbShown.has(name)) continue;
+    S.editor.removeToolbarItem(name); S.tbShown.delete(name);
+    await nextFrame();
+  }
+}
+window.addEventListener('resize', () => { if (S.editing) fitToolbar(); });
 function editorMoreMenu(anchor){
-  popover(anchor, [
-    { hdr:'Text style' },
-    { label:'Bold', fn:() => edExec('bold') }, { label:'Italic', fn:() => edExec('italic') }, { label:'Strikethrough', fn:() => edExec('strike') },
-    { hdr:'Headings' },
-    { label:'Heading 1', fn:() => edExec('heading', { level:1 }) }, { label:'Heading 2', fn:() => edExec('heading', { level:2 }) }, { label:'Heading 3', fn:() => edExec('heading', { level:3 }) },
-    { hdr:'Lists' },
-    { label:'Numbered list', fn:() => edExec('orderedList') },
-    { hdr:'Insert' },
-    { label:'Link…', fn: linkDialog }, { label:'Quote', fn:() => edExec('blockQuote') }, { label:'Horizontal line', fn:() => edExec('hr') },
-    { label:'Table…', fn: tableDialog }, { label:'Code block', fn:() => edExec('codeBlock') },
-  ]);
+  const groups = MORE_GROUPS.map(([h, items]) => [h, items.filter(([key]) => !S.tbShown.has(key))]).filter(([, items]) => items.length);
+  const use = groups.length ? groups : MORE_GROUPS;                  // everything fits → More still offers the full menu
+  popover(anchor, use.flatMap(([h, items]) => [{ hdr:h }, ...items.map(([, label, fn]) => ({ label, fn }))]));
 }
 function linkDialog(){
   const sel = (S.editor?.getSelectedText?.() || '').trim();
@@ -1290,17 +1314,16 @@ function ensureEditor(){
   S.editor = new toastui.Editor({
     el: $('#editor'), height: '100%', initialEditType: ls.get('todo.mode','wysiwyg'), previewStyle: 'tab',
     hideModeSwitch: true, usageStatistics: false, theme: 'dark', autofocus: false,
-    toolbarItems: IS_PHONE   // phones (Geoff's order): Checklist, Bullet, Outdent, Indent, Inline code, More — nothing else, so nothing gets hidden
-      ? [['task','ul','outdent','indent','code', { name:'appMore', tooltip:'More', el: phoneMoreButton() }]]
-      : [['heading','bold','italic','strike'],['hr','quote'],['ul','ol','task','indent','outdent'],['table','link'],['code','codeblock']],
+    toolbarItems: editorToolbar(),   // phone: exactly the six; PC: the six plus as many extras as fit
   });
   S.editor.on('change', () => { onDirtyCheck(); scheduleChecklist(); });
+  setTimeout(fitToolbar, 0);
   updateModeBtn();
   return S.editor;
 }
 function updateModeBtn(){ $('#d-mode').textContent = S.editor && S.editor.isMarkdownMode() ? 'Formatted' : 'Raw'; }
 $('#d-mode').onclick = () => { const ed = ensureEditor(); const to = ed.isMarkdownMode() ? 'wysiwyg' : 'markdown';
-  ed.changeMode(to, true); ls.set('todo.mode', to); updateModeBtn(); };
+  ed.changeMode(to, true); ls.set('todo.mode', to); updateModeBtn(); fitToolbar(); };
 
 function fieldState(){ return JSON.stringify({ title:$('#f-title').value, status:$('#f-status').value, prefix:$('#f-prefix').value, list:$('#f-list').value,
   due:$('#f-due').value, coll:$('#f-coll').value }); }

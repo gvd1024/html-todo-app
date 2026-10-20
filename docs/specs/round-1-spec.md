@@ -613,6 +613,13 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - Raw mode's Write/Preview tabs are hidden on phones (the Raw/Formatted button covers it); they squeezed the toolbar.
     - The PC keeps the full toolbar.
     - *Tests:* the order, even spacing and menu grouping at 360 px / 175 %; every More item verified to format text.
+18. **PC editor toolbar** (Geoff, 2026-10-19): "make the markdown icons similar to the phone with respect to the order. but instead of only the same 6 icons, for the PC allow as many that can fit with a minium of those 6 icons and the rest put in the 3 dots dropdown".
+    - **Built:** the same first five (Checklist, Bullet, Outdent, Indent, Inline code), then extras in this order: Bold, Italic, Strikethrough, Heading, Numbered list, Link, Quote, Horizontal line, Table, Code block, then **More**.
+    - All extras start on the toolbar. Once the editor is shown, the app removes extras **from the end** until the library no longer hides anything. Whatever was removed is listed under More, grouped by type; if nothing was removed, More shows the full grouped menu.
+    - **Re-checked** after switching Raw/Formatted and when the window is resized (narrowing only).
+    - Raw mode's Write/Preview tabs are hidden on PCs too (the Raw/Formatted button covers it), so both modes show the same buttons.
+    - **Typical PC:** everything but Code block fits.
+    - **Future (Geoff, 2026-10-19, not yet):** a variable-width editor on the PC. When that comes, the toolbar should also re-add extras when the editor gets wider.
 15. **Pull to refresh** (Geoff, 2026-10-17: "when i scroll all the way to the top of the list and continue to scroll up it should do a page refresh … if not it should also refresh the file list").
     - **Built in-app:** at the top of the list, pull down until it says "Release to refresh", then let go. The app re-lists the folder and re-reads the files from OneDrive (`loadAll`), then shows "Up to date".
     - **Why in-app and not Chrome's page reload:** Chrome's own pull-to-refresh can't fire, because the list scrolls in its own panel. A full reload would also redo sign-in checks and could discard an open, unsaved edit, which the in-app refresh refuses to do.
@@ -768,6 +775,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-12 | #18 PC editor toolbar: the phone's order, as many extras as fit, the rest under More. Future: a variable-width PC editor (not yet) | Built |
 | 2026-10-19 | R1-12 | #17 phone editor toolbar: Checklist, Bullet, Outdent, Indent, Inline code, More (the app's own grouped menu) | Built |
 | 2026-10-19 | R1-3 | **Both buttons:** Save, plus Save & close (primary) | Built |
 | 2026-10-19 | R1-12 | #16: subtask checkboxes/bullets indent with their titles (same gap at every level) | Built |

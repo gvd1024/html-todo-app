@@ -112,6 +112,7 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
   4. Opened from disk, Chrome/Edge likely share one `localStorage` among **all** local HTML files, so settings (including the Network lock) aren't isolated per app. Document it in the work instructions.
   5. Tidy-up: a no-op `t.file = t.file` in the `#d-loaddisk` not-found branch.
 - Small fixes queued: the grey horizontal scrollbar line above quick-add..
+- **Future, Geoff's request (not yet):** a variable-width editor on the PC (R1-12 #18 note).
 - Parked follow-ups: spell-check setup for the CLI (Code Spell Checker + Ctrl+G external editor); S-12 Claude-access tests for the other surfaces; connecting the Super Productivity MCP to Claude Code on the **home** PC (already done on the work PC).
 
 ## Key decisions (details in the specs)

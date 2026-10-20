@@ -922,6 +922,30 @@ def test_indent_saveclose(browser):
     ctx.close()
 
 
+def test_pc_toolbar(browser):
+    print("\n[13] PC editor toolbar: the phone's order, as many extras as fit, the rest under More")
+    for w, mode, hidden in [(1280, "wysiwyg", ["Code block"]), (1280, "markdown", ["Code block"]), (700, "wysiwyg", ["Table…", "Code block"])]:
+        ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.mode": mode}))
+        page.set_viewport_size({"width": w, "height": 800})
+        page.goto(APP)
+        page.wait_for_selector(".row")
+        page.locator(".row .ttl").first.click()
+        page.wait_for_selector("#drawer.open")
+        page.wait_for_timeout(600)
+        vis = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > .toastui-editor-toolbar-group button')].filter(b => b.offsetWidth > 0)
+            .map(b => [...b.classList].find(c => c !== 'toastui-editor-toolbar-icons' && c !== 'active'))""")
+        lib_more = page.evaluate("() => [...document.querySelectorAll('#editor .toastui-editor-toolbar-icons.more')].some(b => b.offsetWidth > 0)")
+        check(f"PC {w}px {mode}: starts Checklist, Bullet, Outdent, Indent, Inline code; ends with More", vis[:5] == ["task-list", "bullet-list", "outdent", "indent", "code"] and vis[-1] == "app-more", vis)
+        check(f"PC {w}px {mode}: the library never hides buttons on its own", not lib_more)
+        page.locator(".app-more").click()
+        page.wait_for_timeout(200)
+        menu = page.eval_on_selector_all("#pop button", "bs => bs.map(b => b.textContent)")
+        check(f"PC {w}px {mode}: More lists exactly what didn't fit ({', '.join(hidden)})", menu == hidden, menu)
+        page.keyboard.press("Escape")
+        check(f"PC {w}px {mode}: no page errors", not errors, errors[:3])
+        ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -931,7 +955,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar)]
         for name, fn in tests:
             if not only or name in only:
                 try:
