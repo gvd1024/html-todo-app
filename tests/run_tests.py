@@ -803,8 +803,7 @@ def test_phase5(browser):
     b1 = row(page, "Replace HVAC filter").bounding_box(); b0 = row(page, "Tenant lease renewal").bounding_box()
     page.mouse.move(200, b1["y"] + b1["height"] / 2)
     page.mouse.down()
-    page.wait_for_timeout(550)
-    page.mouse.move(200, b0["y"] + 4, steps=8)
+    page.mouse.move(200, b0["y"] + 4, steps=8)          # PC: press and drag right away, no hold
     page.wait_for_timeout(100)
     page.screenshot(path=str(SHOTS / "20-pc-dragging.png"))
     page.mouse.up()

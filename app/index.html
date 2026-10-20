@@ -271,6 +271,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
+const BUILD = '2026-10-19c';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
@@ -888,7 +889,7 @@ async function refreshAll(){
    near its top/bottom edge = place above/below (a line shows); drag left = move out one level. Subtasks travel with
    their parent (their parent: links don't change). The list auto-scrolls near its edges. 5 s Undo afterwards. */
 (() => {
-  const LONG_MS = 400, SLOP = 10, UNNEST_DX = 48, EDGE = 56;
+  const LONG_MS = 400, SLOP = 16, MOUSE_START = 6, UNNEST_DX = 48, EDGE = 56;   // touch: hold still ~0.4 s; mouse: just press and drag
   const sc = $('#scroller'), rowsEl = $('#rows'), hint = $('#drag-hint');
   let timer = null, start = null, drag = null, suppressClick = false, raf = null;
 
@@ -961,16 +962,19 @@ async function refreshAll(){
   }, { passive:false });
   rowsEl.addEventListener('touchend', end); rowsEl.addEventListener('touchcancel', end);
   // mouse (PC): same long-press
+  let mouseRow = null;
   rowsEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return; const row = e.target.closest('.row'); if (!row || e.target.closest('button')) return;
-    start = { x:e.clientX, y:e.clientY };
-    timer = setTimeout(() => { timer = null; begin(row, { clientX:start.x, clientY:start.y }); }, LONG_MS);
+    start = { x:e.clientX, y:e.clientY }; mouseRow = row;
+    timer = setTimeout(() => { timer = null; mouseRow = null; begin(row, { clientX:start.x, clientY:start.y }); }, LONG_MS);
   });
   document.addEventListener('mousemove', e => {
-    if (timer && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > SLOP) return cancel();
+    if (mouseRow && !drag && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > MOUSE_START){   // mouse: press + drag starts at once
+      const row = mouseRow; mouseRow = null; clearTimeout(timer); timer = null; begin(row, { clientX:start.x, clientY:start.y });
+    }
     if (drag){ e.preventDefault(); move(e); }
   });
-  document.addEventListener('mouseup', end);
+  document.addEventListener('mouseup', () => { mouseRow = null; end(); });
   rowsEl.addEventListener('contextmenu', e => { if (e.target.closest('.row')) e.preventDefault(); });   // Android long-press menu
   rowsEl.addEventListener('click', e => { if (suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
 })();
@@ -1525,7 +1529,7 @@ function settingsDialog(){
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="local" ${src==='local'?'checked':''} ${window.showDirectoryPicker?'':'disabled'}> A local folder on this PC (desktop Chrome/Edge)</label>
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="demo" ${src==='demo'?'checked':''}> Demo data (nothing is saved)</label>
     </fieldset>
-    <p style="font-size:12px;color:var(--muted)">HTML-ToDo-App v${APP_VERSION} · data format ${DATA_FORMAT} · ${S.auth?.user() ? 'signed in as ' + esc(S.auth.user()) : 'not signed in'}</p>
+    <p style="font-size:12px;color:var(--muted)">HTML-ToDo-App v${APP_VERSION} · build ${BUILD} · data format ${DATA_FORMAT} · ${S.auth?.user() ? 'signed in as ' + esc(S.auth.user()) : 'not signed in'}</p>
     <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Apply</button></div>`,
     async a => {
       if (a !== 'ok'){ applyTextSize(textSize()); return closeModal(); }          // cancel: undo the size preview
@@ -1679,7 +1683,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
