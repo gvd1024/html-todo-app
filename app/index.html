@@ -90,6 +90,18 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .row>.act{position:sticky;right:0;z-index:2;flex:0 0 auto;display:flex;align-items:center;background:var(--bg);padding-left:2px}
 .row.sub>.ttl::before{content:"↳";color:var(--muted);margin-right:6px}
 .row.done>.ttl{color:var(--muted);text-decoration:line-through}
+/* long-press move (R1-12 #13) */
+.row{-webkit-touch-callout:none;user-select:none}
+@keyframes lift{0%{background:var(--accent-soft)}50%{background:rgba(91,155,255,.35)}100%{background:var(--accent-soft)}}
+.row.lifting{animation:lift .35s ease 2;background:var(--accent-soft)}
+.row.dragging-src{opacity:.35}
+.row.drop-child>.ttl,.row.drop-child>.pfx,.row.drop-child>.act{background:rgba(91,155,255,.22)}
+.row.drop-before{box-shadow:inset 0 3px 0 var(--accent)} .row.drop-after{box-shadow:inset 0 -3px 0 var(--accent)}
+#drag-ghost{position:fixed;z-index:60;pointer-events:none;opacity:.92;box-shadow:0 8px 24px rgba(0,0,0,.55);border:1px solid var(--accent);border-radius:8px;background:var(--card);overflow:hidden}
+#drag-ghost .row{border-bottom:0}
+#drag-hint{position:fixed;left:50%;bottom:calc(80px*var(--z));max-width:92vw;transform:translateX(-50%);z-index:61;background:var(--accent-strong);color:#fff;padding:4px 12px;border-radius:12px;font-size:calc(13px*var(--z));pointer-events:none;display:none}
+#drag-hint.on{display:block}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}} .badge.pulse{animation:pulse .4s ease 2}
 .row.new-unsaved>.ttl{color:var(--accent)}
 .ck{width:calc(44px*var(--z));height:calc(44px*var(--z));border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center;position:relative}
 .ck .box{width:calc(20px*var(--z));height:calc(20px*var(--z));border:2px solid var(--muted);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:calc(14px*var(--z));line-height:1}
@@ -242,6 +254,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 <div id="modal-bg"><div id="modal"></div></div>
 <div id="pop"></div>
 <div id="toast"></div>
+<div id="drag-hint"></div>
 <div id="undo" role="status"><span id="undo-msg"></span><button id="undo-btn">Undo</button></div>
 
 <script src="vendor/js-yaml.min.js"></script>
@@ -730,7 +743,7 @@ function conflictDialog(t){
 let pollTimer = null, polling = false;
 function schedulePoll(){ clearTimeout(pollTimer); pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, POLL_MS); }
 async function poll(force){
-  if (!S.store || polling || document.hidden || (!force && S.busy)) return;
+  if (!S.store || polling || document.hidden || S.moving || (!force && S.busy)) return;   // never redraw mid-drag
   polling = true; S.syncing = true; setStat();
   try {
     const ch = await S.store.changes();
@@ -856,9 +869,9 @@ async function refreshAll(){
   const sc = $('#scroller'), ptr = $('#ptr'), txt = $('#ptr-text'); const READY = 70, MAX = 90;
   let y0 = null, x0 = 0, pull = 0, busyRefresh = false;
   const set = h => { ptr.style.height = h + 'px'; };
-  sc.addEventListener('touchstart', e => { if (busyRefresh || sc.scrollTop > 0 || e.touches.length !== 1) { y0 = null; return; }
+  sc.addEventListener('touchstart', e => { if (busyRefresh || S.moving || sc.scrollTop > 0 || e.touches.length !== 1) { y0 = null; return; }
     y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; pull = 0; }, { passive:true });
-  sc.addEventListener('touchmove', e => { if (y0 == null) return;
+  sc.addEventListener('touchmove', e => { if (y0 == null) return; if (S.moving){ y0 = null; set(0); return; }
     const dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
     if (dy <= 0 || dx > dy || sc.scrollTop > 0){ if (pull){ pull = 0; ptr.classList.remove('pulling','ready'); set(0); } return; }
     pull = Math.min(MAX, dy * 0.5); ptr.classList.add('pulling'); set(pull);
@@ -869,6 +882,140 @@ async function refreshAll(){
     pull = 0; ptr.classList.remove('ready'); set(0); txt.textContent = 'Pull to refresh'; };
   sc.addEventListener('touchend', end); sc.addEventListener('touchcancel', end);
 })();
+
+/* ---------------- long-press move (Phase 5, R1-12 #13 / 13a / 13b) ----------------
+   Long-press a row (~400 ms) → it flashes → drag. Drop on a row's middle = make it a subtask (row highlights);
+   near its top/bottom edge = place above/below (a line shows); drag left = move out one level. Subtasks travel with
+   their parent (their parent: links don't change). The list auto-scrolls near its edges. 5 s Undo afterwards. */
+(() => {
+  const LONG_MS = 400, SLOP = 10, UNNEST_DX = 48, EDGE = 56;
+  const sc = $('#scroller'), rowsEl = $('#rows'), hint = $('#drag-hint');
+  let timer = null, start = null, drag = null, suppressClick = false, raf = null;
+
+  const rowAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest('#rows .row'); };
+  const pt = e => e.touches ? e.touches[0] : e;
+  function begin(rowEl, p){
+    const t = get(rowEl.dataset.id); if (!t || t.isNew) return;
+    if (S.view !== 'list'){ return; }
+    if (S.editing && isDirty()){ toast('Save or close the open editor first.'); return; }
+    S.moving = true; navigator.vibrate?.(25);
+    rowEl.classList.add('lifting');
+    const r = rowEl.getBoundingClientRect(), Z = PAGE_ZOOM;
+    const ghost = document.createElement('div'); ghost.id = 'drag-ghost';
+    ghost.style.width = (r.width / Z) + 'px'; ghost.style.left = (r.left / Z) + 'px'; ghost.style.top = (r.top / Z) + 'px';
+    ghost.appendChild(rowEl.cloneNode(true)); document.body.appendChild(ghost);
+    drag = { t, rowEl, ghost, x0: p.clientX, y0: p.clientY, top0: r.top, left0: r.left, target: null, zone: null };
+    setTimeout(() => rowEl.classList.add('dragging-src'), 300);
+    hint.textContent = 'Drop on a task = subtask · edge = above/below · drag left = out a level'; hint.classList.add('on');
+    autoScroll();
+  }
+  function clearMarks(){ rowsEl.querySelectorAll('.drop-child,.drop-before,.drop-after').forEach(r => r.classList.remove('drop-child','drop-before','drop-after')); }
+  function move(p){
+    if (!drag) return;
+    const Z = PAGE_ZOOM; drag.cx = p.clientX; drag.cy = p.clientY;
+    const dx = p.clientX - drag.x0, dy = p.clientY - drag.y0;
+    drag.ghost.style.top = ((drag.top0 + dy) / Z) + 'px'; drag.ghost.style.left = ((drag.left0 + Math.min(0, dx)) / Z) + 'px';
+    clearMarks(); drag.target = null; drag.zone = null;
+    const t = drag.t;
+    if (dx < -UNNEST_DX * Z && hasParent(t)){                // drag left → out one level
+      drag.zone = 'unnest'; hint.textContent = `Move out of “${get(t.parent).title}”`; return;
+    }
+    drag.ghost.style.display = 'none'; const row = rowAt(p.clientX, p.clientY); drag.ghost.style.display = '';
+    if (!row){ hint.textContent = 'Drop on a task = subtask · edge = above/below'; return; }
+    const target = get(row.dataset.id);
+    if (!target || target.id === t.id || isAncestor(t.id, target.id)){ hint.textContent = "Can't drop a task inside itself"; return; }
+    const r = row.getBoundingClientRect(); const rel = (p.clientY - r.top) / r.height;
+    drag.target = target; drag.zone = rel < 0.25 ? 'before' : rel > 0.75 ? 'after' : 'child';
+    row.classList.add(drag.zone === 'child' ? 'drop-child' : 'drop-' + drag.zone);
+    hint.textContent = drag.zone === 'child' ? `Make a subtask of “${target.title}”` : `Place ${drag.zone === 'before' ? 'above' : 'below'} “${target.title}”`;
+  }
+  function autoScroll(){
+    cancelAnimationFrame(raf);
+    const step = () => { if (!drag) return;
+      const r = sc.getBoundingClientRect(), y = drag.cy ?? drag.y0;
+      if (y < r.top + EDGE) sc.scrollTop -= 8; else if (y > r.bottom - EDGE) sc.scrollTop += 8;
+      raf = requestAnimationFrame(step); };
+    raf = requestAnimationFrame(step);
+  }
+  async function end(){
+    clearTimeout(timer); timer = null;
+    if (!drag) return;
+    const d = drag; drag = null; cancelAnimationFrame(raf);
+    d.ghost.remove(); d.rowEl.classList.remove('lifting','dragging-src'); clearMarks(); hint.classList.remove('on');
+    suppressClick = true; setTimeout(() => { suppressClick = false; S.moving = false; }, 350);
+    if (d.zone) await placeTask(d.t, d.zone, d.target);
+  }
+  function cancel(){ clearTimeout(timer); timer = null; }
+
+  // touch
+  rowsEl.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return cancel();
+    const row = e.target.closest('.row'); if (!row || e.target.closest('button')) return;
+    const p = pt(e); start = { x:p.clientX, y:p.clientY };
+    timer = setTimeout(() => { timer = null; begin(row, { clientX:start.x, clientY:start.y }); }, LONG_MS);
+  }, { passive:true });
+  rowsEl.addEventListener('touchmove', e => {
+    const p = pt(e);
+    if (timer && start && Math.hypot(p.clientX - start.x, p.clientY - start.y) > SLOP) return cancel();   // it's a scroll
+    if (drag){ if (e.cancelable) e.preventDefault(); move(p); }
+  }, { passive:false });
+  rowsEl.addEventListener('touchend', end); rowsEl.addEventListener('touchcancel', end);
+  // mouse (PC): same long-press
+  rowsEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return; const row = e.target.closest('.row'); if (!row || e.target.closest('button')) return;
+    start = { x:e.clientX, y:e.clientY };
+    timer = setTimeout(() => { timer = null; begin(row, { clientX:start.x, clientY:start.y }); }, LONG_MS);
+  });
+  document.addEventListener('mousemove', e => {
+    if (timer && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > SLOP) return cancel();
+    if (drag){ e.preventDefault(); move(e); }
+  });
+  document.addEventListener('mouseup', end);
+  rowsEl.addEventListener('contextmenu', e => { if (e.target.closest('.row')) e.preventDefault(); });   // Android long-press menu
+  rowsEl.addEventListener('click', e => { if (suppressClick){ e.stopPropagation(); e.preventDefault(); } }, true);
+})();
+
+function orderBetween(prev, next){
+  const a = prev ? (prev.order ?? 0) : null, b = next ? (next.order ?? 0) : null;
+  if (a != null && b != null) return (a + b) / 2;
+  if (a != null) return a + 1;
+  if (b != null) return b - 1;
+  return 1;
+}
+async function placeTask(t, zone, target){
+  const before = [t, ...descendants(t.id)].map(x => ({ id:x.id, parent:x.parent, order:x.order, list:x.list }));
+  const siblingsOf = parentId => (parentId ? kids(parentId) : all().filter(x => x.list === t.list && !hasParent(x)).sort(byOrder)).filter(x => x.id !== t.id);
+  let newParent, order, label;
+  if (zone === 'unnest'){
+    const p = get(t.parent); newParent = hasParent(p) ? p.parent : '';
+    const sibs = siblingsOf(newParent); const i = sibs.findIndex(x => x.id === p.id);
+    order = orderBetween(p, sibs[i + 1]); label = `Moved “${t.title}” out of “${p.title}”`;
+  } else if (zone === 'child'){
+    newParent = target.id; order = nextOrder(siblingsOf(target.id)); label = `“${t.title}” is now a subtask of “${target.title}”`;
+  } else {
+    newParent = hasParent(target) ? target.parent : '';
+    const sibs = siblingsOf(newParent); const i = sibs.findIndex(x => x.id === target.id);
+    order = zone === 'before' ? orderBetween(sibs[i - 1], target) : orderBetween(target, sibs[i + 1]);
+    label = `Moved “${t.title}” ${zone === 'before' ? 'above' : 'below'} “${target.title}”`;
+  }
+  if (newParent === t.parent && order === t.order) return;
+  const changed = [t];
+  t.parent = newParent; t.order = order;
+  const newList = newParent ? get(newParent).list : t.list;
+  if (t.list !== newList){ t.list = newList; for (const d of descendants(t.id)){ d.list = newList; changed.push(d); } }
+  const sibs = siblingsOf(newParent).concat(t).sort(byOrder);                   // renumber if fractions got too close
+  for (let i = 1; i < sibs.length; i++) if (Math.abs((sibs[i].order ?? 0) - (sibs[i-1].order ?? 0)) < 1e-6){
+    sibs.forEach((s, k) => { if (s.order !== k + 1){ s.order = k + 1; if (!changed.includes(s)) changed.push(s); } }); break; }
+  render();
+  if (zone === 'child'){ const b = document.querySelector(`.row[data-id="${CSS.escape(target.id)}"] .badge`); if (b){ b.classList.add('pulse'); setTimeout(() => b.classList.remove('pulse'), 900); } }
+  const ok = await saveMany(changed.filter(x => !x.isNew));
+  render();
+  if (!ok) return;
+  showUndo(label, async () => {
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { parent:s.parent, order:s.order, list:s.list }); return x; }).filter(Boolean);
+    render(); await saveMany(back.filter(x => !x.isNew)); render();
+  });
+}
 
 /* sideways scroll: ⇤ button + snap back on list switch, editor close or 3 s idle (R1-12 7a = B + C) */
 let snapTimer = null;
@@ -1532,7 +1679,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));

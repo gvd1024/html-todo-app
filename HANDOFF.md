@@ -95,7 +95,10 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 - [ ] **1b. Answer the work Claude's two cleanup questions (in that session):** delete the two `claude-crud-*` test tasks (finishes the D in CRUD)? Restore or keep the three edited samples?
 - [ ] **2. Review** the 10 assumptions in storage-spec S-9 → *Build log* (or just keep using the app and report what feels off).
 - [x] **3. Phase 4 delete checks 1–4 passed on the phone (2026-10-19).**
-- [ ] **3b. Check R1-15** (the phone no longer stuck in desktop mode) and the done/total badge. If the phone still looks like desktop mode: Chrome → ⋮ → Settings → Site settings → Desktop site: off. Then approve **Phase 5** (long-press move) when ready.
+- [x] **3b. R1-15 verified on the phone (2026-10-19)**, plus the done/total badge.
+- [ ] **4. Try Phase 5 (built 2026-10-19):** long-press a task until it flashes, then drag. Drop on another task's middle = make a subtask; on its top/bottom edge = above/below; drag left = out a level. Undo after each move.
+- [ ] **5. Phase 6 (acceptance and go-live), when Geoff approves:** a full checklist on phone and PC, a Claude CRUD pass, then Geoff picks the real OneDrive folder and Claude migrates the current real tasks (from Google Drive `HTML_ToDo_Files`) by hand. **From then on, rule 10's protection of real files applies.**
+- [ ] Optional: pin `work-test-2` for the work PC (it's still on `work-test-1`, without Phase 4/5).
 - ~~3. Approve Phase 4~~ when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
 - [ ] Optional: prove sign-in persistence after a **forced** Chrome close (swipe it out of recents, wait, open the ToDo app).
 

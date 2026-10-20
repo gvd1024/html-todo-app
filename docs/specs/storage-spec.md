@@ -513,6 +513,21 @@ interface Store {
 
 Tests: a new `phase4` group (20 checks) plus `.trash` checks in the store suite. **162 checks pass.** Screenshots 16–17.
 
+**2026-10-19, Phase 5 built** (approved the same day): long-press move (R1-12 #13, 13a, 13b).
+- **Gesture:** long-press about 400 ms → the row flashes and lifts → drag (touch and mouse).
+- **Drop zones:** middle of a row = make it a subtask (the row highlights, the badge pulses); top/bottom quarter = place above/below (a line shows); drag left about 48 px = move out one level, placed right after the old parent.
+- **Guard rails:**
+    - Subtasks travel with their parent.
+    - A task can't be dropped into itself or its own subtasks.
+    - The list auto-scrolls near its edges.
+    - Moving before the long-press completes is a normal scroll.
+    - Background sync pauses mid-drag.
+- **Afterwards:** a hint shows what will happen, then a **5 s Undo** after the move.
+- **Implementation:** custom (touch and mouse events); SortableJS is not used and stays unloaded.
+- **Tests:** a `phase5` group with real touch gestures via Chrome DevTools, plus a PC mouse drag. **184 checks pass.**
+
+**The MVP build (Phases 1–5) is complete.** Next: Phase 6 (acceptance and go-live), with Geoff's approval.
+
 ### After the MVP (not in this plan)
 
 - **PC layout parity extras** (R1-12 #5).
@@ -651,6 +666,7 @@ Note: the test folder also has `poc-test.md`, left by the PoC page's create test
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | S-9 | **Phase 5 built** (long-press move with Undo). **MVP Phases 1–5 complete**; 184 checks pass | Next: Phase 6 acceptance and go-live |
 | 2026-10-19 | S-9 | **Phase 4 built** (check-off with Undo and the dialog, done hidden, `completed:` dates, delete with subtasks and Undo, local `.trash`, phone detection, tidy-up); 162 checks pass | Awaiting Geoff's phone and PC check |
 | 2026-10-19 | S-9 | **Phase 4 approved for build**, together with the work-PC findings: (1) clear `completed` on uncheck; (2) phone detection by device type, not touchscreen; (3) local-folder deletes move into a hidden `.trash` folder (S-7 for local); (4) document the shared settings when opening from disk; (5) code tidy-up | Approved |
 | 2026-10-19 | S-12 | Work PC: Claude Code CLI path 1 passed create/read/update on the same files HTA uses (local-folder mode, work OneDrive sync folder) | Delete and conflict pending |

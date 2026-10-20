@@ -64,7 +64,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
   - **Storage (storage-spec S-2):** one interface — `list / read / write(path, text, expectedVersion) / create / remove / changes()` keyed by relative path with an opaque version. Connectors: `MemStore` (demo), `FsStore` (local folder, File System Access API; deletes keep a copy in the folder's hidden `.trash`), `GraphStore` (OneDrive via Microsoft Graph: `If-Match` writes → 412, `conflictBehavior=fail` creates → 409, deletes to the recycle bin, folder delta for changes, listing fallback for work OneDrive).
   - **Sign-in (S-5):** `MsalAuth` (MSAL Browser 5.22.0, redirect flow). Automatic bounce through Microsoft once per session when the cached sign-in is gone; unsaved edits are stashed in `localStorage` and restored after.
   - **Files:** `parseTask` and `serializeTask` use js-yaml with CORE_SCHEMA, so dates stay strings.
-  - **UI (R1-12):** the phone-first list view (one list at a time, sticky prefix and ⋯ columns, sideways scroll with ⇤ and snap-back, subtask badges, quick-add), list-picker sheet, by-due-date view, full-screen Toast UI editor on phones with a prefix selector, demote and promote. The board view is retired.
+  - **UI (R1-12):** the phone-first list view (one list at a time, sticky prefix and ⋯ columns, sideways scroll with ⇤ and snap-back, subtask badges, quick-add), list-picker sheet, by-due-date view, full-screen Toast UI editor on phones with a prefix selector, demote and promote, check-off with Undo and the Check all/only dialog, long-press move (`placeTask`), pull to refresh. The board view is retired.
   - **Sync (S-4):** `poll()` every ~10 s on phones / ~5 s on PCs plus on `visibilitychange`; reloads a file only when its version differs from the loaded one; conflict dialog with *Use theirs / Overwrite / Keep both*.
   - Settings (⋯ menu): text size; **Network lock** (R1-14: a CSP written at the top of `<head>` blocks all connections; OneDrive is off while on); storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App-Test`, client ID of the Azure registration `HTML-ToDo-App PoC`.
   - Installable app (R1-13): `app/manifest.webmanifest`, `app/icons/`, `app/sw.js` (no caching).
@@ -73,7 +73,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
   - Toast UI Editor, bundled with ProseMirror by esbuild (the npm package has no "all" bundle)
   - MSAL Browser 5.22.0 (`msal-browser.min.js`, same file as the PoC)
   - js-yaml 4.1.0
-  - SortableJS 1.15.2 (not loaded right now; kept for the Phase 5 long-press move)
+  - SortableJS 1.15.2 (**not used**: Phase 5's long-press move is custom code; candidate for removal)
 - `poc/index.html` — the OneDrive proof of concept (R1-10 step 1), kept as a reference and test tool.
 - `tests/` — automated tests: `run_tests.py` (Playwright), `fake_graph.py` (a strict in-memory Microsoft Graph), `store_suite.js` (the shared store suite), `screenshots/` (phone and PC screenshots from the last run).
 - `docs/specs/` — round specs and `storage-spec.md`.

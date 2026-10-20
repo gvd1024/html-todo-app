@@ -720,6 +720,101 @@ def test_desktop_site_phone(browser):
     ctx.close()
 
 
+def test_phase5(browser):
+    print("\n[11] Phase 5: long-press move (R1-12 #13)")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    cdp = ctx.new_cdp_session(page)
+    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => x.file === '{name}'); return t ? t['{key}'] : null; }}")
+    titles = lambda: page.eval_on_selector_all(".row .ttl", "ts => ts.map(t => t.textContent.trim())")
+
+    def center(title, frac=0.5, x=150):
+        b = row(page, title).bounding_box()
+        return x, b["y"] + b["height"] * frac
+
+    def long_drag(src, dst_xy, hold=550, steps=10, dx_end=0):
+        x, y = center(src)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+        page.wait_for_timeout(hold)
+        tx, ty = dst_xy
+        for i in range(1, steps + 1):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x + (tx - x + dx_end) * i / steps, "y": y + (ty - y) * i / steps}]})
+            page.wait_for_timeout(20)
+        hint = page.inner_text("#drag-hint") if page.locator("#drag-hint.on").count() else ""
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        page.wait_for_timeout(500)
+        return hint
+
+    # A: drop on the middle of another task → subtask
+    hint = long_drag("Fix gate latch", center("Solar panel cleaning", 0.5))
+    check("long-press + drop on a task's middle makes it a subtask", fm("fix-gate-latch.md", "parent") == "t-s05", (fm("fix-gate-latch.md", "parent"), hint))
+    check("the hint said what would happen", "subtask of" in hint, hint)
+    check("it now counts in the parent's badge (0/3) and leaves the top level", row(page, "Solar panel cleaning").locator(".badge").inner_text() == "0/3"
+          and "Fix gate latch" not in titles(), titles())
+    check("Undo offered after a move", page.locator("#undo.on").count() == 1)
+    page.click("#undo-btn")
+    page.wait_for_timeout(400)
+    check("Undo puts it back at the top level", fm("fix-gate-latch.md", "parent") == "" and "Fix gate latch" in titles())
+
+    # B: drop near the top edge → placed above
+    long_drag("A deliberately long", center("Fix gate latch", 0.1))
+    check("drop on a task's top edge places it above", titles()[0].startswith("A deliberately long"), titles())
+
+    # C: drag left → out one level
+    row(page, "Solar panel cleaning").locator(".badge").click()
+    page.wait_for_timeout(200)
+    x, y = center("Get three cleaning quotes")
+    hint = long_drag("Get three cleaning quotes", (x, y + 2), dx_end=-110)
+    t_ = titles()
+    check("dragging left moves a subtask out one level", fm("get-quotes.md", "parent") == "" , (fm("get-quotes.md", "parent"), hint))
+    check("…placed right after its old parent", t_.index("Get three cleaning quotes") == t_.index("Solar panel cleaning") + 1 + 1 or
+          fm("get-quotes.md", "order") > fm("solar-panel-cleaning.md", "order"), t_)
+
+    # D: subtasks travel with their parent; can't drop into own subtask
+    long_drag("Solar panel cleaning", center("Compare inverter readings", 0.5))
+    check("can't drop a task into its own subtask (no change)", fm("solar-panel-cleaning.md", "parent") == "")
+    long_drag("Solar panel cleaning", center("Fix gate latch", 0.5))
+    check("moving a parent: its subtasks come along (parent links unchanged)", fm("solar-panel-cleaning.md", "parent") == "t-s03"
+          and fm("compare-inverter-readings.md", "parent") == "t-s05")
+
+    # E: a quick tap still opens the editor; a swipe still scrolls (no drag)
+    row(page, "Fix gate latch").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    check("a normal tap still opens the editor", True)
+    page.click("#d-close")
+    page.wait_for_timeout(300)
+    x, y = center("Fix gate latch")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+    for i in range(1, 6):
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y - i * 12}]})
+        page.wait_for_timeout(15)
+    page.wait_for_timeout(600)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    check("moving before the long-press finishes is a scroll, not a drag", page.locator("#drag-ghost").count() == 0 and not page.evaluate("__todo.S.moving"))
+    page.screenshot(path=str(SHOTS / "19-phone-after-moves.png"))
+    check("phase 5 (touch): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # F: PC mouse long-press
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Rental"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    b1 = row(page, "Replace HVAC filter").bounding_box(); b0 = row(page, "Tenant lease renewal").bounding_box()
+    page.mouse.move(200, b1["y"] + b1["height"] / 2)
+    page.mouse.down()
+    page.wait_for_timeout(550)
+    page.mouse.move(200, b0["y"] + 4, steps=8)
+    page.wait_for_timeout(100)
+    page.screenshot(path=str(SHOTS / "20-pc-dragging.png"))
+    page.mouse.up()
+    page.wait_for_timeout(400)
+    first = page.eval_on_selector(".row .ttl", "t => t.textContent.trim()")
+    check("PC: mouse long-press drag reorders too", first == "Replace HVAC filter", first)
+    check("phase 5 (mouse): no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -729,7 +824,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5)]
         for name, fn in tests:
             if not only or name in only:
                 try:

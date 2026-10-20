@@ -35,7 +35,7 @@
 | R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
 | R1-13 | Open the app from a home-screen icon | **Verified** | B | Installable web app: own window, icon, no-cache service worker |
 | R1-14 | Network lock (block all connections) | **Built** | B | Settings switch; CSP before anything loads; same file for personal and work |
-| R1-15 | Phone shows desktop layout (Chrome "Desktop site") | **Built** | B | Detect phones by hardware; scale the page to the real screen; phone CSS keyed to the detection |
+| R1-15 | Phone shows desktop layout (Chrome "Desktop site") | **Verified** | B | Detect phones by hardware; scale the page to the real screen; phone CSS keyed to the detection |
 
 ---
 
@@ -640,7 +640,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - Quick-add creates tasks in the current list.
 - Existing files without `prefix` display as checkboxes, and nothing is rewritten until a task is saved.
 
-**Status:** Decided 2026-10-16. First cut built 2026-10-17 (S-9 Phase 3). **#3, #8 and #14 built 2026-10-19 (S-9 Phase 4).** Still to build: #13, long-press move (Phase 5).
+**Status:** Decided 2026-10-16. First cut built 2026-10-17 (S-9 Phase 3). **#3, #8 and #14 built 2026-10-19 (S-9 Phase 4); #13 long-press move built 2026-10-19 (S-9 Phase 5).** All R1-12 items are built.
 
 ---
 
@@ -737,7 +737,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 - Menus stay on screen.
 - A touch laptop (1280×800) stays a PC, unscaled.
 
-**Status:** Built 2026-10-19; awaiting Geoff's check on the phone.
+**Status:** Verified 2026-10-19 on Geoff's phone ("it works on my phone now").
 
 ---
 
@@ -745,6 +745,9 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-15 | Verified on Geoff's phone | Done |
+| 2026-10-19 | R1-12 | #13 long-press move **built**: middle = subtask, edges = above/below, drag left = out a level, subtasks follow, 5 s Undo | Awaiting phone check |
+| 2026-10-19 | R1-12 | #13 long-press move **approved for build** (S-9 Phase 5) | Approved |
 | 2026-10-19 | R1-15 | Added: the phone shows the desktop layout (Chrome "Desktop site"). **B built:** hardware-based phone detection, scaling to the real screen, phone CSS keyed to the detection | Awaiting phone check |
 | 2026-10-19 | R1-12 | #14 change: subtask badge shows **done/total** (was open/total), at Geoff's request | Built |
 | 2026-10-19 | R1-12 | #3 (done hidden + the Check all/only dialog), #8 (5 s Undo), #14 (`completed:` set and cleared) **built** in S-9 Phase 4 | Awaiting Geoff's check |
