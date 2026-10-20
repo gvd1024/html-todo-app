@@ -35,6 +35,7 @@
 | R1-12 | Phone list view (main phone layout) | **Built (first cut)** | — | Layout built 2026-10-17 (storage-spec S-9 Phase 3); Phases 4–5 add checking/Undo/done-hiding and long-press move |
 | R1-13 | Open the app from a home-screen icon | **Verified** | B | Installable web app: own window, icon, no-cache service worker |
 | R1-14 | Network lock (block all connections) | **Built** | B | Settings switch; CSP before anything loads; same file for personal and work |
+| R1-15 | Phone shows desktop layout (Chrome "Desktop site") | **Built** | B | Detect phones by hardware; scale the page to the real screen; phone CSS keyed to the detection |
 
 ---
 
@@ -587,7 +588,7 @@ Also: "the ability to longpress any item, have it flash to indicate it is ready 
     - **New key `completed: YYYY-MM-DD`:** set when an item is checked, removed when it's unchecked. Key order: after `due`. A contract addition, like `prefix`.
     - **Unchecking a parent** leaves its subtasks as they are.
     - **All subtasks checked** does **not** auto-check the parent.
-    - **The subtask badge** shows **open/total** (e.g. `1/3`). When expanded, done subtasks stay hidden unless "Show done" is on.
+    - **The subtask badge** shows **done/total** (e.g. `3/10` = 3 of 10 done). *Changed 2026-10-19 at Geoff's request: "if i have 10 total tasks but 3 are done I want to see 3/10 not 7/10". It was open/total.* When expanded, done subtasks stay hidden unless "Show done" is on.
 
 15. **Pull to refresh** (Geoff, 2026-10-17: "when i scroll all the way to the top of the list and continue to scroll up it should do a page refresh … if not it should also refresh the file list").
     - **Built in-app:** at the top of the list, pull down until it says "Release to refresh", then let go. The app re-lists the folder and re-reads the files from OneDrive (`loadAll`), then shows "Up to date".
@@ -708,10 +709,44 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 
 ---
 
+## R1-15 — Phone opens in desktop mode
+
+**Reported** (Geoff, 2026-10-19): "the phone app keeps starting in desktop mode. when i opened it in chrome, I could goto the 3 dots and turn off the desktop mode. But now I am starting it using an android homescreen icon, there is no way to turn off desktop mode. Can you make it detect whether it is a phone vs a pc and if pc use desktop mode and if a phone the have desktop mode off"
+
+**Problem (restated):**
+- Chrome's "Desktop site" setting is remembered per website, and the installed app inherits it. In that mode Chrome sends a PC label and lays the page out about 980 px wide, so everything looks tiny.
+- A web page can't switch Chrome's setting off.
+- The Phase 4 change (phone = browser label only, so touch laptops count as PCs) made the app believe the PC label.
+
+**Options**
+- **A — Tell Geoff the Chrome setting.** Chrome → ⋮ → Settings → Site settings → Desktop site: off, or remove the site from exceptions.
+    - **Pros:** a guaranteed fix.
+    - **Cons:** manual, and easy to trip again.
+- **B — App-side.**
+    - **Detection:** a phone is a device with the phone label **or** touch-only input (no mouse or trackpad) **and** a phone-sized screen (short side ≤ 600 px).
+    - **Scaling:** if it's a phone and the page is laid out much wider than the screen (Desktop-site mode), scale the page (CSS `zoom`) by layout width ÷ screen width, so it fits the real screen.
+    - **CSS:** phone-specific CSS also keys off a `phone` class, because media queries see the 980 px width.
+    - **Pros:** works without touching Chrome settings.
+    - **Cons:** the scaling relies on how Chrome behaves on the device. Verified in emulation; Geoff confirms on the phone.
+
+**Decision (Geoff, 2026-10-19):** asked for B. Built, with A given as the guaranteed fallback.
+
+**Acceptance criteria (automated, `tests/run_tests.py` group `desktopsite`):**
+- A 980-px layout on a 412-px touch-only screen with a PC label is detected as a phone and scaled ×2.38 (lays out 412 wide, fills the view).
+- Phone text size and header apply.
+- Menus stay on screen.
+- A touch laptop (1280×800) stays a PC, unscaled.
+
+**Status:** Built 2026-10-19; awaiting Geoff's check on the phone.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-19 | R1-15 | Added: the phone shows the desktop layout (Chrome "Desktop site"). **B built:** hardware-based phone detection, scaling to the real screen, phone CSS keyed to the detection | Awaiting phone check |
+| 2026-10-19 | R1-12 | #14 change: subtask badge shows **done/total** (was open/total), at Geoff's request | Built |
 | 2026-10-19 | R1-12 | #3 (done hidden + the Check all/only dialog), #8 (5 s Undo), #14 (`completed:` set and cleared) **built** in S-9 Phase 4 | Awaiting Geoff's check |
 | 2026-10-19 | R1-10 | **Work PC, conservative setup works:** a pinned copy from disk, local-folder mode, network lock, task folder inside the work OneDrive sync folder (backed up by OneDrive's sync app). No Graph, no sign-in, no app registration needed. Vendored files' checksums verified at work. Graph/phone access for work remains open (Azure registration risk, see HANDOFF) | Work PC: done. Phone: later |
 | 2026-10-18 | R1-14 | Added and decided **B (a Settings switch)**; built and tested (blocks fetch, beacon and analytics, served and from disk) | — |
@@ -747,6 +782,7 @@ With the lock off, the same fetch goes through. *(Automated: `tests/run_tests.py
 ## Change history of this spec
 
 - 2026-10-14 — v1 of the spec: R1-1 to R1-6 captured, with options and recommendations.
+- 2026-10-19 — v23: R1-12 #14 badge → done/total; R1-15 added and built.
 - 2026-10-18 — v22: R1-14 network lock.
 - 2026-10-18 — v21: R1-13 (home-screen app) added, decided and built.
 - 2026-10-17 — v20: R1-12 #15 pull to refresh.

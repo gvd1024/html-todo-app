@@ -142,14 +142,14 @@ def test_phone_demo(browser):
     titles = page.eval_on_selector_all(".row .ttl", "ts => ts.map(t => t.textContent)")
     check("subtasks hidden by default (no rows for them)", not any("cleaning quotes" in t for t in titles), titles)
     solar = row(page, "Solar panel cleaning")
-    check("parent shows open/total subtask badge", solar.locator(".badge").inner_text() == "2/2", solar.locator(".badge").inner_text())
+    check("parent shows done/total subtask badge (0 of 2 done)", solar.locator(".badge").inner_text() == "0/2", solar.locator(".badge").inner_text())
     check("active status shows the green dot", solar.locator(".ck .dot").count() == 1)
     check("done task shows checked and struck through", "done" in row(page, "Water the plants").get_attribute("class"))
     n_before = page.locator(".row").count()
     solar.locator(".badge").click()
     n_after = page.locator(".row").count()
     check("tapping the badge expands its subtasks", n_after == n_before + 2, (n_before, n_after))
-    check("nested parent shows 0/1 when its only subtask is done", row(page, "Compare inverter readings").locator(".badge").inner_text() == "0/1")
+    check("nested parent shows 1/1 when its only subtask is done", row(page, "Compare inverter readings").locator(".badge").inner_text() == "1/1")
     solar.locator(".badge").click()
     check("tapping again collapses them (no leftover space)", page.locator(".row").count() == n_before)
 
@@ -289,7 +289,7 @@ def test_onedrive(browser):
     page.wait_for_selector(".row")
     check("loads the OneDrive test folder", row(page, "Sub 2").count() == 1)
     check("status icon shows signed in", page.get_attribute("#stat", "data-state") == "ok", page.get_attribute("#stat", "data-state"))
-    check("subtask hidden; badge 1/1", row(page, "Sub 2").locator(".badge").inner_text() == "1/1")
+    check("subtask hidden; badge 0/1 (none done)", row(page, "Sub 2").locator(".badge").inner_text() == "0/1")
     page.screenshot(path=str(SHOTS / "07-onedrive-test-list.png"))
 
     # pull to refresh (real touch drag via Chrome DevTools)
@@ -684,6 +684,42 @@ def test_phase4(browser):
     ctx.close()
 
 
+def test_desktop_site_phone(browser):
+    print("\n[10] Phone in Chrome's 'Desktop site' mode (R1-15)")
+    stub = r"""(() => { const real = window.matchMedia.bind(window);
+      window.matchMedia = q => /any-pointer:\s*fine/.test(q) ? { matches:false, media:q, addEventListener(){}, removeEventListener(){} }
+                         : /pointer:\s*coarse/.test(q) ? { matches:true, media:q, addEventListener(){}, removeEventListener(){} } : real(q); })();"""
+    ctx = browser.new_context(viewport={"width": 980, "height": 2180}, screen={"width": 412, "height": 915}, has_touch=True,
+                              user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0 Safari/537.36")
+    page = ctx.new_page()
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script(stub + ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    info = page.evaluate("() => ({ phone: __todo.IS_PHONE, zoom: __todo.PAGE_ZOOM, w: document.body.offsetWidth, vis: Math.round(document.body.getBoundingClientRect().width) })")
+    check("detected as a phone despite the PC label", info["phone"], info)
+    check("page scales up to fit the real screen (980 / 412): lays out 412 wide, fills the 980 view", abs(info["zoom"] - 980 / 412) < 0.01 and abs(info["w"] - 412) < 3 and abs(info["vis"] - 980) < 3, info)
+    fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
+    check("phone text size (125 %) applies", abs(fs - 20) < 0.1, fs)
+    check("phone header applies (no version label) even though Chrome reports a wide screen", not page.locator("#ver").is_visible())
+    page.locator(".row .more").first.click()
+    pb = page.locator("#pop").bounding_box()
+    check("menus stay on screen when scaled", pb and pb["x"] >= 0 and pb["x"] + pb["width"] <= 981, pb)
+    page.screenshot(path=str(SHOTS / "18-phone-desktop-site-mode.png"))
+    check("desktop-site phone: no page errors", not errors, errors[:3])
+    ctx.close()
+    # control: a touch laptop (touch + trackpad) stays a PC, no scaling
+    ctx = browser.new_context(viewport={"width": 1280, "height": 800}, screen={"width": 1280, "height": 800}, has_touch=True)
+    page = ctx.new_page()
+    page.add_init_script(ls_init(**{"todo.source": "demo"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    info = page.evaluate("() => ({ phone: __todo.IS_PHONE, zoom: __todo.PAGE_ZOOM })")
+    check("touch laptop: still a PC, not scaled", not info["phone"] and info["zoom"] == 1, info)
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -693,7 +729,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone)]
         for name, fn in tests:
             if not only or name in only:
                 try:

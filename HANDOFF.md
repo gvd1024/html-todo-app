@@ -94,7 +94,8 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 - [x] **1. Work PC, local-only setup: done and passed 2026-10-19** (see "Work-PC results" below). Optional later: the Graph sign-in test.
 - [ ] **1b. Answer the work Claude's two cleanup questions (in that session):** delete the two `claude-crud-*` test tasks (finishes the D in CRUD)? Restore or keep the three edited samples?
 - [ ] **2. Review** the 10 assumptions in storage-spec S-9 → *Build log* (or just keep using the app and report what feels off).
-- [ ] **3. Check Phase 4 on the phone and PC** (built 2026-10-19). Then approve **Phase 5** (long-press move) when ready.
+- [x] **3. Phase 4 delete checks 1–4 passed on the phone (2026-10-19).**
+- [ ] **3b. Check R1-15** (the phone no longer stuck in desktop mode) and the done/total badge. If the phone still looks like desktop mode: Chrome → ⋮ → Settings → Site settings → Desktop site: off. Then approve **Phase 5** (long-press move) when ready.
 - ~~3. Approve Phase 4~~ when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
 - [ ] Optional: prove sign-in persistence after a **forced** Chrome close (swipe it out of recents, wait, open the ToDo app).
 

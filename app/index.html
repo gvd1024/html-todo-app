@@ -67,6 +67,11 @@ header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bo
   header .stat{min-width:calc(16px*var(--z));padding:0 2px}                    /* status dot sits right next to ⋯ */
   #app-menu{min-width:calc(30px*var(--z));text-align:right;padding:0 8px 0 0} /* ⋯ flush with the right edge; tap area stays full height */
 }
+/* same phone header when Chrome's "Desktop site" mode reports a wide screen (html.phone is set by script, R1-15) */
+html.phone .ver{display:none}
+html.phone header{padding-right:0;gap:0}
+html.phone header .stat{min-width:calc(16px*var(--z));padding:0 2px}
+html.phone #app-menu{min-width:calc(30px*var(--z));text-align:right;padding:0 8px 0 0}
 .icon{border:0;background:none;min-width:calc(44px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));padding:0}
 .stat{border:0;background:none;min-width:calc(28px*var(--z));min-height:calc(44px*var(--z));font-size:calc(16px*var(--z));padding:0}
 .stat.ok,.stat.local{color:var(--ok)} .stat.sync{color:var(--accent)} .stat.offline,.stat.signedout{color:var(--danger)}
@@ -141,6 +146,8 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
   .d-fields{grid-template-columns:1fr 1fr} .d-fields .wide{grid-column:span 2}
   .d-head button,.d-foot button{min-height:calc(40px*var(--z))}
 }
+html.phone .d-fields{grid-template-columns:1fr 1fr} html.phone .d-fields .wide{grid-column:span 2}
+html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z))}
 
 /* modal / sheet / popover / toast */
 #modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:40}
@@ -261,7 +268,19 @@ const DEFAULT_FOLDER = 'HTML-ToDo-App-Test';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['Files.ReadWrite', 'User.Read'];
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
-const IS_PHONE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);   // device type, not "has a touchscreen" (touch laptops are PCs)
+/* Phone or PC? (R1-15) The browser's label says "phone" normally, but Chrome's "Desktop site" mode sends a PC label.
+   So also check the hardware: touch-only (no mouse/trackpad) + a phone-sized screen = phone. Touch laptops have a
+   trackpad or mouse, so they stay PCs. */
+const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || navigator.userAgentData?.mobile === true;
+const TOUCH_ONLY = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+const PHONE_SCREEN = Math.min(screen.width, screen.height) <= 600;   // phones are ~360–480 px on the short side
+const IS_PHONE = MOBILE_UA || (TOUCH_ONLY && PHONE_SCREEN);
+/* Phone in Chrome's "Desktop site" mode: Chrome lays the page out ~980 px wide, so everything looks tiny.
+   Scale the page back up so it fits the phone's real screen width. */
+const DESKTOP_SITE_ON_PHONE = IS_PHONE && !MOBILE_UA && innerWidth > screen.width * 1.3;
+const PAGE_ZOOM = DESKTOP_SITE_ON_PHONE ? innerWidth / screen.width : 1;
+if (PAGE_ZOOM !== 1) document.documentElement.style.zoom = String(PAGE_ZOOM);
+document.documentElement.classList.toggle('phone', IS_PHONE);
 const DEVICE = IS_PHONE ? 'Phone' : 'PC';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -779,7 +798,7 @@ function prefixHTML(t){
   return `<button class="ck ${done?'done':''}" data-act="toggle" aria-label="${done?'Mark not done':'Mark done'}"><span class="box">${done?'✓':''}</span>${t.status==='active'?'<span class="dot"></span>':''}</button>`;
 }
 function rowHTML(t, depth, opts = {}){
-  const subs = subtasksOf(t); const open = subs.filter(k => k.status !== 'done').length;
+  const subs = subtasksOf(t); const doneN = subs.filter(k => k.status === 'done').length; const open = subs.length - doneN;
   const expanded = S.expanded.has(t.id) && !opts.flat;
   const warn = t.unknown?.length || t.readonly || t.dupOf;
   const warnTip = t.readonly ? 'Unreadable frontmatter' : t.dupOf ? `Two files share id ${t.dupOf} — often a conflict copy` : 'Unrecognized frontmatter: ' + (t.unknown || []).join(', ');
@@ -787,7 +806,7 @@ function rowHTML(t, depth, opts = {}){
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     <div class="pfx">${prefixHTML(t)}</div>
     <div class="ttl" data-act="open" style="padding-left:${4 + depth*22}px">${esc(t.title)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
-    <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${open} open of ${subs.length} subtasks — tap to ${expanded?'collapse':'expand'}">${open}/${subs.length}</button>` : ''}<button class="more" data-act="menu" title="More">⋯</button></div>
+    <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
   return html;
@@ -918,9 +937,11 @@ $('#undo-btn').onclick = async () => { const fn = undoFn; hideUndo(); if (fn){ a
 function popover(anchor, items){
   const pop = $('#pop');
   pop.innerHTML = items.map((it, i) => it.sep ? '<div class="sep"></div>' : `<button data-i="${i}" class="${it.danger?'danger':''}">${esc(it.label)}</button>`).join('');
-  const r = anchor.getBoundingClientRect(); pop.classList.add('on');
-  pop.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 8)) + 'px';
-  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.classList.add('on');
+  const Z = PAGE_ZOOM, b = anchor.getBoundingClientRect();            // screen units → page units when scaled (R1-15)
+  const r = { bottom: b.bottom / Z, right: b.right / Z }, vw = innerWidth / Z, vh = innerHeight / Z;
+  pop.style.top = Math.max(8, Math.min(r.bottom + 4, vh - pop.offsetHeight - 8)) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, vw - pop.offsetWidth - 8)) + 'px';
   pop.onclick = ev => { const b = ev.target.closest('button[data-i]'); if (!b) return; pop.classList.remove('on'); items[+b.dataset.i].fn(); };
 }
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#pop') && !e.target.closest('[data-act=menu]') && !e.target.closest('#app-menu')) $('#pop').classList.remove('on'); });
@@ -1511,7 +1532,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
