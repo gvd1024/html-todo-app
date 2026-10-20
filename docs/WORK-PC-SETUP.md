@@ -50,12 +50,12 @@ UPDATING TO work-test-2 (MVP complete, build 2026-10-19m)
 1. Download: https://github.com/gvd1024/html-todo-app/archive/refs/tags/work-test-2.zip
 2. Unzip into a NEW folder next to the old one (e.g. ...\Apps\html-todo-app-work-test-2\). Keep the old one until the new one works.
 3. Optional verify (PowerShell, in the new folder):
-   Get-FileHash app\index.html, app\sw.js, appendor\msal-browser.min.js, appendor	oastui-editor-all.min.js, appendor\js-yaml.min.js
+   Get-FileHash app\index.html, app\sw.js, app\vendor\msal-browser.min.js, app\vendor\toastui-editor-all.min.js, app\vendor\js-yaml.min.js
    BBCA8D2A24055704F42E73FF507DB77610A125598E27765745566C74814EB6B9  app\index.html
    C1C706D96CCF05BB4A46338957167BCEC345097E5E59CF9B6D48FC0A29AE7EBC  app\sw.js
-   4E11FE5EFA6D1B09257E8269054C24E6B9755A745445936AAB4C2DC8EA876675  appendor\msal-browser.min.js   (unchanged)
-   B5A27D149EF87CF315857B199459B5B600C035C3FBF1C5E0FCFF7F8E1C11B7BF  appendor	oastui-editor-all.min.js   (unchanged)
-   45DC3DD03DC07A06705A2C2989B8C7F709013F04BD5386E3279D4E447F07EBD7  appendor\js-yaml.min.js   (unchanged)
+   4E11FE5EFA6D1B09257E8269054C24E6B9755A745445936AAB4C2DC8EA876675  app\vendor\msal-browser.min.js   (unchanged)
+   B5A27D149EF87CF315857B199459B5B600C035C3FBF1C5E0FCFF7F8E1C11B7BF  app\vendor\toastui-editor-all.min.js   (unchanged)
+   45DC3DD03DC07A06705A2C2989B8C7F709013F04BD5386E3279D4E447F07EBD7  app\vendor\js-yaml.min.js   (unchanged)
 4. Double-click the NEW app\index.html. Settings (including the Network lock) usually carry over, since local pages share browser storage.
    If it asks for a folder (or shows Reconnect), pick the same task folder again. Your task files are untouched; they live in that folder, not in the app.
 5. Check: ... → Settings shows "build 2026-10-19m".
