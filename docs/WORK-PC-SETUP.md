@@ -47,6 +47,9 @@ Notes
 
 UPDATING TO work-test-2 (MVP complete, build 2026-10-19m)
 ---------------------------------------------------------
+App-only download (about 0.45 MB: just the app folder plus SECURITY-REVIEW.md):
+   https://github.com/gvd1024/html-todo-app/releases/download/work-test-2/html-todo-app-work-test-2-app.zip
+Or the whole repository (about 1 MB):
 1. Download: https://github.com/gvd1024/html-todo-app/archive/refs/tags/work-test-2.zip
 2. Unzip into a NEW folder next to the old one (e.g. ...\Apps\html-todo-app-work-test-2\). Keep the old one until the new one works.
 3. Optional verify (PowerShell, in the new folder):
@@ -59,3 +62,5 @@ UPDATING TO work-test-2 (MVP complete, build 2026-10-19m)
 4. Double-click the NEW app\index.html. Settings (including the Network lock) usually carry over, since local pages share browser storage.
    If it asks for a folder (or shows Reconnect), pick the same task folder again. Your task files are untouched; they live in that folder, not in the app.
 5. Check: ... → Settings shows "build 2026-10-19m".
+
+Backup for a LOCAL (non-OneDrive) task folder: see docs/WORK-PC-BACKUP.md (copies to OneDrive every 30 minutes).
