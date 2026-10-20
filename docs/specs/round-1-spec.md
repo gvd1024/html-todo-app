@@ -145,7 +145,7 @@
 **Decision (Geoff, 2026-10-19):** "when in the edit mode, I need a save and close button in addition to the save button." **Keep both.**
 
 **Implementation notes:**
-- The editor header has **Save** (saves and stays open) and **Save & close** (the primary button: saves, then closes; with no changes it just closes).
+- The editor header has **Save** (blue: saves and stays open) and **Save & close** (green: saves, then closes; with no changes it just closes). Colors per Geoff, 2026-10-19.
 - On phones, the "Edit task" label is hidden to make room.
 
 **Acceptance criteria:** Save & close writes the file and closes the editor; with no changes, it closes without writing. *(Automated: group `indent`.)*
