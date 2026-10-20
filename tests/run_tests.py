@@ -872,6 +872,13 @@ def test_indent_saveclose(browser):
       return { oneRow: new Set(bs.map(b => Math.round(b.getBoundingClientRect().top))).size === 1, fits: hd.scrollWidth <= hd.clientWidth + 1,
                label: document.querySelector('#d-saveclose').textContent }; }""")
     check("phone editor buttons fit on one line at 360 px and 175 % ('Save & close' unwrapped)", r["oneRow"] and r["fits"] and r["label"] == "Save & close", r)
+    order = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > div button')].filter(b => b.offsetWidth > 0)
+        .map(b => [...b.classList].find(c => !['toastui-editor-toolbar-icons','active'].includes(c)))""")
+    check("phone toolbar starts: checkbox, bullet, outdent, indent", order[:4] == ["task-list", "bullet-list", "outdent", "indent"], order)
+    page.locator(".toastui-editor-toolbar-icons.more").click()
+    page.wait_for_timeout(300)
+    edges = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-dropdown-toolbar button')].map(b => { const r = b.getBoundingClientRect(); return [r.left, r.right]; })""")
+    check("every option in the ⋯ pop-up is fully on screen", edges and all(l >= 0 and rgt <= 360 for l, rgt in edges), edges)
     ctx.close()
 
 
