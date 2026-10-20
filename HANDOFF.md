@@ -11,9 +11,9 @@
 | Thing | State |
 |---|---|
 | App `app/index.html` | **v0.2.0-dev**, data format 2, live at `https://gvd1024.github.io/html-todo-app/app/`. **In daily use on Geoff's phone and home PC** against personal OneDrive `HTML-ToDo-App-Test`. **Installed on the phone** as a home-screen app (R1-13: own window, no address bar). Restore point for v0.1.1: git tag `v0.1.1`. |
-| Built since the MVP build | R1-4 text-size setting (100–175 %, phones default 125 %); shrink-to-fit list name; slimmer phone header (● and ⋯ at the right edge); R1-12 #15 in-app pull to refresh; R1-13 installable app (manifest, icons, no-cache service worker). |
-| Verified by Geoff | S-9 Phase 2: phone and PC sign-in, live two-way sync in seconds, sign-in survives overnight (2026-10-17). R1-13 install (2026-10-18). |
-| Automated tests | `python tests/run_tests.py` → **127 checks pass**. Screenshots: `tests/screenshots/`. |
+| Built since the MVP build | **MVP Phases 1–5 complete (2026-10-19).** Since then: R1-4 text size; R1-12 #15 pull to refresh, #16 subtask indent, #17 phone editor toolbar (Checklist, Bullet, Outdent, Indent, Inline code, More), #18 PC toolbar (same order, as many as fit, rest under More); R1-3 Save (blue) + Save & close (green); R1-13 installable app; R1-14 network lock; R1-15 phone in Chrome Desktop-site mode; done/total badge. **Current build: 2026-10-19m** (shown in Settings). |
+| Verified by Geoff | Phase 2 (sync, sign-in), Phase 4 deletes, R1-13 install, R1-15, the work-PC local mode (2026-10-19), and long-press/mouse move, indentation, Save & close and the toolbars on phone and PC (2026-10-19). |
+| Automated tests | `python tests/run_tests.py` → **212 checks pass** (2026-10-19). Commit only after a clean run. Screenshots: `tests/screenshots/`. |
 | Specs | storage-spec: S-2 to S-12 decided; S-9 build log has **10 assumptions to confirm**. round-1: R1-4 built, R1-7/R1-8 obsolete, R1-11 built, R1-12 first cut built, R1-13 verified. |
 | Azure registration | `HTML-ToDo-App PoC`, client ID `18f50dc2-e8ba-4b12-8735-1cf7d6c873cd`, in Geoff's free Azure "Default Directory" (personal). Account types: any organization + personal. SPA redirect URIs: `/html-todo-app/poc/`, `/html-todo-app/app/`. Azure shows a warning: *"End users cannot grant consent to newly registered multitenant apps without verified publishers"*, which is exactly what the work test checks. |
 | Repository / Pages | `https://github.com/gvd1024/html-todo-app` (public, `main`). On the home PC: `gh` CLI logged in as `gvd1024`, repo-local noreply identity. Pages serves `main`, root. |
@@ -96,7 +96,7 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 - [ ] **2. Review** the 10 assumptions in storage-spec S-9 → *Build log* (or just keep using the app and report what feels off).
 - [x] **3. Phase 4 delete checks 1–4 passed on the phone (2026-10-19).**
 - [x] **3b. R1-15 verified on the phone (2026-10-19)**, plus the done/total badge.
-- [ ] **4. Try Phase 5 (built 2026-10-19):** long-press a task until it flashes, then drag. Drop on another task's middle = make a subtask; on its top/bottom edge = above/below; drag left = out a level. Undo after each move.
+- [x] **4. Phase 5 tried and working (2026-10-19).** ~~Try Phase 5:~~ long-press a task until it flashes, then drag. Drop on another task's middle = make a subtask; on its top/bottom edge = above/below; drag left = out a level. Undo after each move.
 - [ ] **5. Phase 6 (acceptance and go-live), when Geoff approves:** a full checklist on phone and PC, a Claude CRUD pass, then Geoff picks the real OneDrive folder and Claude migrates the current real tasks (from Google Drive `HTML_ToDo_Files`) by hand. **From then on, rule 10's protection of real files applies.**
 - [ ] Optional: pin `work-test-2` for the work PC (it's still on `work-test-1`, without Phase 4/5).
 - ~~3. Approve Phase 4~~ when ready: check-off with 5 s Undo, done items hidden (+ Show done), the "Check all / Check only this" dialog, `completed:` dates, delete with confirm + Undo (subtasks included). Then Phase 5 (long-press move).
