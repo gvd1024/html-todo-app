@@ -114,7 +114,7 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .wflag{color:var(--warn);font-size:calc(13px*var(--z));margin-left:6px}
 .badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));min-width:calc(44px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums}
 .badge.open{background:rgba(227,156,255,.12)}
-.more{border:0;background:none;width:calc(40px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));color:var(--muted);padding:0}
+.row-more{border:0;background:none;width:calc(40px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));color:var(--muted);padding:0}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center;width:100vw;max-width:100vw;white-space:normal;position:sticky;left:0}
 .group-head{position:sticky;left:0;font-size:calc(12px*var(--z));color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:14px 12px 4px;width:100vw}
 #snap{position:absolute;left:10px;bottom:10px;z-index:5;width:calc(44px*var(--z));height:calc(44px*var(--z));border-radius:22px;background:var(--accent-strong);color:#fff;border:0;font-size:calc(20px*var(--z));box-shadow:0 2px 10px rgba(0,0,0,.5)}
@@ -212,7 +212,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 .toastui-editor-dropdown-toolbar{left:0!important;right:auto!important;max-width:calc(100vw - 24px);flex-wrap:wrap;height:auto!important;row-gap:4px;padding:4px!important}
 /* the toolbar's overflow ("more") button has no visible icon in the dark theme — draw one */
 .toastui-editor-toolbar-icons.more{background-image:none!important;position:relative}
-.toastui-editor-toolbar-icons.more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(20px*var(--z));color:var(--text)}
+.toastui-editor-toolbar-icons.more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;overflow:hidden;color:var(--text)}   /* fixed size: the button is 32 px regardless of text size */
 </style>
 </head>
 <body>
@@ -282,7 +282,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19h';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-19i';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 2;
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
@@ -831,7 +831,7 @@ function rowHTML(t, depth, opts = {}){
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
     <div class="ttl" data-act="open" style="padding-left:4px">${esc(t.title)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
-    <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="more" data-act="menu" title="More">⋯</button></div>
+    <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
   return html;

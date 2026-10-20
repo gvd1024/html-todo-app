@@ -69,6 +69,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
   - Settings (⋯ menu): text size; **Network lock** (R1-14: a CSP written at the top of `<head>` blocks all connections; OneDrive is off while on); storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App-Test`, client ID of the Azure registration `HTML-ToDo-App PoC`.
   - Installable app (R1-13): `app/manifest.webmanifest`, `app/icons/`, `app/sw.js` (no caching).
   - Security: see `SECURITY-REVIEW.md`. Tests include hostile task files (XSS) and the network lock.
+  - **CSS class names must be unique to the app.** Toast UI adds plain class names such as `more`, `active`, `checked` and its toolbar item names. Twice a shared name leaked styles (`.ok` on the status dot, `.more` sizing the editor's ⋯ button). Use specific names (`row-more`, `btn-green`) and check new ones against `app/vendor/toastui-editor*.css`. Status-icon states (`ok`, `sync`, …) are also class names.
 - `app/vendor/` — libraries kept in the repository so the app works offline:
   - Toast UI Editor, bundled with ProseMirror by esbuild (the npm package has no "all" bundle)
   - MSAL Browser 5.22.0 (`msal-browser.min.js`, same file as the PoC)

@@ -195,7 +195,7 @@ def test_phone_demo(browser):
     check("quick-add clears and keeps focus for the next task", page.input_value("#qa") == "" and page.evaluate("document.activeElement.id") == "qa")
 
     # ⋯ menu
-    row(page, "Buy milk").locator(".more").click()
+    row(page, "Buy milk").locator(".row-more").click()
     labels = page.eval_on_selector_all("#pop button", "bs => bs.map(b => b.textContent)")
     check("⋯ menu offers Edit / Move to list / Change prefix / Delete", all(any(x in l for l in labels) for x in ["Edit", "Move to list", "Change prefix", "Delete"]), labels)
     page.screenshot(path=str(SHOTS / "03-phone-row-menu.png"))
@@ -361,7 +361,7 @@ def test_onedrive(browser):
     page.wait_for_timeout(300)
 
     # delete → DELETE with If-Match (recycle bin)
-    row(page, "Phone added task").locator(".more").click()
+    row(page, "Phone added task").locator(".row-more").click()
     page.locator("#pop button", has_text="Delete").click()
     check("delete confirm mentions the recycle bin", "recycle bin" in page.inner_text("#modal"))
     page.click("#modal button:has-text('Delete')")
@@ -511,7 +511,7 @@ def test_hostile_files(browser):
     page.wait_for_timeout(300)
     page.locator("#modal .pick .go").nth(1).click()   # the list whose name is the injection
     page.wait_for_timeout(500)
-    row(page, "title").locator(".more").click()
+    row(page, "title").locator(".row-more").click()
     page.wait_for_timeout(200)
     page.keyboard.press("Escape")
     check("hostile titles, lists, statuses, keys and bodies never execute", not page.evaluate("window.__xss") and not dialogs,
@@ -663,7 +663,7 @@ def test_phase4(browser):
 
     # delete a parent: asks about subtasks, deletes all, Undo restores all
     before = {n: f(n) for n in ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md", "export-readings-csv.md"]}
-    row(page, "Solar panel cleaning").locator(".more").click()
+    row(page, "Solar panel cleaning").locator(".row-more").click()
     page.locator("#pop button", has_text="Delete").click()
     check("deleting a parent asks 'Also delete its 3 subtasks?'", "Also delete its 3 subtasks" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
     page.click("#modal button:has-text('Delete all')")
@@ -705,7 +705,7 @@ def test_desktop_site_phone(browser):
     fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
     check("phone text size (125 %) applies", abs(fs - 20) < 0.1, fs)
     check("phone header applies (no version label) even though Chrome reports a wide screen", not page.locator("#ver").is_visible())
-    page.locator(".row .more").first.click()
+    page.locator(".row .row-more").first.click()
     pb = page.locator("#pop").bounding_box()
     check("menus stay on screen when scaled", pb and pb["x"] >= 0 and pb["x"] + pb["width"] <= 981, pb)
     page.screenshot(path=str(SHOTS / "18-phone-desktop-site-mode.png"))
