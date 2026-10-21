@@ -18,7 +18,7 @@ Same as round 1:
 
 | # | Item | Status | Recommendation |
 |---|---|---|---|
-| R2-1 | Recurring tasks | Discussing | Readable `repeat:` phrases; roll the same file forward on completion; next date from the due date, skipping missed ones |
+| R2-1 | Recurring tasks | **Decided** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | Discussing | Overdue + Today at the top with quick **Today / Tomorrow** buttons; upcoming below |
 
 ---
@@ -88,6 +88,41 @@ Same as round 1:
 - An unknown phrase → ⚠, and the checkbox behaves as a normal task (no roll-forward).
 - Works the same on phone, PC and in local-folder mode; conflict-safe like any save.
 
+### Decisions (Geoff, 2026-10-20)
+
+**Q1 — Format: A, plain English.** For example `repeat: weekly on mon, thu`. The phrases are designed to map to iCalendar RRULE later.
+
+**Q2 — Two modes per task** (Geoff: "generally i want options"):
+- **Recycle (the default):** checking it off **reuses the same file**.
+    - **Moves forward:** `due:` advances to the next date.
+    - **Unchecks everything:** the task itself, **all its subtasks** and **all `- [ ]` lines** in its notes.
+    - **Keeps** whatever was added, removed or changed in the notes and subtasks.
+    - **Records nothing** about the completion.
+- **Copy (keep a record):** *"the original file remains handled like any regular task, and the app makes a copy of the task and the copy gets the new date with all checkmarks reset."*
+    1. **The original** is completed like any task (status `done`, `completed:` date; its notes and checkmarks stay as they were). It **stops repeating**: its `repeat:` moves to the copy, so only one task in a series is ever live.
+    2. **The copy** gets the next date, with every checkbox reset (task, subtasks, notes). It gets a **new id**, and all copies share a **`series:`** key (the first task's id), so every past completion can be found.
+    3. **The copy's file name:** the title slug plus the new date as **YYYYMMDD**, no dashes, e.g. `water-the-plants-20261027.md` (slug ≤ 40 characters, then `-YYYYMMDD`; a further `-2` etc. if it's taken).
+    4. **Subtasks:** the copy gets **fresh copies of all subtasks**, unchecked. The originals stay with the completed task, as they were.
+    5. **In the editor:** a choice **Recycle / Copy** next to Repeat. **In the file:** part of the phrase, `…, keep copies`.
+    6. **Undo** (5 s) removes the copy (and its subtask copies) and reopens the original.
+    7. **Clutter:** completed originals are hidden while *Show done* is off; the archive feature can tidy them later.
+
+**Q3 — Next date: all three, chosen per task** (Geoff: "How about all 3 options?").
+
+| Editor choice | Phrase | Behavior |
+|---|---|---|
+| **Skip missed** (default) | *(nothing extra)* | The next date from the schedule that's **today or later** |
+| **Catch up** | `…, catch up` | **Strictly the next** date after the old due date, even if still in the past |
+| **From completion** | `…, after done` | Counts from the **day it's checked off** (e.g. `every 3 days, after done`) |
+
+**Details** (all per Claude's recommendations, confirmed by Geoff): resets apply in both modes; `series:` and `repeat:` move as above; Undo; clutter handled by Show done and the later archive.
+
+**Grammar (initial set):** `daily` · `weekdays` · `every N days` · `weekly` (on the due date's weekday) · `weekly on mon, thu` · `every N weeks [on …]` · `monthly` (on the due date's day) · `monthly on day N` · `monthly on last day` · `every N months` · `yearly`. Optional suffixes, comma-separated, in any order: `keep copies` · `catch up` · `after done` (`catch up` and `after done` are mutually exclusive). Unknown phrases → ⚠, kept untouched, no roll-forward.
+
+**Data contract → format 3:** new keys `repeat` (after `due`) and `series` (after `repeat`). Older app versions see them as ⚠ unknown keys and keep them.
+
+**Status:** Decided 2026-10-20. Not yet approved for build.
+
 ---
 
 ## R2-2 — Today view (rework "By due date")
@@ -146,7 +181,9 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-1 | **Decided:** plain-English `repeat:`; modes **Recycle** (same file, reset everything, no log) and **Copy** (original completed as a normal task, copy carries the series: new id, shared `series:`, name `<slug>-YYYYMMDD.md`, fresh subtasks); next date per task: **Skip missed** (default) / **Catch up** / **From completion**; Undo; data format 3 | Not yet approved for build |
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v2: R2-1 decided (two modes, three next-date rules, YYYYMMDD copy names).
 - 2026-10-20 — v1: R2-1 and R2-2 drafted with options and recommendations.
