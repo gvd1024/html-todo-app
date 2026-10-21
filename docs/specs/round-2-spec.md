@@ -19,7 +19,7 @@ Same as round 1:
 | # | Item | Status | Recommendation |
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Decided** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
-| R2-2 | Today view (rework "By due date") | Discussing | Overdue + Today at the top with quick **Today / Tomorrow** buttons; upcoming below |
+| R2-2 | Today view (rework "By due date") | **Decided** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 
 ---
 
@@ -169,6 +169,25 @@ Same as round 1:
 3. **Tasks without a due date** don't appear here. A future "My Day" (adding undated tasks to today) would be a separate item.
 4. **Should it be the default view on the phone** when the app opens? (Rec.: no; keep the last-used view, so if you leave it on Today, it opens on Today.)
 
+### Decisions (Geoff, 2026-10-20)
+- **Q1 — Layout, top to bottom** (Geoff: "start out with Upcoming at the top but (collapsed by default), below it today (no collapse symbol), below that Overdue (collapsed by default)"):
+    1. **Upcoming:** collapsed by default; tap the header to expand.
+    2. **Today:** always open, with no collapse control.
+    3. **Overdue:** collapsed by default; tap to expand.
+    - Collapsed headers show a count, e.g. "Overdue · 4".
+    - Renamed **"Today"** in the list picker; it replaces "By due date".
+- **Q2 — Buttons: yes to all.** Overdue rows: **Today · Tomorrow**. Today rows: **Tomorrow**. Upcoming rows: **Today**. Plus ⋯ → **Change due date…**, and a 5 s Undo after a tap.
+- **Q3:**
+    1. **No** list name on the rows.
+    2. **Yes:** ↻ on recurring tasks; the buttons move only this occurrence.
+    3. **Yes:** tasks without a due date are not shown.
+    4. **Yes:** the app opens in the last-used view.
+- **Assumed, to confirm:**
+    - **"Upcoming"** holds **all** future dated tasks, sorted by date (no separate "Later" section).
+    - Collapsed/expanded state resets to the defaults each time the app starts; within a session, the sections stay as you left them.
+
+**Status:** Decided 2026-10-20 (assumptions to confirm). Not yet approved for build.
+
 **Acceptance criteria (draft):**
 - Overdue and Today sections are correct by local date.
 - The buttons change `due:` (conditional save) with Undo.
@@ -181,9 +200,11 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-2 | **Decided:** sections Upcoming (collapsed) / Today (fixed open) / Overdue (collapsed), with counts; one-tap Today/Tomorrow per section + ⋯ Change due date…; no list labels; ↻ for recurring; undated hidden; last-used view kept. Assumed: Upcoming = all future; collapse resets per app start | Not yet approved for build |
 | 2026-10-20 | R2-1 | **Decided:** plain-English `repeat:`; modes **Recycle** (same file, reset everything, no log) and **Copy** (original completed as a normal task, copy carries the series: new id, shared `series:`, name `<slug>-YYYYMMDD.md`, fresh subtasks); next date per task: **Skip missed** (default) / **Catch up** / **From completion**; Undo; data format 3 | Not yet approved for build |
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v3: R2-2 decided.
 - 2026-10-20 — v2: R2-1 decided (two modes, three next-date rules, YYYYMMDD copy names).
 - 2026-10-20 — v1: R2-1 and R2-2 drafted with options and recommendations.
