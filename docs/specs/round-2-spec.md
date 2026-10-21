@@ -18,8 +18,8 @@ Same as round 1:
 
 | # | Item | Status | Recommendation |
 |---|---|---|---|
-| R2-1 | Recurring tasks | **Decided** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
-| R2-2 | Today view (rework "By due date") | **Decided** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
+| R2-1 | Recurring tasks | **Approved for build** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
+| R2-2 | Today view (rework "By due date") | **Approved for build** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 
 ---
 
@@ -121,7 +121,7 @@ Same as round 1:
 
 **Data contract → format 3:** new keys `repeat` (after `due`) and `series` (after `repeat`). Older app versions see them as ⚠ unknown keys and keep them.
 
-**Status:** Decided 2026-10-20. Not yet approved for build.
+**Status:** Decided 2026-10-20. **Approved for build 2026-10-20.**
 
 ---
 
@@ -186,7 +186,12 @@ Same as round 1:
     - **Upcoming covers the next 7 days** (Geoff: "lets start with the next 7 days, but maybe allow user to view tasks beyond that somehow"). The last row of Upcoming reads **"+ N later (after <date>)"**; tapping it adds the rest to the section (proposed option A; alternatives: a separate Later section, or a days setting).
     - Upcoming and Overdue start collapsed each time the app starts and keep their state within a session. Geoff may change this later.
 
-**Status:** Decided 2026-10-20. Not yet approved for build.
+- **Time runs upward** (Geoff, 2026-10-20: "scrolling up is the future and down is the past … as I scroll up to the top the very top item is a later button"):
+    - **Upcoming:** sorted **furthest first** (the farthest date at the top, tomorrow just above Today). Its **very top row is "+ N later"**; tapping it reveals the later tasks above it.
+    - **Overdue:** sorted **most recent first** (yesterday just below Today, the oldest at the bottom).
+    - Expanding Upcoming keeps **Today** where it was on screen (no jump).
+
+**Status:** Decided 2026-10-20. **Approved for build 2026-10-20.**
 
 **Acceptance criteria (draft):**
 - Overdue and Today sections are correct by local date.
@@ -200,6 +205,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-1, R2-2 | **Approved for build.** R2-2: time runs upward (Upcoming furthest-first with "+ N later" at the very top; Overdue most-recent-first); Today stays put when Upcoming expands | Building |
 | 2026-10-20 | R2-2 | Upcoming = next 7 days, plus a "+ N later" row to reveal the rest; collapse defaults reset per app start (may change later) | Confirmed |
 | 2026-10-20 | R2-2 | **Decided:** sections Upcoming (collapsed) / Today (fixed open) / Overdue (collapsed), with counts; one-tap Today/Tomorrow per section + ⋯ Change due date…; no list labels; ↻ for recurring; undated hidden; last-used view kept. Assumed: Upcoming = all future; collapse resets per app start | Not yet approved for build |
 | 2026-10-20 | R2-1 | **Decided:** plain-English `repeat:`; modes **Recycle** (same file, reset everything, no log) and **Copy** (original completed as a normal task, copy carries the series: new id, shared `series:`, name `<slug>-YYYYMMDD.md`, fresh subtasks); next date per task: **Skip missed** (default) / **Catch up** / **From completion**; Undo; data format 3 | Not yet approved for build |
