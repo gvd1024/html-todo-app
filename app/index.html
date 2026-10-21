@@ -127,7 +127,11 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 
 /* quick-add */
 footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
-#qa{width:100%;min-height:calc(44px*var(--z));font-size:calc(16px*var(--z))}
+#quick{display:flex;gap:6px;align-items:center}
+#qa{flex:1 1 auto;min-width:0;width:100%;min-height:calc(44px*var(--z));font-size:calc(16px*var(--z))}
+.qa-chip{flex:0 0 auto;min-height:calc(44px*var(--z));border:1px solid var(--line);background:var(--card);color:var(--accent);border-radius:10px;padding:0 min(calc(8px*var(--z)),10px);font-size:min(calc(13px*var(--z)),17px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#qa-list{max-width:22vw}
+.qa-chip[hidden]{display:none}
 
 /* start / sign-in screen */
 .start{max-width:520px;margin:40px auto;padding:0 18px;text-align:center}
@@ -245,7 +249,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
   <div id="scroller"><div id="rows"></div></div>
   <button id="snap" hidden title="Back to the start of the titles">⇤</button>
 </main>
-<footer id="quick"><input id="qa" type="text" placeholder="Add a task…" enterkeyhint="done" autocomplete="off"></footer>
+<footer id="quick"><input id="qa" type="text" placeholder="Add a task…" enterkeyhint="done" autocomplete="off"><button id="qa-list" class="qa-chip" title="List for new tasks" hidden></button><button id="qa-date" class="qa-chip" title="Due date for new tasks" hidden></button></footer>
 
 <aside id="drawer" aria-label="Task editor">
   <div class="d-head">
@@ -306,7 +310,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-20b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-20c';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -869,7 +873,8 @@ function render(){
   $('#list-label').textContent = S.view === 'due' ? 'Today' : (S.list || '…');
   $('#ver').textContent = 'v' + APP_VERSION;
   fitListName();
-  $('#qa').placeholder = S.store ? `Add a task to ${S.list}…` : 'Open a folder first';
+  $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${S.list}…`;
+  qaChips();
   $('#qa').disabled = !S.store;
   setStat();
   const rows = $('#rows');
@@ -1415,17 +1420,52 @@ function addListDialog(){
   setTimeout(() => $('#m-name')?.focus(), 0);
 }
 
-/* ---------------- quick-add (R1-12 #4) ---------------- */
+/* ---------------- quick-add (R1-12 #4; R2-3 list and date chips in the Today view) ----------------
+   List chip: remembers the last choice per device. Date chip: Today by default; a change sticks while you stay
+   in the Today view and resets when you leave it or restart. */
+const QA = { date: null, inToday: false };                     // date: null = today, '' = no date, else YYYY-MM-DD
+function qaList(){ const l = ls.get('todo.qaList', ''); return S.lists.includes(l) ? l : (S.lists[0] || 'Inbox'); }
+function qaDate(){ return QA.date === null ? today() : QA.date; }
+function shortDate(d){ if (!d) return 'No date'; if (d === today()) return 'Today'; if (d === addDays(1)) return 'Tmrw';
+  return pd(d).toLocaleDateString(undefined, { weekday:'short', day:'numeric' }); }
+function qaChips(){
+  const on = !!S.store && S.view === 'due';
+  if (!on && QA.inToday) QA.date = null;                        // left the Today view → back to the default
+  QA.inToday = on;
+  $('#qa-list').hidden = $('#qa-date').hidden = !on; if (!on) return;
+  $('#qa-list').textContent = qaList(); $('#qa-date').textContent = shortDate(qaDate());
+}
+$('#qa-list').onclick = () => {
+  const cur = qaList();
+  modal(`<h3>Add new tasks to</h3>${S.lists.map(l => `<div class="pick ${l===cur?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button></div>`).join('')}
+    <div class="btns"><button data-a="cancel">Cancel</button></div>`,
+    a => { closeModal(); if (a.startsWith('l:')){ ls.set('todo.qaList', a.slice(2)); qaChips(); } }, { sheet:true });
+};
+$('#qa-date').onclick = () => {
+  const cur = qaDate();
+  modal(`<h3>Due date for new tasks</h3>
+    ${[[today(), 'Today'], [addDays(1), 'Tomorrow'], [addDays(7), `In a week (${esc(niceDate(addDays(7)))})`], ['', 'No date']].map(([d, l]) =>
+      `<div class="pick ${d===cur?'on':''}"><button class="go" data-a="d:${d}">${l}</button></div>`).join('')}
+    <p><input type="date" id="qa-pick" value="${esc(cur)}" style="width:100%"></p>
+    <div class="btns"><button data-a="cancel">Cancel</button><button class="btn-green" data-a="set">Set</button></div>`,
+    a => { if (a === 'cancel') return closeModal();
+      if (a === 'set'){ const d = $('#qa-pick').value; if (!d) return; QA.date = d; }
+      else if (a.startsWith('d:')) QA.date = a.slice(2);
+      closeModal(); qaChips(); }, { sheet:true });
+};
 $('#qa').addEventListener('keydown', async e => {
   if (e.key !== 'Enter' || e.isComposing) return;
   const title = $('#qa').value.trim(); if (!title || !S.store) return;
   e.preventDefault();
-  const list = S.view === 'list' ? S.list : (S.lists[0] || 'Inbox');
+  const inToday = S.view === 'due';
+  const list = inToday ? qaList() : S.list, due = inToday ? qaDate() : '';
   const t = { file:'', version:null, id:newId(), title, status:'open', prefix:'', list, collections:[], parent:'',
-    order: nextOrder(all().filter(x => x.list === list && !hasParent(x))), due:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
+    order: nextOrder(all().filter(x => x.list === list && !hasParent(x))), due, repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
   S.tasks.set(t.id, t); $('#qa').value = ''; render();
   const row = document.querySelector(`.row[data-id="${CSS.escape(t.id)}"]`); row?.scrollIntoView({ block:'nearest' });
   if (!(await saveTask(t))){ S.tasks.delete(t.id); $('#qa').value = title; }
+  else if (inToday && due !== today())                          // it landed out of sight: say where
+    toast(!due ? `Added to ${list}, no date` : `Added to ${list} — ${niceDate(due)}, in ${due > today() ? 'Upcoming' : 'Overdue'}`);
   render();
   $('#qa').focus();
 });
@@ -2010,7 +2050,7 @@ function sampleFiles(){
 }
 
 /* ---------------- boot ---------------- */
-window.__todo = { TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
+window.__todo = { QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */

@@ -20,7 +20,7 @@ Same as round 1:
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
-| R2-3 | Quick-add in the Today view | **Decided** (details to confirm) | B + tappable **list** and **date** chips on the input line |
+| R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
 
@@ -255,7 +255,11 @@ Same as round 1:
 4. **Phone width at 125–175 % text.** Labels stay short (Today, Tmrw, Fri 23, No date); a long list name is cut with "…" (max about 8 characters at 175 %) so the input keeps most of the line.
 5. **Normal list views (not part of this decision).** The same chips could work there (list chip = the list on screen, date chip = **No date** by default). **Rec.:** later, as its own item, if you want it.
 
-**Status:** Decided 2026-10-20 (details 1–4 to confirm). Not yet approved for build.
+**Details confirmed** (Geoff, 2026-10-20: "recs are fine, approve R2-3"): 1-B, 2-B, 3 toast, 4 short labels.
+
+**Status:** **Built 2026-10-20 (build 2026-10-20c).** Awaiting Geoff's check.
+- **Implementation notes:** the chips show only in the Today view; normal list views are unchanged (that list, no date). The list choice is stored per device (`todo.qaList`). The chips drop the ▾ and cap their font at 17 px, so at 175 % text the input keeps over half the line.
+- **Tests:** 12 more checks in the `today` group (defaults, both chips, sticky date, No date, Pick a date, toasts, fit at 175 %, reset on leaving the view, list remembered).
 
 ---
 
@@ -263,6 +267,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-3 | **Approved and built** (build 2026-10-20c): details 1–4 as recommended | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Decided:** option B plus a tappable list chip and date chip (default Today; other dates or no date) on the quick-add line | Details 1–4 to confirm; not yet approved for build |
 | 2026-10-20 | R2-2 | **Built** (build 2026-10-20b): Today view replaces By due date; Upcoming/Today/Overdue, Today/Tmrw buttons, Change due date… | Awaiting Geoff's check |
 | 2026-10-20 | R2-1 | **Built** (build 2026-10-20a): engine, Recycle/Copy check-off, editor Repeat controls, ↻, data format 3. Skip-missed corrected to "after today" | Awaiting Geoff's check |
@@ -273,6 +278,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v7: R2-3 approved and built.
 - 2026-10-20 — v6: R2-3 decided (B + list/date chips), details pitched.
 - 2026-10-20 — v5: R2-3 (quick-add in the Today view) added as Open.
 - 2026-10-20 — v4: R2-1 and R2-2 built.
