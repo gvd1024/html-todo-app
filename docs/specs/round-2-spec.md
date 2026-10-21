@@ -20,7 +20,7 @@ Same as round 1:
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
-| R2-3 | Quick-add in the Today view | Open | **B:** due today, into a chosen default list (shown in the placeholder) |
+| R2-3 | Quick-add in the Today view | **Decided** (details to confirm) | B + tappable **list** and **date** chips on the input line |
 
 ---
 
@@ -235,7 +235,27 @@ Same as round 1:
 
 **Recommendation:** **B** now; D could be a later add-on (it would also help quick-add in normal lists).
 
-**Status:** Open (not discussed yet).
+### Decision (Geoff, 2026-10-20)
+- **B, with two tappable chips** (Geoff: "go with B but clicking on the list name (at the right of the input line) lets you chose a different list / same thing with the due date box, by default is shows today, but clicking on it allows you to pick different dates or even choose no date").
+- **Layout:** `[ Add a task…            ] [Inbox ▾] [Today ▾]`
+    - **List chip:** shows the target list; tap → the list sheet (same as the list picker) → pick another list.
+    - **Date chip:** shows **Today** by default; tap → Today · Tomorrow · In a week · Pick a date… · **No date**.
+
+### Details to confirm (with recommendations)
+1. **What the list chip starts on.**
+    - **A — A Settings default** ("Today view adds to: <list>"), as in B; the chip starts there each time you open Today.
+    - **B — Remember the last choice** (per device); no new setting.
+    - **Rec.: B.** The chip already shows the list, so a separate setting adds little; the first time it starts on the first list.
+2. **How long a changed date sticks.**
+    - **A — Resets to Today after each add.**
+    - **B — Sticks while you stay in the Today view** (add several tasks for Friday in a row); back to Today when you leave the view or restart.
+    - **Rec.: B.** The chip always shows the date, so a sticky date is visible, not hidden.
+3. **Where the new task shows up.** Due today → under Today right away. Tomorrow or later → in Upcoming, which may be collapsed; no date → not in this view at all.
+    - **Rec.:** in those two cases a toast says where it went ("Added to Inbox — Fri 23 Oct, in Upcoming" / "Added to Inbox, no date").
+4. **Phone width at 125–175 % text.** Labels stay short (Today, Tmrw, Fri 23, No date); a long list name is cut with "…" (max about 8 characters at 175 %) so the input keeps most of the line.
+5. **Normal list views (not part of this decision).** The same chips could work there (list chip = the list on screen, date chip = **No date** by default). **Rec.:** later, as its own item, if you want it.
+
+**Status:** Decided 2026-10-20 (details 1–4 to confirm). Not yet approved for build.
 
 ---
 
@@ -243,6 +263,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-3 | **Decided:** option B plus a tappable list chip and date chip (default Today; other dates or no date) on the quick-add line | Details 1–4 to confirm; not yet approved for build |
 | 2026-10-20 | R2-2 | **Built** (build 2026-10-20b): Today view replaces By due date; Upcoming/Today/Overdue, Today/Tmrw buttons, Change due date… | Awaiting Geoff's check |
 | 2026-10-20 | R2-1 | **Built** (build 2026-10-20a): engine, Recycle/Copy check-off, editor Repeat controls, ↻, data format 3. Skip-missed corrected to "after today" | Awaiting Geoff's check |
 | 2026-10-20 | R2-1, R2-2 | **Approved for build.** R2-2: time runs upward (Upcoming furthest-first with "+ N later" at the very top; Overdue most-recent-first); Today stays put when Upcoming expands | Building |
@@ -252,6 +273,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v6: R2-3 decided (B + list/date chips), details pitched.
 - 2026-10-20 — v5: R2-3 (quick-add in the Today view) added as Open.
 - 2026-10-20 — v4: R2-1 and R2-2 built.
 - 2026-10-20 — v3: R2-2 decided.
