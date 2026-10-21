@@ -258,11 +258,11 @@ def test_phone_demo(browser):
     page.screenshot(path=str(SHOTS / "14-phone-175-feedback-header.png"))
     page.evaluate("() => { localStorage.setItem('todo.textSize', '125'); document.documentElement.style.setProperty('--z', '1.25'); }")
 
-    # by due date
+    # Today view (R2-2; replaced "By due date")
     page.click("#list-name")
-    page.locator("#modal .pick .go", has_text="By due date").click()
+    page.locator("#modal .pick .go", has_text="Today").click()
     page.wait_for_timeout(150)
-    check("by-due-date view lists dated tasks across lists", page.locator(".group-head").count() >= 2 and page.locator(".row").count() >= 5)
+    check("Today view shows its three section headers", page.locator(".group-head").count() == 3, page.locator(".group-head").count())
     page.screenshot(path=str(SHOTS / "06-phone-by-due.png"))
     check("demo: no page errors", not errors, errors[:3])
     ctx.close()
@@ -1067,6 +1067,113 @@ def test_recurring(browser):
     ctx.close()
 
 
+def test_today(browser):
+    print("\n[15] Today view (R2-2)")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.textSize": "125"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    D = lambda n: page.evaluate("n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }", n)
+    # Lay out dates: open tasks get A..G, the rest are pushed far into the past (lots of overdue rows → a scrollable page)
+    plan = {"A": -3, "B": -1, "C": 0, "D": 1, "E": 3, "F": 10, "G": 20}
+    names = page.evaluate("""async (plan) => { const offs = Object.values(plan);
+        const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+        const ts = __todo.all().filter(t => t.status === 'open' || t.status === 'active');
+        const out = {}; let i = 0;
+        for (const t of ts){ if (i < offs.length){ t.due = iso(offs[i]); out[Object.keys(plan)[i]] = t.title; } else if (i === offs.length){ t.due = ''; t.repeat = ''; out.U = t.title; } else t.due = iso(-30 - i);
+          i++; await __todo.saveTask(t); }
+        __todo.render(); return out; }""", plan)
+    check("test setup: enough open demo tasks", len(names) == 8 and page.evaluate("__todo.all().filter(t => t.status === 'open' || t.status === 'active').length") > 12, names)
+    page.click("#list-name")
+    check("list picker says 'Today (all lists)'", page.locator("#modal .pick .go", has_text="Today (all lists)").count() == 1)
+    page.locator("#modal .pick .go", has_text="Today (all lists)").click()
+    page.wait_for_timeout(150)
+    check("header reads 'Today'", page.inner_text("#list-label").strip() == "Today", page.inner_text("#list-label"))
+    heads = page.locator(".group-head").all_inner_texts()
+    check("order: Upcoming · Today · Overdue, with counts", len(heads) == 3 and heads[0].strip().lower().startswith("▸ upcoming · 4") and heads[1].strip().lower() == "today · 1" and heads[2].strip().lower().startswith("▸ overdue"), heads)
+    titles = lambda: page.locator("#rows .row .ttl").all_inner_texts()
+    check("starts with Upcoming and Overdue collapsed (only today's task shows)", [x.strip() for x in titles()] == [names["C"]], titles())
+    check("no list name on rows", page.locator("#rows .row .chip").count() == 0)
+    rc = row(page, names["C"])
+    check("Today rows: one 'Tmrw' button", rc.locator(".qbtn").all_inner_texts() == ["Tmrw"], rc.locator(".qbtn").all_inner_texts())
+    check("undated tasks are hidden", names["U"] not in titles())
+
+    # expand Overdue: most recent first
+    page.locator("[data-tday=over]").click(); page.wait_for_timeout(100)
+    tl = [x.strip() for x in titles()]
+    check("Overdue: most recent first (yesterday right below Today)", tl[0] == names["C"] and tl[1] == names["B"] and tl[2] == names["A"], tl[:4])
+    check("Overdue rows: Today + Tmrw", row(page, names["A"]).locator(".qbtn").all_inner_texts() == ["Today", "Tmrw"])
+
+    # expand Upcoming while scrolled: Today keeps its place
+    page.evaluate("() => { const h = document.querySelector('#tday-today'); const sc = document.querySelector('#scroller'); sc.scrollTop = Math.max(0, h.offsetTop - 300); }")
+    page.wait_for_timeout(100)
+    y0 = page.evaluate("() => document.querySelector('#tday-today').getBoundingClientRect().top")
+    page.locator("[data-tday=up]").click(); page.wait_for_timeout(150)
+    y1 = page.evaluate("() => document.querySelector('#tday-today').getBoundingClientRect().top")
+    check("expanding Upcoming keeps Today where it was on screen", abs(y1 - y0) <= 2, (y0, y1))
+    tl = [x.strip() for x in titles()]
+    check("Upcoming: furthest first, tomorrow right above Today", tl[:3] == [names["E"], names["D"], names["C"]], tl[:4])
+    later = page.locator(".tday-later")
+    check("'+ 2 later' is the top row of Upcoming", later.count() == 1 and later.inner_text().startswith("+ 2 later"), later.all_inner_texts())
+    check("Upcoming rows: one 'Today' button", row(page, names["E"]).locator(".qbtn").all_inner_texts() == ["Today"])
+    later.scroll_into_view_if_needed(); page.wait_for_timeout(100)   # Playwright scrolls before clicking; measure after that
+    y0 = page.evaluate("() => document.querySelector('#tday-today').getBoundingClientRect().top")
+    later.click(); page.wait_for_timeout(150)
+    y1 = page.evaluate("() => document.querySelector('#tday-today').getBoundingClientRect().top")
+    tl = [x.strip() for x in titles()]
+    check("'+ later' reveals the later tasks above, furthest first", tl[:4] == [names["G"], names["F"], names["E"], names["D"]] and page.locator(".tday-later").count() == 0, tl[:5])
+    check("revealing later tasks keeps Today in place", abs(y1 - y0) <= 2, (y0, y1))
+    page.screenshot(path=str(SHOTS / "26-phone-today-expanded.png"))
+
+    fm = lambda title, key: page.evaluate("([ti, k]) => __todo.all().find(x => x.title === ti)[k]", [title, key])
+    ftxt = lambda title: page.evaluate("ti => { const t = __todo.all().find(x => x.title === ti); return __todo.S.store.files.get(t.file).text; }", title)
+    # Tmrw on today's task
+    row(page, names["C"]).locator(".qbtn", has_text="Tmrw").click(); page.wait_for_timeout(250)
+    check("Tmrw: due moves to tomorrow in the file", f"due: {D(1)}" in ftxt(names["C"]), ftxt(names["C"])[:200])
+    check("Tmrw: row moves into Upcoming; Today shows the empty hint", page.locator(".group-head").nth(1).inner_text().strip().lower() == "today · 0" and page.locator(".empty-hint", has_text="Nothing due today").count() == 1)
+    check("Undo bar offered", page.locator("#undo.on").count() == 1 and names["C"] in page.inner_text("#undo-msg"), page.inner_text("#undo-msg"))
+    page.click("#undo-btn"); page.wait_for_timeout(250)
+    check("Undo puts it back on today", fm(names["C"], "due") == D(0) and f"due: {D(0)}" in ftxt(names["C"]))
+    # Today on an overdue task
+    row(page, names["A"]).locator(".qbtn", has_text="Today").click(); page.wait_for_timeout(250)
+    check("Today on an overdue row: due = today", fm(names["A"], "due") == D(0) and f"due: {D(0)}" in ftxt(names["A"]))
+    check("…and it shows under Today now", page.locator(".group-head").nth(1).inner_text().strip().lower() == "today · 2")
+    # ⋯ → Change due date…
+    row(page, names["B"]).locator(".row-more").click()
+    page.locator("#pop button", has_text="Change due date").click()
+    page.fill("#due-pick", D(5))
+    page.locator("#modal [data-a=set]").click(); page.wait_for_timeout(250)
+    check("⋯ → Change due date… sets a picked date", fm(names["B"], "due") == D(5), fm(names["B"], "due"))
+    page.locator(f"#rows .row .ttl", has_text=names["E"]).first.locator("xpath=..").locator(".row-more").click()
+    page.locator("#pop button", has_text="Change due date").click()
+    page.locator("#modal .pick .go", has_text="Tomorrow").click(); page.wait_for_timeout(250)
+    check("Change due date… → Tomorrow", fm(names["E"], "due") == D(1))
+
+    # recurring: ↻ shown, the button moves only this occurrence
+    page.evaluate("""async ti => { const t = __todo.all().find(x => x.title === ti); t.repeat = 'weekly'; await __todo.saveTask(t); __todo.render(); }""", names["D"])
+    rd = row(page, names["D"])
+    check("recurring rows show ↻ in the Today view", rd.locator(".rep-ico").count() == 1)
+    rd.locator(".qbtn", has_text="Today").click(); page.wait_for_timeout(250)
+    check("recurring: Today moves only due, repeat stays", fm(names["D"], "due") == D(0) and "repeat: weekly" in ftxt(names["D"]) and fm(names["D"], "status") == "open")
+
+    # fit at 175 %: buttons and ⋯ stay on screen, title column keeps some room
+    page.evaluate("() => { document.documentElement.style.setProperty('--z', '1.75'); __todo.render(); }")
+    page.wait_for_timeout(150)
+    vw = page.evaluate("innerWidth")
+    over_row = page.locator("#rows .row", has=page.locator(".qbtn", has_text="Tmrw")).filter(has=page.locator(".qbtn", has_text="Today")).first
+    boxes = over_row.locator(".qbtn, .row-more").evaluate_all("els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.right]; })")
+    pfx = over_row.locator(".pfx").evaluate("e => e.getBoundingClientRect().right")
+    check("175 %: Today + Tmrw + ⋯ fit on screen with room for the title", all(r <= vw + 1 for _, r in boxes) and min(l for l, _ in boxes) - pfx >= 100, (vw, pfx, boxes))
+    page.screenshot(path=str(SHOTS / "27-phone-today-175.png"))
+
+    # new app start: view kept, sections collapsed again
+    page.reload(); page.wait_for_selector("#tday-today")
+    heads = page.locator(".group-head").all_inner_texts()
+    check("reopens in the Today view (last used)", page.inner_text("#list-label").strip() == "Today")
+    check("after a restart Upcoming and Overdue are collapsed again", heads[0].strip().startswith("▸") and heads[2].strip().startswith("▸"), heads)
+    check("today: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1076,7 +1183,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today)]
         for name, fn in tests:
             if not only or name in only:
                 try:

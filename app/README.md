@@ -13,7 +13,10 @@ A task list where each task is its own Markdown file. The same files open on you
 - **Locally:** `python -m http.server 8000` from the repository root, then `http://localhost:8000/app/`.
 
 ## Using it
-- The big name at the top is the current list — tap it to switch lists, add or rename lists, or see everything **by due date**.
+- The big name at the top is the current list — tap it to switch lists, add or rename lists, or open **Today** (all lists).
+- **Today view:** *Upcoming* (next 7 days, collapsed; furthest date on top, with “+ N later” above), *Today*, and *Overdue* (collapsed; newest first). Future is up, past is down.
+    - One-tap buttons: **Today** / **Tmrw** to reschedule (5 s Undo); ⋯ → **Change due date…** for any date.
+    - Tasks without a due date don't appear. For a recurring task, the buttons move just this occurrence.
 - Tap the box to check a task off; tap the title to open the editor; tap **⋯** for Edit, Move to list, Change prefix, Add subtask and Delete.
 - A **1/3** badge means the task has subtasks (1 of 3 still open) — tap it to show or hide them.
 - Long titles: drag the whole list sideways; the boxes and ⋯ stay put; **⇤** (or waiting 3 seconds) brings it back.

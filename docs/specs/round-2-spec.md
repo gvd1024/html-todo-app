@@ -19,7 +19,7 @@ Same as round 1:
 | # | Item | Status | Recommendation |
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
-| R2-2 | Today view (rework "By due date") | **Approved for build** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
+| R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 
 ---
 
@@ -193,9 +193,16 @@ Same as round 1:
     - **Overdue:** sorted **most recent first** (yesterday just below Today, the oldest at the bottom).
     - Expanding Upcoming keeps **Today** where it was on screen (no jump).
 
-**Status:** Decided 2026-10-20. **Approved for build 2026-10-20.**
+**Status:** **Built 2026-10-20 (build 2026-10-20b).** Awaiting Geoff's check.
+- **Implementation notes:**
+    - The Upcoming and Overdue headers sit at the top of their sections. "+ N later (after <date>)" is the first row under the Upcoming header; tapping it replaces itself with the later tasks.
+    - Expanding or revealing keeps the Today header at the same screen position (the app adjusts the scroll).
+    - Buttons read **Today** and **Tmrw** to save width. ⋯ → **Change due date…** offers Today, Tomorrow, In a week, or any date.
+    - An open editor for the same task picks up the new date.
+    - Internally the view key is still `due`, so a phone left on "By due date" opens on Today.
+- **Tests:** a `today` group (30 checks): section order and counts, default collapse, sort orders, Today staying put, "+ N later", each button with Undo, the dialog, a recurring task, fit at 175 %, collapse reset after a restart.
 
-**Acceptance criteria (draft):**
+**Acceptance criteria:**
 - Overdue and Today sections are correct by local date.
 - The buttons change `due:` (conditional save) with Undo.
 - Rows move between sections immediately.
@@ -207,6 +214,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-2 | **Built** (build 2026-10-20b): Today view replaces By due date; Upcoming/Today/Overdue, Today/Tmrw buttons, Change due date… | Awaiting Geoff's check |
 | 2026-10-20 | R2-1 | **Built** (build 2026-10-20a): engine, Recycle/Copy check-off, editor Repeat controls, ↻, data format 3. Skip-missed corrected to "after today" | Awaiting Geoff's check |
 | 2026-10-20 | R2-1, R2-2 | **Approved for build.** R2-2: time runs upward (Upcoming furthest-first with "+ N later" at the very top; Overdue most-recent-first); Today stays put when Upcoming expands | Building |
 | 2026-10-20 | R2-2 | Upcoming = next 7 days, plus a "+ N later" row to reveal the rest; collapse defaults reset per app start (may change later) | Confirmed |
@@ -215,6 +223,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v4: R2-1 and R2-2 built.
 - 2026-10-20 — v3: R2-2 decided.
 - 2026-10-20 — v2: R2-1 decided (two modes, three next-date rules, YYYYMMDD copy names).
 - 2026-10-20 — v1: R2-1 and R2-2 drafted with options and recommendations.
