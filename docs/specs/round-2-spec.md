@@ -182,11 +182,11 @@ Same as round 1:
     2. **Yes:** ↻ on recurring tasks; the buttons move only this occurrence.
     3. **Yes:** tasks without a due date are not shown.
     4. **Yes:** the app opens in the last-used view.
-- **Assumed, to confirm:**
-    - **"Upcoming"** holds **all** future dated tasks, sorted by date (no separate "Later" section).
-    - Collapsed/expanded state resets to the defaults each time the app starts; within a session, the sections stay as you left them.
+- **Confirmed 2026-10-20:**
+    - **Upcoming covers the next 7 days** (Geoff: "lets start with the next 7 days, but maybe allow user to view tasks beyond that somehow"). The last row of Upcoming reads **"+ N later (after <date>)"**; tapping it adds the rest to the section (proposed option A; alternatives: a separate Later section, or a days setting).
+    - Upcoming and Overdue start collapsed each time the app starts and keep their state within a session. Geoff may change this later.
 
-**Status:** Decided 2026-10-20 (assumptions to confirm). Not yet approved for build.
+**Status:** Decided 2026-10-20. Not yet approved for build.
 
 **Acceptance criteria (draft):**
 - Overdue and Today sections are correct by local date.
@@ -200,6 +200,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-2 | Upcoming = next 7 days, plus a "+ N later" row to reveal the rest; collapse defaults reset per app start (may change later) | Confirmed |
 | 2026-10-20 | R2-2 | **Decided:** sections Upcoming (collapsed) / Today (fixed open) / Overdue (collapsed), with counts; one-tap Today/Tomorrow per section + ⋯ Change due date…; no list labels; ↻ for recurring; undated hidden; last-used view kept. Assumed: Upcoming = all future; collapse resets per app start | Not yet approved for build |
 | 2026-10-20 | R2-1 | **Decided:** plain-English `repeat:`; modes **Recycle** (same file, reset everything, no log) and **Copy** (original completed as a normal task, copy carries the series: new id, shared `series:`, name `<slug>-YYYYMMDD.md`, fresh subtasks); next date per task: **Skip missed** (default) / **Catch up** / **From completion**; Undo; data format 3 | Not yet approved for build |
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
