@@ -19,6 +19,10 @@ A task list where each task is its own Markdown file. The same files open on you
 - Long titles: drag the whole list sideways; the boxes and ⋯ stay put; **⇤** (or waiting 3 seconds) brings it back.
 - Type in the box at the bottom and press Enter to add a task to the current list.
 - ⚠ on a row means its file has frontmatter the app doesn't recognize. The app keeps it untouched.
+- **Recurring tasks:** in the editor, set **Repeat** (Daily, Weekdays, Weekly, Every 2 weeks, Monthly, Yearly, or Custom like "every 3 days" or "monthly on last day").
+    - **Mode:** **Recycle** (the same task moves to its next date, everything unchecked) or **Copy** (the finished one is kept as done, and a copy is made for the next date).
+    - **Next date:** *Skip missed*, *Catch up*, or *From completion*.
+    - Recurring tasks show **↻**.
 - If a file changed elsewhere while you were editing, Save offers **Use their version / Overwrite with mine / Keep both** (Keep both saves yours as a separate `(conflict …)` copy).
 
 ## File contract (data format 2)

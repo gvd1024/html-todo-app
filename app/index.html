@@ -111,6 +111,7 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .ck.unknown .box{border-color:var(--warn)}
 .ck:disabled{cursor:not-allowed}
 .bullet{font-size:calc(22px*var(--z));color:var(--muted)}
+.rep-ico{color:var(--accent);font-size:calc(14px*var(--z));margin-left:6px}
 .wflag{color:var(--warn);font-size:calc(13px*var(--z));margin-left:6px}
 .badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));min-width:calc(44px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums}
 .badge.open{background:rgba(227,156,255,.12)}
@@ -258,6 +259,14 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
     <label>Status<select id="f-status"></select></label>
     <label>List<select id="f-list"></select></label>
     <label>Due<input type="date" id="f-due"></label>
+    <label class="wide">Repeat<span style="display:flex;gap:6px"><select id="f-rep" style="flex:0 0 auto">
+      <option value="">Doesn't repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option>
+      <option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option>
+      <option value="yearly">Yearly</option><option value="custom">Custom…</option></select>
+      <input type="text" id="f-rep-custom" placeholder="e.g. every 3 days · weekly on mon, thu · monthly on last day" style="flex:1;min-width:0;display:none"></span></label>
+    <label class="rep-opt">Mode<select id="f-rep-mode"><option value="recycle">Recycle (same file)</option><option value="copy">Copy (keep a record)</option></select></label>
+    <label class="rep-opt">Next date<select id="f-rep-next"><option value="skip">Skip missed</option><option value="catchup">Catch up</option><option value="afterdone">From completion</option></select></label>
+    <div class="wide d-note rep-opt" id="f-rep-hint"></div>
     <label class="wide">Collections<input type="text" id="f-coll" placeholder="a, b"></label>
   </div>
   <div class="d-note" id="d-parent"></div>
@@ -293,10 +302,10 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-19m';            // bump on every build — shown in Settings so we can tell which version a device runs
-const DATA_FORMAT = 2;
+const BUILD = '2026-10-20a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
-const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','completed','demoted_into'];
+const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
 const STATUSES = ['open','active','done','archived'];
 const PREFIXES = ['checkbox','bullet','none'];
 const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';   // Azure registration "HTML-ToDo-App PoC" (not a secret)
@@ -543,7 +552,8 @@ function parseTask(path, text, version){
     status: String(fm.status || 'open'), prefix: fm.prefix != null ? String(fm.prefix) : '',
     list: String(fm.list || 'Inbox'), collections: asArr(fm.collections), parent: fm.parent ? String(fm.parent) : '',
     order: Number.isFinite(+fm.order) && fm.order !== null && fm.order !== '' ? +fm.order : null,
-    due: fm.due ? String(fm.due) : '', completed: fm.completed ? String(fm.completed) : '',
+    due: fm.due ? String(fm.due) : '', repeat: fm.repeat ? String(fm.repeat) : '', series: fm.series ? String(fm.series) : '',
+    completed: fm.completed ? String(fm.completed) : '',
     demoted_into: fm.demoted_into ? String(fm.demoted_into) : '',
     body, extra: {}, noId: fm.id == null,
   };
@@ -555,6 +565,7 @@ function unknownBits(t){            // R1-12: flag (never change) frontmatter th
   const u = Object.keys(t.extra).map(k => `${k}: ${JSON.stringify(t.extra[k])}`);
   if (!STATUSES.includes(t.status)) u.unshift(`status: ${t.status}`);
   if (t.prefix && !PREFIXES.includes(t.prefix)) u.unshift(`prefix: ${t.prefix}`);
+  if (t.repeat && !parseRepeat(t.repeat)) u.unshift(`repeat: ${t.repeat}`);
   return u;
 }
 function serializeTask(t){
@@ -565,6 +576,8 @@ function serializeTask(t){
   if (t.parent) fm.parent = t.parent;
   fm.order = t.order ?? 1;
   if (t.due) fm.due = t.due;
+  if (t.repeat) fm.repeat = t.repeat;
+  if (t.series) fm.series = t.series;
   if (t.completed) fm.completed = t.completed;
   if (t.demoted_into) fm.demoted_into = t.demoted_into;
   Object.assign(fm, t.extra);
@@ -841,7 +854,7 @@ function rowHTML(t, depth, opts = {}){
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" style="padding-left:4px">${esc(t.title)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
+    <div class="ttl" data-act="open" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
     <div class="act">${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
@@ -1060,6 +1073,135 @@ $('#rows').addEventListener('click', async e => {
   else if (act === 'menu') rowMenu(t, actEl);
 });
 function persistExpanded(){ ls.set('todo.expanded', [...S.expanded]); }
+/* ---------------- recurring tasks (round 2, R2-1) ----------------
+   repeat: <schedule>[, keep copies][, catch up | after done]
+   schedules: daily · every N days · weekdays · weekly · weekly on mon, thu · every N weeks [on …] ·
+              monthly · monthly on day N · monthly on last day · every N months [on day N | on last day] · yearly · every N years */
+const DOW = ['sun','mon','tue','wed','thu','fri','sat'];
+function parseRepeat(s){
+  let x = String(s || '').toLowerCase().trim(); if (!x) return null;
+  const keep = /\bkeep copies\b/.test(x), catchup = /\bcatch up\b/.test(x), after = /\bafter done\b/.test(x);
+  if (catchup && after) return null;
+  x = x.replace(/\bkeep copies\b|\bcatch up\b|\bafter done\b/g, ' ').replace(/,|\band\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const days = str => { const out = []; for (const w of str.trim().split(' ')){ const i = DOW.indexOf(w.slice(0, 3)); if (i < 0 || (w.length > 3 && !(DOW[i] + ['day','day','sday','nesday','rsday','day','urday'][i]).startsWith(w))) return null; if (!out.includes(i)) out.push(i); } return out.length ? out.sort() : null; };
+  const num = v => { const n = +v; return n >= 1 && n <= 999 ? n : null; };
+  let r = null, m;
+  if (x === 'daily' || x === 'every day') r = { freq:'day', n:1 };
+  else if ((m = x.match(/^every (\d+) days?$/))) r = { freq:'day', n:num(m[1]) };
+  else if (x === 'weekdays' || x === 'every weekday') r = { freq:'day', n:1, workdays:true };
+  else if (x === 'weekly' || x === 'every week') r = { freq:'week', n:1 };
+  else if ((m = x.match(/^(?:weekly|every week) on ([a-z ]+)$/))) r = { freq:'week', n:1, days:days(m[1]) };
+  else if ((m = x.match(/^every (\d+) weeks?(?: on ([a-z ]+))?$/))) r = { freq:'week', n:num(m[1]), days: m[2] ? days(m[2]) : undefined };
+  else if (x === 'monthly' || x === 'every month') r = { freq:'month', n:1 };
+  else if ((m = x.match(/^(?:monthly|every month) on day (\d{1,2})$/))) r = { freq:'month', n:1, mday: +m[1] };
+  else if (/^(?:monthly|every month) on (?:the )?last day$/.test(x)) r = { freq:'month', n:1, mday:'last' };
+  else if ((m = x.match(/^every (\d+) months?(?: on day (\d{1,2})| on (?:the )?last day)?$/))) r = { freq:'month', n:num(m[1]), mday: m[2] ? +m[2] : / last day$/.test(x) ? 'last' : undefined };
+  else if (x === 'yearly' || x === 'every year' || x === 'annually') r = { freq:'year', n:1 };
+  else if ((m = x.match(/^every (\d+) years?$/))) r = { freq:'year', n:num(m[1]) };
+  if (!r || !r.n || r.days === null || (typeof r.mday === 'number' && (r.mday < 1 || r.mday > 31))) return null;
+  r.keep = keep; r.mode = catchup ? 'catchup' : after ? 'afterdone' : 'skip';
+  return r;
+}
+const pd = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d, 12); };   // noon: DST-proof
+const fd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const addD = (d, k) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + k, 12);
+const dim = (y, m) => new Date(y, m + 1, 0).getDate();
+function stepAfter(r, d, anchor){                       // the first occurrence strictly after date d
+  if (r.freq === 'day'){
+    if (r.workdays){ let e = addD(d, 1); while (e.getDay() === 0 || e.getDay() === 6) e = addD(e, 1); return e; }
+    return addD(d, r.n);
+  }
+  if (r.freq === 'week'){
+    if (!r.days) return addD(d, 7 * r.n);
+    const wk = x => Math.round((addD(x, -x.getDay()) - addD(anchor, -anchor.getDay())) / (7 * 864e5));
+    for (let i = 1; i <= 7 * r.n + 7; i++){ const e = addD(d, i); if (r.days.includes(e.getDay()) && ((wk(e) % r.n) + r.n) % r.n === 0) return e; }
+    return addD(d, 7 * r.n);
+  }
+  if (r.freq === 'month'){
+    const want = r.mday ?? anchor.getDate();
+    for (let k = 0; k <= 24 * r.n; k++){
+      const y = d.getFullYear(), m0 = d.getMonth() + k, yy = y + Math.floor(m0 / 12), mm = ((m0 % 12) + 12) % 12;
+      const diff = (yy - anchor.getFullYear()) * 12 + (mm - anchor.getMonth()); if (((diff % r.n) + r.n) % r.n) continue;
+      const e = new Date(yy, mm, want === 'last' ? dim(yy, mm) : Math.min(want, dim(yy, mm)), 12);
+      if (e > d) return e;
+    }
+  }
+  if (r.freq === 'year'){
+    for (let k = 0; k <= 4 * r.n + 4; k++){
+      const yy = d.getFullYear() + k; if (((yy - anchor.getFullYear()) % r.n + r.n) % r.n) continue;
+      const e = new Date(yy, anchor.getMonth(), Math.min(anchor.getDate(), dim(yy, anchor.getMonth())), 12);
+      if (e > d) return e;
+    }
+  }
+  return addD(d, 1);
+}
+function nextDue(r, dueStr, todayStr = today()){        // R2-1 Q3: skip missed (default) · catch up · after done
+  const now = pd(todayStr), due = pd(dueStr || todayStr);
+  if (r.mode === 'afterdone') return fd(stepAfter(r, now, now));
+  let c = stepAfter(r, due, due);
+  if (r.mode === 'catchup') return fd(c);
+  for (let g = 0; c <= now && g < 5000; g++) c = stepAfter(r, c, due);        // skip missed: the next one AFTER today
+  return fd(c);
+}
+const resetChecks = body => (body || '').replace(/^(\s*[-*+] )\[[xX]\]/gm, '$1[ ]');
+const niceDate = s => pd(s).toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
+const ymdCompact = s => String(s).replace(/-/g, '');
+
+/* Recycle: the same file moves to the next date; everything unchecked (task, subtasks, notes); nothing logged */
+async function recycleTask(t, r){
+  const fam = [t, ...descendants(t.id).filter(d => d.status !== 'archived' && STATUSES.includes(d.status))];
+  const before = fam.map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, due:x.due }));
+  const next = nextDue(r, t.due);
+  t.due = next;
+  for (const x of fam){ x.status = 'open'; x.completed = ''; x.body = resetChecks(x.body); }
+  render();
+  if (!(await saveMany(fam.filter(x => !x.isNew)))) { render(); return; }
+  render(); syncEditorStatus(fam);
+  showUndo(`“${t.title}” — next: ${niceDate(next)}`, async () => {
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, due:s.due }); return x; }).filter(Boolean);
+    render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
+  });
+}
+/* Copy (keep a record): the original is completed like any task and stops repeating; a copy carries the series */
+function datedFile(title, ymd, taken){
+  const used = new Set([...all().map(x => (x.file || '').toLowerCase()), ...taken]);
+  const base = slug(title) + '-' + ymdCompact(ymd); let n = 1, f = base + '.md';
+  while (used.has(f.toLowerCase())) f = `${base}-${++n}.md`;
+  taken.push(f.toLowerCase()); return f;
+}
+async function copyTask(t, r, { checkAll = false } = {}){
+  const next = nextDue(r, t.due), stamp = today(), series = t.series || t.id;
+  const subs = descendants(t.id).filter(d => d.status !== 'archived' && STATUSES.includes(d.status));
+  const doneNow = checkAll ? [t, ...subs.filter(s => s.status !== 'done')] : [t];
+  const before = [t, ...subs].map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, repeat:x.repeat, series:x.series }));
+  // the copy (and fresh copies of its subtasks), all unchecked
+  const idMap = new Map(), taken = [], copies = [];
+  for (const x of [t, ...subs]){
+    const c = { ...x, extra:{ ...x.extra }, collections:[...x.collections], id:newId(), version:null, isNew:true, status:'open', completed:'',
+      body: resetChecks(x.body), repeat:'', series: x.series || '' };
+    idMap.set(x.id, c.id);
+    if (x === t){ c.due = next; c.repeat = t.repeat; c.series = series; }
+    c.parent = x === t ? t.parent : (idMap.get(x.parent) || x.parent);
+    c.file = datedFile(x.title, x === t ? next : (x.due || next), taken);
+    c.unknown = unknownBits(c);
+    copies.push(c);
+  }
+  // the original: completed like any task; its repeat moves to the copy
+  for (const x of doneNow){ x.status = 'done'; x.completed = x.completed || stamp; if (checkAll) x.body = (x.body || '').replace(/^(\s*[-*+] )\[ \]/gm, '$1[x]'); }
+  t.repeat = ''; t.series = series;
+  for (const c of copies) S.tasks.set(c.id, c);
+  render();
+  let ok = await saveMany([t, ...doneNow.filter(x => x !== t)]);
+  for (const c of copies) if (ok) ok = await saveTask(c);
+  render(); syncEditorStatus([t]);
+  if (!ok) return;
+  showUndo(`Done — copy for ${niceDate(next)} created`, async () => {
+    for (const c of [...copies].reverse()) { const x = get(c.id); if (x) await removeTask(x); }
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, repeat:s.repeat, series:s.series }); return x; }).filter(Boolean);
+    render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
+  });
+}
+
 /* ---------------- check-off (Phase 4: R1-12 #3, #8, #14) ---------------- */
 const openLinesIn = body => (body || '').split('\n').filter(l => { const m = l.match(CK_RE); return m && m[2] === ' '; }).length;
 function snap(t){ return { id:t.id, status:t.status, completed:t.completed, body:t.body }; }
@@ -1067,13 +1209,17 @@ async function toggleDone(t){
   if (!STATUSES.includes(t.status)) return toast('Unrecognized status — fix it in the editor first.');
   if (S.editing && isDirty()) return toast('Save or close the open editor first.');
   if (t.status === 'done') return setDone([t], false, { label:`Unchecked “${t.title}”` });
+  const rule = t.repeat ? parseRepeat(t.repeat) : null;
+  if (rule && !rule.keep) return recycleTask(t, rule);                       // R2-1 Recycle: no dialog, everything resets
   const openSubs = descendants(t.id).filter(d => STATUSES.includes(d.status) && d.status !== 'done' && d.status !== 'archived');
   const openLines = openLinesIn(t.body);
+  if (rule && rule.keep && !openSubs.length && !openLines) return copyTask(t, rule);
   if (!openSubs.length && !openLines) return setDone([t], true, { label:`Checked “${t.title}”` });
   const what = [openSubs.length ? `${openSubs.length} open subtask${openSubs.length>1?'s':''}` : '', openLines ? `${openLines} unchecked checklist item${openLines>1?'s':''} in its notes` : ''].filter(Boolean).join(' and ');
   modal(`<h3>Check off “${esc(t.title)}”?</h3><p>It still has ${esc(what)}.</p>
     <div class="btns"><button data-a="cancel">Cancel</button><button data-a="one">Check only this</button><button class="primary" data-a="all">Check all</button></div>`,
     async a => { closeModal();
+      if (rule && rule.keep){ if (a === 'all' || a === 'one') await copyTask(t, rule, { checkAll: a === 'all' }); return; }   // R2-1 Copy: original handled like a regular task
       if (a === 'all') await setDone([t, ...openSubs], true, { lines:[t, ...openSubs], label:`Checked “${t.title}” and everything under it` });
       else if (a === 'one') await setDone([t], true, { label:`Checked “${t.title}”` + (openSubs.length && !S.showDone ? ` — its ${openSubs.length} open subtask${openSubs.length>1?'s are':' is'} hidden with it` : '') });
     });
@@ -1325,13 +1471,48 @@ function updateModeBtn(){ $('#d-mode').textContent = S.editor && S.editor.isMark
 $('#d-mode').onclick = () => { const ed = ensureEditor(); const to = ed.isMarkdownMode() ? 'wysiwyg' : 'markdown';
   ed.changeMode(to, true); ls.set('todo.mode', to); updateModeBtn(); fitToolbar(); };
 
-function fieldState(){ return JSON.stringify({ title:$('#f-title').value, status:$('#f-status').value, prefix:$('#f-prefix').value, list:$('#f-list').value,
+function fieldState(){ return JSON.stringify({ rep: repControlsKey(), title:$('#f-title').value, status:$('#f-status').value, prefix:$('#f-prefix').value, list:$('#f-list').value,
   due:$('#f-due').value, coll:$('#f-coll').value }); }
 function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing); if (t?.isNew) return true;
   return fieldState() !== S.snapshot.fields || S.editor.getMarkdown() !== S.snapshot.md; }
 function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d; }
 function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
-['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
+['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
+['#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-due'].forEach(s => $(s).addEventListener('input', repUI));
+/* Repeat controls ↔ phrase (R2-1). The phrase is only rewritten when these controls actually change. */
+function repBase(){
+  const v = $('#f-rep').value, due = $('#f-due').value || today(), d = pd(due);
+  return { '':'', daily:'daily', weekdays:'weekdays', weekly:`weekly on ${DOW[d.getDay()]}`, biweekly:`every 2 weeks on ${DOW[d.getDay()]}`,
+           monthly:`monthly on day ${d.getDate()}`, yearly:'yearly', custom: $('#f-rep-custom').value.trim() }[v] ?? '';
+}
+function repPhrase(){
+  const base = repBase(); if (!base) return '';
+  const sfx = []; if ($('#f-rep-mode').value === 'copy') sfx.push('keep copies');
+  if ($('#f-rep-next').value === 'catchup') sfx.push('catch up'); else if ($('#f-rep-next').value === 'afterdone') sfx.push('after done');
+  return [base, ...sfx].join(', ');
+}
+function repControlsKey(){ return JSON.stringify([$('#f-rep').value, $('#f-rep-custom').value, $('#f-rep-mode').value, $('#f-rep-next').value]); }
+function repUI(){
+  const on = !!$('#f-rep').value;
+  $('#f-rep-custom').style.display = $('#f-rep').value === 'custom' ? '' : 'none';
+  document.querySelectorAll('#drawer .rep-opt').forEach(e => e.style.display = on ? '' : 'none');
+  if (!on) return;
+  const phrase = repPhrase(), r = parseRepeat(phrase);
+  $('#f-rep-hint').textContent = !phrase ? 'Type a schedule, e.g. “every 3 days”.' : r ? `Repeats: ${phrase} — next after checking off: ${niceDate(nextDue(r, $('#f-due').value || today()))}` : `⚠ Not understood: “${phrase}”. Try e.g. “weekly on mon, thu” or “monthly on last day”.`;
+}
+function fillRepeat(t){
+  const r = t.repeat ? parseRepeat(t.repeat) : null;
+  let base = (t.repeat || '').toLowerCase().replace(/\bkeep copies\b|\bcatch up\b|\bafter done\b/g, '').replace(/[,\s]+$/,'').replace(/,\s*,/g, ',').trim();
+  let preset = !t.repeat ? '' : 'custom';
+  if (r){ const d = pd(t.due || today()), dw = DOW[d.getDay()];
+    if (base === 'daily') preset = 'daily'; else if (base === 'weekdays') preset = 'weekdays'; else if (base === 'yearly') preset = 'yearly';
+    else if (base === `weekly on ${dw}`) preset = 'weekly'; else if (base === `every 2 weeks on ${dw}`) preset = 'biweekly';
+    else if (base === `monthly on day ${d.getDate()}`) preset = 'monthly'; }
+  $('#f-rep').value = preset; $('#f-rep-custom').value = preset === 'custom' ? (r ? base : t.repeat) : '';
+  $('#f-rep-mode').value = r && r.keep ? 'copy' : 'recycle';
+  $('#f-rep-next').value = r ? r.mode : 'skip';
+  S.repKey = repControlsKey(); repUI();
+}
 $('#f-list').addEventListener('change', () => { if ($('#f-list').value === '__new'){
   const n = (prompt('New list name') || '').trim(); if (n && !S.lists.includes(n)){ S.lists.push(n); saveConfig(); }
   fillListSelect(n || get(S.editing).list); onDirtyCheck(); } });
@@ -1355,6 +1536,7 @@ function fillDrawer(t){
   $('#f-title').value = t.title; fillStatusSelect(t.status); fillListSelect(t.list);
   $('#f-prefix').value = PREFIXES.includes(prefixOf(t)) ? prefixOf(t) : 'checkbox';
   $('#f-due').value = t.due; $('#f-coll').value = t.collections.join(', ');
+  fillRepeat(t);
   const p = hasParent(t) ? get(t.parent) : null;
   $('#f-list').disabled = !!p;
   $('#d-parent').innerHTML = p ? `Subtask of <a href="#" data-open="${esc(p.id)}">${esc(p.title)}</a> — its list follows the parent.` :
@@ -1379,6 +1561,8 @@ function readDrawerInto(t){
   const pv = $('#f-prefix').value; t.prefix = (pv === 'checkbox' && !t.prefix) ? '' : pv;
   if (!hasParent(t)) t.list = $('#f-list').value === '__new' ? t.list : $('#f-list').value;
   t.due = $('#f-due').value; t.collections = asArr($('#f-coll').value);
+  if (repControlsKey() !== S.repKey){ t.repeat = repPhrase(); }              // only rewrite repeat: when its controls changed
+  if (t.repeat && !t.due) t.due = today();
   t.body = normBody(S.editor.getMarkdown());
   const changed = [t];
   if (t.list !== oldList) for (const d of descendants(t.id)){ d.list = t.list; changed.push(d); }
@@ -1428,11 +1612,12 @@ function restoreDraft(){
   const d = ls.get('todo.draft', null); if (!d) return; ls.del('todo.draft');
   let t = d.file ? byFile(d.file) : null;
   if (!t){ t = { file:d.isNew ? '' : d.file, version:d.isNew ? null : d.version, id:d.id, title:'', status:'open', prefix:'', list:d.list, collections:[], parent:d.parent,
-      order:d.order, due:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true }; S.tasks.set(t.id, t); }
+      order:d.order, due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true }; S.tasks.set(t.id, t); }
   else t.version = d.version;                         // keep the version the edit started from → a changed file still conflicts
   openDrawer(t.id);
   const f = d.fields; $('#f-title').value = f.title; fillStatusSelect(f.status); $('#f-prefix').value = f.prefix; $('#f-due').value = f.due; $('#f-coll').value = f.coll;
   if (!$('#f-list').disabled) $('#f-list').value = f.list;
+  if (f.rep){ try { const [a, b, c, e] = JSON.parse(f.rep); $('#f-rep').value = a; $('#f-rep-custom').value = b; $('#f-rep-mode').value = c; $('#f-rep-next').value = e; repUI(); } catch {} }
   S.editor.setMarkdown(d.md, false); onDirtyCheck();
   toast('Restored your unsaved edit from before sign-in');
 }
@@ -1738,7 +1923,7 @@ function offerSeed(){
 function sampleFiles(){
   const f = {}; const d = addDays;
   const mk = (file, fm, body = '') => { const t = { id:fm.id, title:fm.title, status:fm.status||'open', prefix:fm.prefix||'', list:fm.list, collections:fm.collections||[],
-    parent:fm.parent||'', order:fm.order, due:fm.due||'', completed:fm.completed||'', demoted_into:fm.demoted_into||'', body: body ? '\n' + body.trim() + '\n' : '', extra:fm.extra||{} };
+    parent:fm.parent||'', order:fm.order, due:fm.due||'', repeat:fm.repeat||'', series:fm.series||'', completed:fm.completed||'', demoted_into:fm.demoted_into||'', body: body ? '\n' + body.trim() + '\n' : '', extra:fm.extra||{} };
     f[file] = serializeTask(t); };
   f[CONFIG_FILE] = JSON.stringify({ format:DATA_FORMAT, lists:['Inbox','Home','Rental','School'] }, null, 2) + '\n';
   mk('call-insurance-agent.md', { id:'t-s01', title:'Call insurance agent about renewal', list:'Inbox', order:1, due:d(1) }, 'Ask about bundling the rental policy.');
@@ -1763,6 +1948,10 @@ function sampleFiles(){
   mk('categorize-receipts.md', { id:'t-s14', title:'Categorize receipts', list:'Rental', parent:'t-s12', order:2 });
   mk('research-paper-outline.md', { id:'t-s15', title:'Research paper outline', list:'School', order:1, due:d(6), collections:['unr'] },
      'Thesis: _per-file task storage beats a single JSON file for multi-agent sync._\n\n- [ ] Lit review\n- [ ] Draft outline');
+  mk('collect-rent.md', { id:'t-s19', title:'Collect rent', list:'Rental', order:4, due:d(3), repeat:'monthly on day ' + pd(d(3)).getDate() },
+     'Recurring (Recycle): checking it off moves it to the same day next month and unchecks everything.\n\n- [ ] Unit A\n- [ ] Unit B');
+  mk('weekly-review.md', { id:'t-s20', title:'Weekly review', list:'School', order:3, due:d(2), repeat:'weekly, keep copies' },
+     'Recurring (Copy): checking it off keeps this one as done and creates a copy for next week.\n\n- [ ] Inbox to zero\n- [ ] Plan the week');
   mk('register-spring.md', { id:'t-s16', title:'Register for spring classes', list:'School', order:2, due:d(21), collections:['unr'], extra:{ priority:2 } });
   return f;
 }
@@ -1770,7 +1959,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));

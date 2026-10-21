@@ -378,7 +378,7 @@ def test_onedrive(browser):
     page.wait_for_timeout(600)
     cfg = json.loads(fg.files()["_todo.json"])
     check("list order merges both devices' changes", cfg.get("lists") == ["Feedback", "Test List", "Inbox", "Remote List", "Local List"], cfg)
-    check("_todo.json gets data format 2 and keeps unknown keys", cfg.get("format") == 2 and cfg.get("note") == "kept", cfg)
+    check("_todo.json gets the current data format and keeps unknown keys", cfg.get("format") == page.evaluate("__todo.DATA_FORMAT") and cfg.get("note") == "kept", cfg)
 
     # sign-in expires mid-session → draft saved → automatic bounce once
     page.click("#list-name")
@@ -946,6 +946,127 @@ def test_pc_toolbar(browser):
         ctx.close()
 
 
+def test_recurring(browser):
+    print("\n[14] Recurring tasks (R2-1)")
+    import datetime as _dt
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Rental", "todo.showDone": True}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+
+    # --- the date engine, with a fixed "today" (Tue 2026-10-20) ---
+    T = "2026-10-20"
+    cases = [
+        ("daily", "2026-10-20", "2026-10-21", "daily, due today"),
+        ("daily", "2026-10-15", "2026-10-21", "daily, overdue, skip missed → after today"),
+        ("daily, catch up", "2026-10-15", "2026-10-16", "daily, overdue, catch up → next after old due"),
+        ("every 3 days, after done", "2026-10-10", "2026-10-23", "every 3 days after done → from completion"),
+        ("weekdays", "2026-10-23", "2026-10-26", "weekdays: Fri → Mon"),
+        ("weekly on mon, thu", "2026-10-22", "2026-10-26", "weekly on mon, thu: Thu → Mon"),
+        ("weekly", "2026-10-19", "2026-10-26", "weekly (due's weekday)"),
+        ("every 2 weeks on mon", "2026-10-19", "2026-11-02", "every 2 weeks on mon keeps the fortnight"),
+        ("monthly on day 31", "2026-10-31", "2026-11-30", "monthly on day 31 → 30 Nov"),
+        ("monthly on day 31", "2026-11-30", "2026-12-31", "…then back to the 31st in Dec"),
+        ("monthly on last day", "2027-01-31", "2027-02-28", "monthly on last day → 28 Feb"),
+        ("yearly", "2028-02-29", "2029-02-28", "yearly from a leap day"),
+        ("every 2 months on day 15", "2026-10-15", "2026-12-15", "every 2 months on day 15"),
+        ("Weekly On Monday, Thursday, Keep Copies", "2026-10-19", "2026-10-22", "case-insensitive, full day names, suffix"),
+    ]
+    for phrase, due, want, label in cases:
+        got = page.evaluate("([p, d, t]) => { const r = __todo.parseRepeat(p); return r ? __todo.nextDue(r, d, t) : 'UNPARSED'; }", [phrase, due, T])
+        check(f"next date: {label}", got == want, f"{phrase!r} due {due} → {got}, want {want}")
+    for bad in ["every blue moon", "daily, catch up, after done", "weekly on funday", "monthly on day 32", ""]:
+        check(f"rejects {bad!r}", page.evaluate("p => __todo.parseRepeat(p) === null", bad))
+    flags = page.evaluate("() => { const r = __todo.parseRepeat('weekly on fri, keep copies, after done'); return [r.keep, r.mode]; }")
+    check("suffixes parsed: keep copies + after done", flags == [True, "afterdone"], flags)
+
+    f = lambda name: page.evaluate(f"() => __todo.S.store.files.get('{name}')?.text ?? null")
+    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => x.file === '{name}'); return t ? t['{key}'] : null; }}")
+    today = page.evaluate("() => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }")
+
+    # --- Recycle: same file, next date, everything unchecked, nothing logged ---
+    page.evaluate("""() => { const t = __todo.all().find(x => x.file === 'collect-rent.md');
+        t.body = t.body.replace('- [ ] Unit A', '- [x] Unit A'); __todo.render(); }""")
+    rent_due = fm("collect-rent.md", "due")
+    want_next = page.evaluate("d => __todo.nextDue(__todo.parseRepeat('monthly on day ' + Number(d.slice(8))), d)", rent_due)
+    check("↻ shows on recurring rows", row(page, "Collect rent").locator(".rep-ico").count() == 1)
+    row(page, "Collect rent").locator(".ck").click()
+    page.wait_for_timeout(300)
+    txt = f("collect-rent.md")
+    check("Recycle: same file moves to the next date", fm("collect-rent.md", "due") == want_next and f"due: {want_next}" in txt, (rent_due, want_next, txt[:200]))
+    check("Recycle: stays open, checklist reset, nothing logged", "status: open" in txt and "- [x]" not in txt and "completed:" not in txt and "Done " not in txt, txt[-160:])
+    check("Recycle: Undo bar shows the next date", "next:" in page.inner_text("#undo-msg"), page.inner_text("#undo-msg"))
+    page.click("#undo-btn")
+    page.wait_for_timeout(300)
+    check("Recycle: Undo restores date and checkmarks", fm("collect-rent.md", "due") == rent_due and "- [x] Unit A" in f("collect-rent.md"))
+
+    # --- Copy: original completed (dialog like any task), copy carries the series ---
+    page.click("#list-name")
+    page.locator("#modal .pick .go", has_text="School").click()
+    page.wait_for_timeout(200)
+    wr_due = fm("weekly-review.md", "due")
+    nxt = page.evaluate("d => __todo.nextDue(__todo.parseRepeat('weekly, keep copies'), d)", wr_due)
+    copy_name = f"weekly-review-{nxt.replace('-', '')}.md"
+    row(page, "Weekly review").locator(".ck").click()
+    page.wait_for_selector("#modal-bg.on")
+    check("Copy: open checklist lines → the regular Check all / only dialog", "unchecked checklist item" in page.inner_text("#modal"))
+    page.click("#modal button:has-text('Check only this')")
+    page.wait_for_timeout(400)
+    orig, copy = f("weekly-review.md"), f(copy_name)
+    check("Copy: original is done, dated, and no longer repeats", "status: done" in orig and f"completed: {today}" in orig and "repeat:" not in orig and "series: t-s20" in orig, orig[:260])
+    check(f"Copy: copy named <slug>-YYYYMMDD ({copy_name}) with the next date", copy is not None and f"due: {nxt}" in copy, copy and copy[:260])
+    check("Copy: copy repeats, shares series, new id, all unchecked", copy and "repeat: weekly, keep copies" in copy and "series: t-s20" in copy
+          and "id: t-s20\n" not in copy and "- [x]" not in copy and "status: open" in copy)
+    page.click("#undo-btn")
+    page.wait_for_timeout(400)
+    check("Copy: Undo removes the copy and restores the original", f(copy_name) is None and "repeat: weekly, keep copies" in f("weekly-review.md") and "status: open" in f("weekly-review.md"))
+
+    # --- Copy with subtasks: fresh copies of the subtasks ---
+    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'weekly-review.md'); t.body = ''; t.repeat = 'weekly, keep copies'; await __todo.saveTask(t);
+        const S = __todo.S; const sub = { file:'', version:null, id:'t-sub-wr', title:'Review calendar', status:'done', prefix:'', list:'School', collections:[], parent:'t-s20',
+          order:1, due:'', repeat:'', series:'', completed:'2026-10-01', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
+        S.tasks.set(sub.id, sub); await __todo.saveTask(sub); __todo.render(); }""")
+    row(page, "Weekly review").locator(".ck").click()
+    page.wait_for_timeout(500)
+    subs = page.evaluate("""() => { const c = __todo.all().find(x => x.repeat && x.series === 't-s20' && x.id !== 't-s20');
+        return c ? __todo.all().filter(x => x.parent === c.id).map(x => [x.title, x.status, x.file]) : null; }""")
+    check("Copy: the copy gets fresh, unchecked copies of its subtasks", subs and len(subs) == 1 and subs[0][0] == "Review calendar" and subs[0][1] == "open", subs)
+    check("Copy: the original's subtask stays as it was", fm("review-calendar.md", "status") == "done")
+
+    # --- editor: presets compose the phrase; untouched phrases are never rewritten ---
+    page.click("#list-name")
+    page.locator("#modal .pick .go", has_text="Rental").click()
+    page.wait_for_timeout(200)
+    row(page, "Replace HVAC filter").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    page.select_option("#f-rep", "weekly")
+    page.select_option("#f-rep-mode", "copy")
+    page.select_option("#f-rep-next", "catchup")
+    hint = page.inner_text("#f-rep-hint")
+    page.screenshot(path=str(SHOTS / "25-phone-editor-repeat.png"))
+    page.click("#d-saveclose")
+    page.wait_for_timeout(300)
+    hv = f("hvac-filter.md")
+    dow = page.evaluate("() => { const t = __todo.all().find(x => x.file === 'hvac-filter.md'); const [y,m,d] = t.due.split('-').map(Number); return ['sun','mon','tue','wed','thu','fri','sat'][new Date(y, m-1, d, 12).getDay()]; }")
+    check("editor: Weekly + Copy + Catch up writes the phrase", f"repeat: weekly on {dow}, keep copies, catch up" in hv, hv[:260])
+    check("editor: live hint shows the next date", "next after checking off" in hint, hint)
+    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'collect-rent.md'); t.repeat = 'Monthly On Day 3,  after done'; await __todo.saveTask(t); __todo.render(); }""")
+    row(page, "Collect rent").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(300)
+    page.fill("#f-title", "Collect rent (renamed)")
+    page.click("#d-saveclose")
+    page.wait_for_timeout(300)
+    check("editor: a hand-typed phrase is kept exactly when Repeat isn't touched", "repeat: Monthly On Day 3,  after done" in f("collect-rent.md"), f("collect-rent.md")[:260])
+
+    # --- unknown phrase: ⚠, normal check-off ---
+    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'tenant-lease-renewal.md'); t.repeat = 'every blue moon'; t.unknown = ['repeat: every blue moon']; await __todo.saveTask(t); __todo.render(); }""")
+    check("unknown phrase → ⚠ on the row, no ↻", row(page, "Tenant lease renewal").locator(".wflag").count() == 1 and row(page, "Tenant lease renewal").locator(".rep-ico").count() == 0)
+    check("data format 3 recognized", page.evaluate("__todo.DATA_FORMAT") == 3)
+    check("recurring: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -955,7 +1076,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring)]
         for name, fn in tests:
             if not only or name in only:
                 try:

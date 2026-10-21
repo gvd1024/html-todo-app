@@ -22,7 +22,7 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
    - Log every decision in the spec's Decision log, and keep the spec's change history.
    - Statuses: `Open → Discussing → Decided → Approved for build → Built → Verified`.
 4. **Specs are Markdown only.** No HTML copies.
-5. **Versioning:** app version in `APP_VERSION` (shown in the header) plus a separate **data format** (`DATA_FORMAT`, written to `_todo.json`). Released: v0.1.0, v0.1.1 (git tag `v0.1.1`). In progress: **v0.2.0-dev**, data format 2 (adds `prefix`, `completed`; statuses open/active/done/archived). The full R1-6 scheme can follow later.
+5. **Versioning:** app version in `APP_VERSION` (shown in the header) plus a separate **data format** (`DATA_FORMAT`, written to `_todo.json`). Released: v0.1.0, v0.1.1 (git tag `v0.1.1`). In progress: **v0.2.0-dev**. Data format 2 added `prefix` and `completed` (statuses open/active/done/archived); **data format 3** (2026-10-20) adds `repeat` and `series`. The full R1-6 scheme can follow later.
 6. **Geoff reviews before anything is executed.** Propose, wait for approval, then act. He wants detailed technical explanations with honest tradeoffs, and both simple and more complex options. He prefers phased checklists and a casual, direct tone.
 7. **Resolve the hardest or most architecturally dependent problems first** (Geoff's design approach). The storage and phone requirements (R1-9, R1-10) come before UI polish.
 8. **Verify before saying something doesn't exist.** Geoff has caught wrong "that's not possible" answers before.
@@ -34,7 +34,7 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
 11. **OneDrive is the committed datastore** (personal now, work later; decided 2026-10-16). The architecture lives in `docs/specs/storage-spec.md`.
 12. **Public repo hygiene:** never write the employer's name or work folder paths in committed files. Say "work OneDrive" / "work PC".
 
-## Task file contract (don't break it) — data format 2
+## Task file contract (don't break it) — data format 3
 ```markdown
 ---
 id: t-20261012-ab12        # stable, unique, never change
@@ -46,21 +46,30 @@ collections: [repairs]     # optional (R1-5 may rename this to tags; read both i
 parent: t-20261010-cd34    # optional → subtask
 order: 3.5                 # fractional ordering among siblings
 due: 2026-10-20            # optional, YYYY-MM-DD
+repeat: weekly on mon, thu # optional (format 3): plain-English schedule + optional suffixes (see below)
+series: t-20261001-ab12    # optional (format 3): shared by all copies of a "keep copies" recurring task
 completed: 2026-10-17      # optional: set when checked done, removed when unchecked
 demoted_into: t-...        # only on archived tasks that were demoted
 ---
 Free-form Markdown body; checklists are - [ ] / - [x].
 ```
 - Keep frontmatter keys in this order. **Keep any unknown keys untouched**; the app shows ⚠ for unknown keys or values (e.g. old `doing`/`waiting`) and never rewrites them on its own. Claude migrates old values by hand (R1-12).
-- `_todo.json` holds `{"format": 2, "lists": [...]}` plus any other keys it already has (keep them). The app version-checks it and merges list order on conflict.
+- `_todo.json` holds `{"format": 3, "lists": [...]}` plus any other keys it already has (keep them). The app version-checks it and merges list order on conflict.
 - These files are not tasks: names starting with `_` or `.`, and `README.md`.
 - A subtask's `list` always matches its parent's. `parent:` is the source of truth for nesting (S-11), not folders.
 - File names are a slug of the title when the task is created (S-11 rules: lowercase, dashes, max 40 characters, Unicode letters kept, Windows reserved names avoided, case-insensitive unique). Renaming the title doesn't rename the file.
 - **Demote:** a task becomes a checklist line in another task's body. When the original is kept, it becomes `status: archived` plus `demoted_into`, and the line ends with a link like `[↗](file.md)` (each path segment URL-encoded). **Promote** restores from that link; the nested body text wins over the archived file's body.
+- **Recurring tasks (R2-1):**
+    - **Phrase format:** `repeat: <schedule>[, keep copies][, catch up | after done]`, case-insensitive.
+    - **Schedules:** `daily` · `every N days` · `weekdays` · `weekly` (the due date's weekday) · `weekly on mon, thu` · `every N weeks [on …]` · `monthly` · `monthly on day N` · `monthly on last day` · `every N months [on day N | on last day]` · `yearly` · `every N years`.
+    - **Without `keep copies` (Recycle):** checking it off moves `due` to the next date in the **same file** and unchecks the task, its subtasks and every `- [ ]` line. Nothing is logged.
+    - **With `keep copies` (Copy):** the original is completed like a normal task and loses `repeat:`. A copy `<slug>-YYYYMMDD.md` gets the next date, `repeat:`, a new id, the shared `series:` and fresh copies of the subtasks.
+    - **Next date:** default = the next date after today, skipping missed ones; `catch up` = the next after the old due date; `after done` = counted from the completion day.
+    - **Unknown phrases** → ⚠, kept untouched; the task checks off normally.
 - **When Claude edits task files:** re-read right before writing and stop if the file changed (S-12); keep the key order and unknown keys.
 
 ## Code map
-- `app/index.html` — the whole app (vanilla JS, single file), **v0.2.0-dev** (MVP build in progress, see storage-spec S-9). Served at `/app/`; `app/todo.html` just redirects there. Main parts:
+- `app/index.html` — the whole app (vanilla JS, single file), **v0.2.0-dev** (MVP done; round 2 in progress, see `docs/specs/round-2-spec.md`). Served at `/app/`; `app/todo.html` just redirects there. Main parts:
   - **Storage (storage-spec S-2):** one interface — `list / read / write(path, text, expectedVersion) / create / remove / changes()` keyed by relative path with an opaque version. Connectors: `MemStore` (demo), `FsStore` (local folder, File System Access API; deletes keep a copy in the folder's hidden `.trash`), `GraphStore` (OneDrive via Microsoft Graph: `If-Match` writes → 412, `conflictBehavior=fail` creates → 409, deletes to the recycle bin, folder delta for changes, listing fallback for work OneDrive).
   - **Sign-in (S-5):** `MsalAuth` (MSAL Browser 5.22.0, redirect flow). Automatic bounce through Microsoft once per session when the cached sign-in is gone; unsaved edits are stashed in `localStorage` and restored after.
   - **Files:** `parseTask` and `serializeTask` use js-yaml with CORE_SCHEMA, so dates stay strings.

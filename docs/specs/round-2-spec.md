@@ -18,7 +18,7 @@ Same as round 1:
 
 | # | Item | Status | Recommendation |
 |---|---|---|---|
-| R2-1 | Recurring tasks | **Approved for build** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
+| R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Approved for build** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 
 ---
@@ -111,7 +111,7 @@ Same as round 1:
 
 | Editor choice | Phrase | Behavior |
 |---|---|---|
-| **Skip missed** (default) | *(nothing extra)* | The next date from the schedule that's **today or later** |
+| **Skip missed** (default) | *(nothing extra)* | The next date from the schedule that's **after today** (corrected 2026-10-20: "today or later" would make an overdue daily task due today again) |
 | **Catch up** | `…, catch up` | **Strictly the next** date after the old due date, even if still in the past |
 | **From completion** | `…, after done` | Counts from the **day it's checked off** (e.g. `every 3 days, after done`) |
 
@@ -121,7 +121,9 @@ Same as round 1:
 
 **Data contract → format 3:** new keys `repeat` (after `due`) and `series` (after `repeat`). Older app versions see them as ⚠ unknown keys and keep them.
 
-**Status:** Decided 2026-10-20. **Approved for build 2026-10-20.**
+**Status:** **Built 2026-10-20 (build 2026-10-20a).** Awaiting Geoff's check.
+- **Tests:** a `recurring` group: 14 date-engine cases (overdue skip/catch-up/after-done, weekdays, multi-day weekly, fortnights, the 31st across short months, last day, leap years), parser rejects, Recycle and Copy flows (including subtask copies and Undo), editor presets, untouched phrases preserved, unknown phrases.
+- **Demo data** has two examples: *Collect rent* (Rental, Recycle) and *Weekly review* (School, Copy).
 
 ---
 
@@ -205,6 +207,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-20 | R2-1 | **Built** (build 2026-10-20a): engine, Recycle/Copy check-off, editor Repeat controls, ↻, data format 3. Skip-missed corrected to "after today" | Awaiting Geoff's check |
 | 2026-10-20 | R2-1, R2-2 | **Approved for build.** R2-2: time runs upward (Upcoming furthest-first with "+ N later" at the very top; Overdue most-recent-first); Today stays put when Upcoming expands | Building |
 | 2026-10-20 | R2-2 | Upcoming = next 7 days, plus a "+ N later" row to reveal the rest; collapse defaults reset per app start (may change later) | Confirmed |
 | 2026-10-20 | R2-2 | **Decided:** sections Upcoming (collapsed) / Today (fixed open) / Overdue (collapsed), with counts; one-tap Today/Tomorrow per section + ⋯ Change due date…; no list labels; ↻ for recurring; undated hidden; last-used view kept. Assumed: Upcoming = all future; collapse resets per app start | Not yet approved for build |
