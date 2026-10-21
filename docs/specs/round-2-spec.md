@@ -20,6 +20,7 @@ Same as round 1:
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
+| R2-3 | Quick-add in the Today view | Open | **B:** due today, into a chosen default list (shown in the placeholder) |
 
 ---
 
@@ -210,6 +211,34 @@ Same as round 1:
 
 ---
 
+## R2-3 — Quick-add in the Today view
+
+**Reported** (Geoff, 2026-10-20, asking to add Claude's suggestion from the R2-2 build: "add the quick-add option to the spec").
+
+**Problem (restated):**
+- In the Today view, the quick-add box still says "Add a task to <last list>…", but it adds the task to the **first** list in `_todo.json`, so the placeholder can be wrong.
+- The new task gets **no due date**. Undated tasks are hidden in the Today view, so the task you just typed vanishes from the screen.
+
+### Options
+- **A — Due today, first list:** quick-add in Today creates the task with `due: today` in the first list; the placeholder says so ("Add to Inbox, due today…").
+    - **Pros:** smallest change; the task appears right under Today.
+    - **Cons:** "first list" is an accident of list order.
+- **B — Due today, a chosen default list:** like A, but Settings gets **"Today view adds to: <list>"** (defaults to the first list); the placeholder names it.
+    - **Pros:** predictable; you pick an inbox-style list once.
+    - **Cons:** one more setting.
+- **C — Ask each time:** after typing, a small sheet asks which list (last one used is preselected); due today.
+    - **Pros:** tasks land in the right list at once.
+    - **Cons:** an extra tap on every add, which works against "quick".
+- **D — Section-aware:** the date depends on what's on screen, e.g. typing `tmrw` or `fri` at the end of the title sets that date (a tiny date parser); plain text = today. Combine with A or B for the list.
+    - **Pros:** fast scheduling without the date picker.
+    - **Cons:** more code; parsing surprises (a title that really ends in "fri").
+
+**Recommendation:** **B** now; D could be a later add-on (it would also help quick-add in normal lists).
+
+**Status:** Open (not discussed yet).
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
@@ -223,6 +252,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-20 — v5: R2-3 (quick-add in the Today view) added as Open.
 - 2026-10-20 — v4: R2-1 and R2-2 built.
 - 2026-10-20 — v3: R2-2 decided.
 - 2026-10-20 — v2: R2-1 decided (two modes, three next-date rules, YYYYMMDD copy names).

@@ -87,6 +87,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 - `poc/index.html` — the OneDrive proof of concept (R1-10 step 1), kept as a reference and test tool.
 - `tests/` — automated tests: `run_tests.py` (Playwright), `fake_graph.py` (a strict in-memory Microsoft Graph), `store_suite.js` (the shared store suite), `screenshots/` (phone and PC screenshots from the last run).
 - `docs/specs/` — round specs and `storage-spec.md`.
+- `tools/make_work_pack.py` — the **nightly work-PC pack** (Geoff asks for it at the end of each evening session): commit and push first, then `python tools/make_work_pack.py --release` → GitHub release `build-<BUILD>` with `html-todo-app-<BUILD>.zip` (top folder `html-todo-app-<BUILD>/`: `app/`, specs, project docs under `docs/project/`, a work-PC `CLAUDE.md` and `START-HERE.md` from `docs/work-pack/*.template.md`, `SHA256SUMS.txt`). Bump `BUILD` when the app changed; `--replace` republishes the same build. Give Geoff the download link. Feedback comes back as `HTA-feedback.md` (items `F-YYYYMMDD-N`), which goes into the round spec.
 - `private/` — **git-ignored, local only**: Geoff's project memory export and the transcript of the Cowork session that produced all of this. Read these for background; never commit them, never copy their contents into committed files (the repository is public).
 
 ## Testing

@@ -19,6 +19,8 @@
 | Repository / Pages | `https://github.com/gvd1024/html-todo-app` (public, `main`). On the home PC: `gh` CLI logged in as `gvd1024`, repo-local noreply identity. Pages serves `main`, root. |
 
 ## WORK PC — read this first (for Geoff's work Claude Code session)
+> **Update 2026-10-20:** Geoff now installs a **nightly build pack** at work (`tools/make_work_pack.py`; GitHub releases `build-<BUILD>`). Each build extracts to its own `html-todo-app-<BUILD>` folder beside the older ones and shares one persistent task folder (verified: pages opened from disk share settings and storage across folders in Chrome and Edge). The work session's instructions are the pack's own `CLAUDE.md` (`docs/work-pack/CLAUDE.template.md`); it logs feedback to `HTA-feedback.md` in the root folder. The pinned `work-test-*` steps below are the earlier setup.
+
 **Context (Geoff, 2026-10-18):**
 - **AI at work is encouraged.** Geoff's leadership encourages using Claude on the codebase (bug fixes, features, improvements), **including access to personal drives and OneDrive**. So Claude helping with this app at work is in line with company direction. Still: only touch the task/test folders Geoff names.
 - **Start local, not cloud.** Geoff would be fine using the app **only on the work PC, against a local or OneDrive-synced folder through the file system**, with no Microsoft sign-in. Phone access to work tasks is a nice-to-have for later. (Work apps on his phone live in a managed, partitioned work profile, run via a Microsoft app Geoff believes is called "Hub" — probably Intune's Company Portal or Microsoft Edge with app protection. To be confirmed.)

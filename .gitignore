@@ -6,3 +6,6 @@ private/
 
 # Python caches from tests
 __pycache__/
+
+# Nightly work-PC packs (tools/make_work_pack.py)
+dist/
