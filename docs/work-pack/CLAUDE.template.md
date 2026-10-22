@@ -12,7 +12,7 @@ You are Claude Code on Geoff's **work PC**. This folder is one build of **HTML-T
   html-todo-app-2026-10-21a\
   HTA-feedback.md               feedback for home (outside the build folders, so it survives new builds)
   CLAUDE.md                     optional stub: "Read the CLAUDE.md in the newest html-todo-app-* folder."
-<task folder>\                  the persistent .md task files (Geoff picks where)
+  data\                         the persistent .md task files (the default since build 2026-10-21b; any folder works)
 ```
 - He opens the newest `html-todo-app-<build>\app\index.html` in Edge or Chrome. Pages opened from disk share their settings, so a new build **remembers the task folder** (and the network lock and text size); the browser asks to **Allow** folder access once per session.
 - Recommended: **Network lock** on, storage **A local folder on this PC**. Backups: `docs/WORK-PC-BACKUP.md` (a robocopy job every 30 minutes).

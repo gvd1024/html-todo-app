@@ -310,7 +310,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-21a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-21b';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -318,6 +318,7 @@ const STATUSES = ['open','active','done','archived'];
 const PREFIXES = ['checkbox','bullet','none'];
 const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';   // Azure registration "HTML-ToDo-App PoC" (not a secret)
 const DEFAULT_FOLDER = 'HTML-ToDo-App';
+const LOCAL_FOLDER = 'data';             // R2-4: from disk, the task folder sits next to the build folder: <root>\data
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['Files.ReadWrite', 'User.Read'];
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -1980,13 +1981,58 @@ async function startOneDrive(){
     sessionStorage.setItem('todo.autoTried', '1'); signIn();          // automatic bounce through Microsoft (S-5 B)
   } else { S.signedOut = true; showStart(); }
 }
-async function pickLocalFolder(){
+/* R2-4: the default local task folder is <root>\data, next to the build folder (<root>\html-todo-app-<build>\app\index.html).
+   A page can't open a folder by path, so the app shows the path to paste into the folder dialog, then checks the pick. */
+function suggestedLocalPath(href = location.href){
+  let u; try { u = new URL(href); } catch { return null; }
+  if (u.protocol !== 'file:') return null;
+  const parts = decodeURIComponent(u.pathname).split('/').filter(Boolean); parts.pop();          // drop index.html
+  if ((parts[parts.length - 1] || '').toLowerCase() === 'app') parts.pop();                       // drop app
+  parts.pop();                                                                                    // drop the build folder
+  if (!parts.length) return null;
+  const win = /^[a-z]:$/i.test(parts[0]);
+  return win ? parts.concat(LOCAL_FOLDER).join('\\') : (u.host ? '\\\\' + u.host + '\\' + parts.concat(LOCAL_FOLDER).join('\\') : '/' + parts.concat(LOCAL_FOLDER).join('/'));
+}
+async function folderLooks(dir){                       // what's in a picked folder (top level only)
+  const r = { tasks:false, app:false };
+  try { for await (const [name, h] of dir.entries()){
+    if (h.kind === 'file' && isStorePath(name)) r.tasks = true;
+    if ((h.kind === 'file' && /^index\.html$/i.test(name)) || (h.kind === 'directory' && /^(app|vendor)$/i.test(name))) r.app = true;
+  } } catch {}
+  return r;
+}
+function pickLocalFolder(){
   if (!window.showDirectoryPicker) return toast("This browser can't open local folders — use Chrome or Edge on desktop.");
-  try {
-    const dir = await window.showDirectoryPicker({ id:'task-board', mode:'readwrite' });
-    try { await idb.set('dir', dir); } catch {}
-    await useStore(new FsStore(dir));
-  } catch (e){ if (e.name !== 'AbortError') toast('Could not open folder: ' + e.message); else if (!S.store) showStart(); }
+  const path = suggestedLocalPath();
+  modal(`<h3>Choose your task folder</h3>
+    ${path ? `<p>Your tasks go in a folder named <b>${LOCAL_FOLDER}</b> next to the app's build folder:</p>
+      <p><input type="text" id="lf-path" readonly value="${esc(path)}" style="width:100%"></p>
+      <p style="font-size:13px;color:var(--muted)">In the next window, paste this into the address bar and press Enter, then click <b>Select Folder</b>. The first time, go to the folder above it and use <b>New folder</b> to create <b>${LOCAL_FOLDER}</b>.</p>`
+    : `<p>Pick the folder that holds your task files (for example one named <b>${LOCAL_FOLDER}</b>).</p>`}
+    <div class="btns"><button data-a="cancel">Cancel</button>${path ? '<button data-a="copy">Copy path</button>' : ''}<button class="primary" data-a="pick">Choose folder…</button></div>`,
+    async a => {
+      if (a === 'copy'){ const i = $('#lf-path'); i.select();
+        try { await navigator.clipboard.writeText(path); toast('Path copied'); } catch { document.execCommand?.('copy'); toast('Path selected — press Ctrl+C'); } return; }
+      closeModal(); if (a !== 'pick'){ if (!S.store) showStart(); return; }
+      let dir;
+      try { dir = await window.showDirectoryPicker({ id:'task-board', mode:'readwrite' }); }
+      catch (e){ if (e.name !== 'AbortError') toast('Could not open folder: ' + e.message); else if (!S.store) showStart(); return; }
+      const looks = await folderLooks(dir);
+      const named = dir.name.toLowerCase() === LOCAL_FOLDER;
+      if (looks.app || (!named && !looks.tasks)){
+        const why = looks.app ? `“${esc(dir.name)}” looks like the app's own folder, not a task folder.`
+          : `“${esc(dir.name)}” has no task files and isn't named <b>${LOCAL_FOLDER}</b>.`;
+        modal(`<h3>Use this folder?</h3><p>${why}</p>
+          <div class="btns"><button data-a="again">Choose another</button><button data-a="use">Use it anyway</button></div>`,
+          b => { closeModal(); if (b === 'use') openLocalDir(dir); else pickLocalFolder(); }, { noDismiss:true });
+        return;
+      }
+      openLocalDir(dir);
+    }, { sheet:true });
+}
+async function openLocalDir(dir){
+  try { await idb.set('dir', dir); } catch {}
+  try { await useStore(new FsStore(dir)); } catch (e){ toast('Could not open folder: ' + e.message); if (!S.store) showStart(); }
 }
 const idb = {
   open(){ return new Promise((res, rej) => { const r = indexedDB.open('task-board', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
@@ -2050,7 +2096,7 @@ function sampleFiles(){
 }
 
 /* ---------------- boot ---------------- */
-window.__todo = { QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
+window.__todo = { suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */

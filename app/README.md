@@ -3,7 +3,7 @@
 A task list where each task is its own Markdown file. The same files open on your Android phone and your PC (through OneDrive), and Claude, Obsidian or any text editor can read and change them too.
 
 ## Run it
-- **Phone or PC, with OneDrive (the default):** open `https://gvd1024.github.io/html-todo-app/app/` in Chrome and tap **Sign in with Microsoft**. The app opens the OneDrive folder set in **⋯ → Settings** (default `HTML-ToDo-App`).
+- **Phone or PC, with OneDrive (the default):** open `https://gvd1024.github.io/html-todo-app/app/` in Chrome and tap **Sign in with Microsoft**. The app opens the OneDrive folder set in **⋯ → Settings** (default `HTML-ToDo-App`). Run from disk, the app suggests a **`data`** folder next to its build folder and shows the path to paste into the folder dialog.
   - The page's address must be a redirect URI of the Azure app registration (`HTML-ToDo-App PoC`): `https://gvd1024.github.io/html-todo-app/app/`, and `http://localhost:8000/app/` for local testing.
   - After the first sign-in, the app re-signs you in automatically when the browser forgets the session (with "Stay signed in" on, that's a quick bounce, no typing).
 - **A local folder (desktop Chrome/Edge):** ⋯ → Settings → *A local folder on this PC*.

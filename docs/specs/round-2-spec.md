@@ -20,7 +20,7 @@ Same as round 1:
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
-| R2-4 | Default task folder next to the app | Open | **A:** the app shows the sibling folder's path to paste into the folder picker |
+| R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -291,7 +291,16 @@ Same as round 1:
 
 **Recommendation:** **B**. The sideways check guards the top priority (the `.md` files) cheaply.
 
-**Status:** Open.
+### Decision (Geoff, 2026-10-21)
+- "yes next to the build folder, approve B for R2-4 but lets change the default folder to just data not HTML-ToDo-App".
+- **Default local folder:** **`<root>\data`**. The OneDrive default stays `HTML-ToDo-App` (that's the folder renamed on 2026-10-21).
+
+**Status:** **Built 2026-10-21 (build 2026-10-21b).** Awaiting Geoff's check.
+- **Implementation notes:**
+    - Opening a local folder (start screen or Settings) first shows **Choose your task folder** with the suggested path and **Copy path**. The path is worked out from the page's own `file:` address: drop `index.html`, `app` and the build folder, then add `data`. Served over http (Pages, tests), it shows a generic hint instead.
+    - **The check after picking:** it asks first if the folder looks like the app's own (`index.html`, `app` or `vendor` at its top), or if it has no task files and isn't named `data`. A folder that already has task files opens directly, whatever its name, so an existing work folder keeps working.
+    - Already-remembered folders are untouched; the guide appears only when picking.
+- **Tests:** a `localfolder` group (15 checks): path cases (spaces, a network share, http), each check outcome, Choose another / Use it anyway, and the guide opened from disk.
 
 ---
 
@@ -299,6 +308,7 @@ Same as round 1:
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-21 | R2-4 | **Approved (B) and built** (build 2026-10-21b): next to the build folder, default name `data`; OneDrive default stays `HTML-ToDo-App` | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Approved and built** (build 2026-10-20c): details 1–4 as recommended | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Decided:** option B plus a tappable list chip and date chip (default Today; other dates or no date) on the quick-add line | Details 1–4 to confirm; not yet approved for build |
 | 2026-10-20 | R2-2 | **Built** (build 2026-10-20b): Today view replaces By due date; Upcoming/Today/Overdue, Today/Tmrw buttons, Change due date… | Awaiting Geoff's check |
@@ -310,6 +320,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-21 — v9: R2-4 approved (B, folder `data`) and built.
 - 2026-10-21 — v8: R2-4 added (default local task folder next to the app); OneDrive default renamed to `HTML-ToDo-App`.
 - 2026-10-20 — v7: R2-3 approved and built.
 - 2026-10-20 — v6: R2-3 decided (B + list/date chips), details pitched.

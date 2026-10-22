@@ -1212,6 +1212,68 @@ def test_today(browser):
     ctx.close()
 
 
+def test_local_folder(browser):
+    print("\n[16] Default local task folder next to the build (R2-4)")
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    cases = [
+        ("file:///C:/Users/me/HTA/html-todo-app-2026-10-21b/app/index.html", "C:\\Users\\me\\HTA\\data"),
+        ("file:///C:/My%20Apps/HTA/html-todo-app-2026-10-21b/app/", None),
+        ("file:///C:/My%20Apps/HTA/html-todo-app-2026-10-21b/app/index.html", "C:\\My Apps\\HTA\\data"),
+        ("file://server/share/HTA/html-todo-app-x/app/index.html", "\\\\server\\share\\HTA\\data"),
+        ("https://gvd1024.github.io/html-todo-app/app/", None),
+    ]
+    for href, want in cases[:1] + cases[2:]:
+        got = page.evaluate("h => __todo.suggestedLocalPath(h)", href)
+        check(f"suggested path for {href}", got == want, f"{got!r}, want {want!r}")
+    # stub the folder dialog with folders on the browser's private file system
+    page.evaluate("""async () => {
+        const root = await navigator.storage.getDirectory();
+        const mk = async (name, files) => { try { await root.removeEntry(name, { recursive:true }); } catch {}
+          const d = await root.getDirectoryHandle(name, { create:true });
+          for (const f of files){ const w = await (await d.getFileHandle(f, { create:true })).createWritable(); await w.write(f.endsWith('.md') ? '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n' : '<p>'); await w.close(); }
+          return d; };
+        window.__dirs = { data: await mk('data', []), build: await mk('html-todo-app-x', ['index.html']), misc: await mk('misc', []), tasks: await mk('work-tasks', ['one.md']) };
+        window.showDirectoryPicker = async () => window.__dirs[window.__next]; }""")
+    def pick(key):
+        page.evaluate("k => { window.__next = k; __todo.pickLocalFolder(); }", key)
+        page.wait_for_selector("#modal [data-a=pick]")
+    pick("data")
+    check("guide dialog over http: no path, no Copy button", page.locator("#lf-path").count() == 0 and page.locator("#modal [data-a=copy]").count() == 0)
+    page.click("#modal [data-a=pick]"); page.wait_for_timeout(300)
+    page.screenshot(path=str(SHOTS / "30-pc-empty-data-folder.png"))
+    check("an empty folder named data opens without a question", page.evaluate("__todo.S.store && __todo.S.store.kind === 'local' && __todo.S.store.name === 'data'") and "Use this folder" not in page.inner_text("#modal"))
+    pick("build")
+    page.click("#modal [data-a=pick]"); page.wait_for_timeout(200)
+    check("the build folder → 'looks like the app's own folder'", "app's own folder" in page.inner_text("#modal"), page.inner_text("#modal")[:120])
+    page.click("#modal [data-a=again]"); page.wait_for_timeout(100)
+    check("Choose another → back to the guide; store unchanged", page.locator("#modal [data-a=pick]").count() == 1 and page.evaluate("__todo.S.store.name") == "data")
+    page.click("#modal [data-a=cancel]")
+    pick("misc")
+    page.click("#modal [data-a=pick]"); page.wait_for_timeout(200)
+    check("an empty folder with another name → asks first", "no task files" in page.inner_text("#modal"), page.inner_text("#modal")[:120])
+    page.click("#modal [data-a=use]"); page.wait_for_timeout(300)
+    check("Use it anyway → opens it", page.evaluate("__todo.S.store.name") == "misc")
+    pick("tasks")
+    page.click("#modal [data-a=pick]"); page.wait_for_timeout(300)
+    check("a folder with task files opens without a question, whatever its name", page.evaluate("__todo.S.store.name") == "work-tasks" and page.locator("#modal-bg.on").count() == 0)
+    check("local folder: no page errors", not errors, errors[:3])
+    ctx.close()
+    # from disk: the guide shows the sibling path
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo"}))
+    page.goto((ROOT / "app" / "index.html").as_uri())
+    page.wait_for_selector(".row")
+    page.evaluate("() => __todo.pickLocalFolder()")
+    page.wait_for_selector("#lf-path")
+    want = str(ROOT.parent / "data")
+    check("from disk: the guide shows <root>\\data next to the build folder", page.input_value("#lf-path") == want, (page.input_value("#lf-path"), want))
+    check("from disk: Copy path button", page.locator("#modal [data-a=copy]").count() == 1)
+    page.screenshot(path=str(SHOTS / "29-pc-local-folder-guide.png"))
+    check("from disk: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1221,7 +1283,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder)]
         for name, fn in tests:
             if not only or name in only:
                 try:
