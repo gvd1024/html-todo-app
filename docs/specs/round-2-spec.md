@@ -21,6 +21,7 @@ Same as round 1:
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
+| R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -304,6 +305,59 @@ Same as round 1:
 
 ---
 
+## R2-5 — A folder per list (file-explorer model)
+
+**Reported** (Geoff, 2026-10-21):
+- "I think each list should have its own folder, what do you think?"
+- Then: "please capture context that i want to explore a model that resembles the file explorer where user move files from one folder to another instead of changing the list name in frontmatter. Maybe leveraging the underlying os file management system?"
+
+**Problem (restated):**
+- **Today:** all task files sit flat in one folder, and `list:` in the frontmatter decides the list. Moving a task to another list edits that line.
+- **What Geoff wants to explore:** lists that behave like **folders in a file explorer**. A list *is* a folder, and moving a task means moving its file, whether in the app, in Windows Explorer, or in the OneDrive app. The OS or cloud file system does the work, and the app follows.
+- **Related decisions:** S-11 A (`parent:` is the truth for subtasks, not folders). S-11 plans a future "checklist line → task in a folder" feature, and S-6 plans multiple locations.
+
+### Why it's attractive
+- What you see in Explorer and the OneDrive phone app matches the app, list by list.
+- **Per-list sharing:** OneDrive shares folders, so one list (e.g. Groceries) could be shared without the rest.
+- Claude can be pointed at one list's folder.
+- Renaming a list = renaming one folder, instead of rewriting `list:` in every file.
+- It's a step toward S-6, where a list folder could live in another location.
+
+### "Leveraging the OS file management" — what that can mean
+1. **Moves made outside the app (works in every mode):** you drag a file to another folder in Explorer or the OneDrive app, and the app picks it up on its next check.
+    - The key is **matching by `id`**: a file that vanishes from `Home\` and appears in `Rental\` with the same `id` counts as a **move**, not a delete plus a new task. Its subtasks follow their `parent:`.
+2. **Moves made in the app, using the file system's own move:**
+    - **OneDrive:** Microsoft Graph moves a file in one server-side operation (PATCH `parentReference`). That's the same move as in the OneDrive app, keeps the file's history, and is safe.
+    - **Local folder:** Chrome's file-system access has a `move()` method. It is documented for the browser's private sandbox; whether it works on real folders the user picked is **to be verified (rule 8)**.
+        - If it does, it's a true OS move.
+        - If not, the move is copy, check, then delete. The deleted copy goes to `.trash`, so an interruption leaves a duplicate (which the app detects by `id`), never a loss.
+3. **A web page can't drive Explorer itself.** It can't open Explorer at a folder or run OS commands. A desktop wrapper (a small local helper or packaged app) could, but that's a much bigger step and adds lock-in. It's only listed so it's on the map.
+
+### Options (from the first discussion)
+- **A — Stay flat** (today): no work and no move risk, but no folder browsing or sharing.
+- **B — The folder is the truth.**
+    - `list:` stays in each file as a readable copy, and the app fixes it when it disagrees with the folder.
+    - Moving a task in the app moves the file, and its subtasks go along.
+    - Files in the top folder show in **Inbox**. Folders below a list folder are task folders (the future S-11 feature).
+- **C — Folders only for organizing, `list:` stays the truth:** new tasks go into their list's folder, but files are accepted anywhere and never moved. Least risk, but Explorer slowly drifts out of step with the app.
+- **D — B, but only for the lists you choose** (e.g. one shared list); other lists stay flat. Most flexible, but two layouts to understand.
+
+**Leaning (Claude):** **B.** It's the only option where Explorer and OneDrive always show the truth, and it fits Geoff's file-explorer idea. **Decide before the Phase 6 migration**, while real data is small.
+
+### Things to explore before deciding
+- **Verify** `move()` on folders the user picked (Chrome and Edge on Windows), or settle on copy, check, delete.
+- **Detecting moves:** match by `id` across folders. What happens with two files that share an `id` (a copy made in Explorer)? The app should flag it, not guess.
+- **Sync cost:** OneDrive's change feed already covers subfolders. Local folders and the work-OneDrive listing fallback would scan every list folder on each check, on top of the slowdown already seen on the work PC, so checking less often or smarter may be needed.
+- **List order and empty lists:** order stays in `_todo.json`. A folder without an entry there shows up as a new list at the end.
+- **Folder names** follow the S-11 slug rules, with Windows-safe names. The display name is kept in `_todo.json`, so "Home & Garden" can live in `home-garden\`.
+- **A possible UI:** an explorer-like list picker (folders, with counts), and long-press move → "Move to list…" as a real file move.
+- **Data format 4:** older builds must refuse the folder layout, not misread it.
+- **Migration:** a one-time move of the existing files (OneDrive `HTML-ToDo-App`, work `data\`), done by hand with Geoff's approval (rule 10).
+
+**Status:** Discussing (Geoff wants to explore the file-explorer model). Not decided.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
@@ -320,6 +374,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-21 — v10: R2-5 (a folder per list, file-explorer model) captured for exploration.
 - 2026-10-21 — v9: R2-4 approved (B, folder `data`) and built.
 - 2026-10-21 — v8: R2-4 added (default local task folder next to the app); OneDrive default renamed to `HTML-ToDo-App`.
 - 2026-10-20 — v7: R2-3 approved and built.
