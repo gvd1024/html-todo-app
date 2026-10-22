@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "tests" / "screenshots"
 PORT = 8765
 APP = f"http://localhost:{PORT}/app/"
-FOLDER = "HTML-ToDo-App-Test"
+FOLDER = "HTML-ToDo-App"
 RESULTS = []
 
 TEST_AUTH = """
@@ -109,7 +109,7 @@ def test_store_suite(browser):
       out.push({ name: 'FsStore: a deleted file is kept in the hidden .trash folder', ok: trashed.some(n => n.endsWith(' gamma.md')), detail: trashed.join(',') });
       out.push({ name: 'FsStore: .trash is never listed as tasks', ok: !(await fs.list()).some(e => e.path.includes('.trash')), detail: '' });
       // GraphStore against the fake Graph
-      const gs = new T.GraphStore(window.__TEST_AUTH__, 'HTML-ToDo-App-Test');
+      const gs = new T.GraphStore(window.__TEST_AUTH__, 'HTML-ToDo-App');
       const post = (u, b) => fetch('https://graph.microsoft.com/v1.0/__test/' + u, { method: 'POST', body: JSON.stringify(b) });
       out.push(...await storeSuite('GraphStore', gs, { edit: (p, t) => post('edit', { name: p, text: t }), del: p => post('delete', { name: p }) }));
       return out;

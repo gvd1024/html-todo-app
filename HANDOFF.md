@@ -10,7 +10,7 @@
 ## Current state
 | Thing | State |
 |---|---|
-| App `app/index.html` | **v0.2.0-dev**, data format 3, live at `https://gvd1024.github.io/html-todo-app/app/`. **In daily use on Geoff's phone and home PC** against personal OneDrive `HTML-ToDo-App-Test`. **Installed on the phone** as a home-screen app (R1-13: own window, no address bar). Restore point for v0.1.1: git tag `v0.1.1`. |
+| App `app/index.html` | **v0.2.0-dev**, data format 3, live at `https://gvd1024.github.io/html-todo-app/app/`. **In daily use on Geoff's phone and home PC** against personal OneDrive `HTML-ToDo-App` (renamed from `HTML-ToDo-App-Test` on 2026-10-21). **Installed on the phone** as a home-screen app (R1-13: own window, no address bar). Restore point for v0.1.1: git tag `v0.1.1`. |
 | Built since the MVP build | **MVP Phases 1–5 complete (2026-10-19).** Since then: R1-4 text size; R1-12 #15 pull to refresh, #16 subtask indent, #17 phone editor toolbar (Checklist, Bullet, Outdent, Indent, Inline code, More), #18 PC toolbar (same order, as many as fit, rest under More); R1-3 Save (blue) + Save & close (green); R1-13 installable app; R1-14 network lock; R1-15 phone in Chrome Desktop-site mode; done/total badge. **Round 2 (2026-10-20):** R2-1 recurring tasks (data format 3) R2-2 Today view and R2-3 quick-add chips, all built and awaiting Geoff's check (`docs/specs/round-2-spec.md`). **Current build: 2026-10-20c** (shown in Settings). |
 | Verified by Geoff | Phase 2 (sync, sign-in), Phase 4 deletes, R1-13 install, R1-15, the work-PC local mode (2026-10-19), and long-press/mouse move, indentation, Save & close and the toolbars on phone and PC (2026-10-19). |
 | Automated tests | `python tests/run_tests.py` → **292 checks pass** (2026-10-20). Commit only after a clean run. Screenshots: `tests/screenshots/`. |
@@ -129,5 +129,5 @@ Only if Geoff wants to know whether the company blocks consent: open the hosted 
 - **Personal OneDrive** supports folder delta; **work OneDrive** only root delta, so `GraphStore` falls back to listing (any 400/403/501 from folder delta switches it). Not yet tested against real work OneDrive.
 - **Microsoft checks the redirect URI only after the account step**, so a missing URI shows up as AADSTS50011 after you sign in.
 - **File System Access API** works only in desktop Chrome and Edge.
-- **Claude's access to OneDrive tasks:** through the synced folder `C:\Users\gvd10\OneDrive\HTML-ToDo-App-Test` on the home PC (CLI test passed, S-12). Chat and Android surfaces need an MCP server (S-12 paths 2–3).
+- **Claude's access to OneDrive tasks:** through the synced folder `C:\Users\gvd10\OneDrive\HTML-ToDo-App` on the home PC (CLI test passed, S-12). Chat and Android surfaces need an MCP server (S-12 paths 2–3).
 - **Hosting:** GitHub Pages. The installed app's service worker caches nothing, so every launch loads the latest version from Pages.

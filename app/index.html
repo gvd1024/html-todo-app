@@ -310,14 +310,14 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-20c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-21a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
 const STATUSES = ['open','active','done','archived'];
 const PREFIXES = ['checkbox','bullet','none'];
 const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';   // Azure registration "HTML-ToDo-App PoC" (not a secret)
-const DEFAULT_FOLDER = 'HTML-ToDo-App-Test';
+const DEFAULT_FOLDER = 'HTML-ToDo-App';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const SCOPES = ['Files.ReadWrite', 'User.Read'];
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');

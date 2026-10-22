@@ -13,6 +13,7 @@
 
 - **OneDrive is the datastore.** Google Drive is out of the prototype path; its parts below are kept only as notes for later.
 - **Test data only:** the OneDrive folder `HTML-ToDo-App-Test` (copies). Never point builds or tests at real task files.
+    - **Update 2026-10-21:** after the MVP that folder became Geoff's real data and was renamed **`HTML-ToDo-App`** (also the app's new default). Tests use the demo store and the fake OneDrive; see CLAUDE.md rule 10. Mentions of `HTML-ToDo-App-Test` below are historical.
 - **Goal:** a usable prototype ASAP: the same task files from PC Chrome and Android Chrome.
 - **Discussion order:** most limiting first, item by item.
 

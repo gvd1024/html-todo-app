@@ -27,7 +27,9 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
 7. **Resolve the hardest or most architecturally dependent problems first** (Geoff's design approach). The storage and phone requirements (R1-9, R1-10) come before UI polish.
 8. **Verify before saying something doesn't exist.** Geoff has caught wrong "that's not possible" answers before.
 9. **Prefer open, swappable, low-lock-in choices** (Geoff's principle). Data stays in plain `.md` and `.json`.
-10. **Test data for builds and tests.** Builds and tests use the OneDrive folder `HTML-ToDo-App-Test` (copies). Preserving the `.md` files is the top priority.
+10. **Real data vs. test data.** Preserving the `.md` files is the top priority.
+    - **Real tasks:** personal OneDrive folder **`HTML-ToDo-App`** (`C:\Users\gvd10\OneDrive\HTML-ToDo-App` on the home PC). It was the test folder `HTML-ToDo-App-Test` until Geoff renamed it on 2026-10-21; it has been his daily data since the MVP. **Protected:** never touch it unless Geoff asks, and show changes first.
+    - **Tests** use the demo store and the fake OneDrive (`tests/fake_graph.py`), never a real folder. If a manual test needs real files, make a separate copy folder (e.g. `HTML-ToDo-App-Test`) first.
     - **Until the MVP runs**, the existing "real" tasks (Google Drive `AI Brain/HTML_ToDo_Files`) aren't important, and Claude may fix or migrate them by hand (Geoff, 2026-10-16).
     - **Once the MVP runs**, Geoff will use the app for real (rapid prototyping in his personal life). From then on, real task files are protected: never touch them unless Geoff asks, and show changes first.
     - `AI Brain/ToDo App/` belongs to a different, older app (Vue plus `server.js`). Don't modify it.
@@ -75,7 +77,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
   - **Files:** `parseTask` and `serializeTask` use js-yaml with CORE_SCHEMA, so dates stay strings.
   - **UI (R1-12):** the phone-first list view (one list at a time, sticky prefix and ⋯ columns, sideways scroll with ⇤ and snap-back, subtask badges, quick-add), list-picker sheet, **Today view** (R2-2: Upcoming / Today / Overdue across all lists, time running upward, one-tap Today/Tmrw buttons, ⋯ → Change due date…; internal view key stays `due`), full-screen Toast UI editor on phones with a prefix selector, demote and promote, check-off with Undo and the Check all/only dialog, long-press move (`placeTask`), pull to refresh. The board view is retired.
   - **Sync (S-4):** `poll()` every ~10 s on phones / ~5 s on PCs plus on `visibilitychange`; reloads a file only when its version differs from the loaded one; conflict dialog with *Use theirs / Overwrite / Keep both*.
-  - Settings (⋯ menu): text size; **Network lock** (R1-14: a CSP written at the top of `<head>` blocks all connections; OneDrive is off while on); storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App-Test`, client ID of the Azure registration `HTML-ToDo-App PoC`.
+  - Settings (⋯ menu): text size; **Network lock** (R1-14: a CSP written at the top of `<head>` blocks all connections; OneDrive is off while on); storage choice (OneDrive folder, local folder, demo). Defaults: OneDrive folder `HTML-ToDo-App`, client ID of the Azure registration `HTML-ToDo-App PoC`.
   - Installable app (R1-13): `app/manifest.webmanifest`, `app/icons/`, `app/sw.js` (no caching).
   - Security: see `SECURITY-REVIEW.md`. Tests include hostile task files (XSS) and the network lock.
   - **CSS class names must be unique to the app.** Toast UI adds plain class names such as `more`, `active`, `checked` and its toolbar item names. Twice a shared name leaked styles (`.ok` on the status dot, `.more` sizing the editor's ⋯ button). Use specific names (`row-more`, `btn-green`) and check new ones against `app/vendor/toastui-editor*.css`. Status-icon states (`ok`, `sync`, …) are also class names.
@@ -97,8 +99,8 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 - **Serve locally:** `python -m http.server 8000` from the repository root → `http://localhost:8000/app/` (needs that address as a redirect URI in Azure for sign-in).
 
 ## Where things live
-- **Personal tasks (live data):** Google Drive folder `HTML_ToDo_Files`. Lists: Inbox, Test List, Feedback. The Feedback list holds the round-1 feedback tasks.
-- **OneDrive proof-of-concept data:** personal OneDrive folder `HTML-ToDo-App-Test`. Use copies only.
+- **Personal tasks (live data):** personal OneDrive folder `HTML-ToDo-App` (see rule 10). Phone and home PC reach it through Microsoft Graph; Claude reads it through the synced folder.
+- **Older task set:** Google Drive folder `AI Brain/HTML_ToDo_Files` (Inbox, Test List, Feedback; the Feedback list holds the round-1 feedback tasks). Not migrated yet (Phase 6).
 - **GitHub:** repository `https://github.com/gvd1024/html-todo-app` (public; `main`). Git and GitHub operations go through the `gh` CLI, logged in as `gvd1024`. Commits use the repo-local noreply identity `35988830+gvd1024@users.noreply.github.com`.
 - **GitHub Pages:** `https://gvd1024.github.io/html-todo-app/` (served from `main`, root). The app is at `/app/` and the proof of concept at `/poc/`. Each page's Microsoft redirect URI must be registered in Azure exactly, including the trailing slash.
 - **Geoff's machines:** Windows PC (C: drive only) and an Android phone.
