@@ -21,6 +21,7 @@ Same as round 1:
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
+| R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Step 1 built** (diagnostics) | Read what Chrome reports, then fix the phone check from real values |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -358,10 +359,36 @@ Same as round 1:
 
 ---
 
+## R2-6 — Phone still opens in desktop mode (R1-15 not holding)
+
+**Reported** (Geoff, 2026-10-21, Feedback list → *Android Phone*): "Every time I start the app it defaults in "Desktop" mode / Still happening". In the review he added:
+- "When I leave the HTA app open on my phone over night, it will open up in desktop mode again"
+- "after i close the app from the android app tray (completely close it), when I open it again, it goes into phone mode … It stays that way for (i think) the whole day, but the next day it goes back to desktop mode"
+- To show it, he forced Desktop site on in a Chrome tab: the app showed the PC layout (version in the header, nothing scaled).
+
+**Problem (restated):**
+- R1-15's phone check (phone label, **or** touch-only plus a short screen side ≤ 600 px) runs once, at load.
+- In Chrome's current Desktop-site mode it decides **PC** even on a fresh load, so the page isn't scaled.
+- The likely cause is that Chrome now reports a wider screen or a precise pointer in that mode. **To be confirmed with real values.**
+- The installed app slips back into desktop mode by itself overnight. That's Chrome's behaviour, which a page can't control, and the app has to cope with it.
+
+**Plan (Geoff, 2026-10-21: "implement step 1 now"):**
+1. **Diagnostics (built, build 2026-10-21c):**
+    - ⋯ → Settings → **Diagnostics** shows what the browser reports: phone label and UA hints, pointer and hover media queries, touch points, screen, window and viewport sizes, pixel ratio, orientation, installed app or tab, load type and discarded flag.
+    - It also shows what the app decided, plus a log of the last 20 loads and returns to the screen. It has a Copy button.
+    - **Tests:** a `diag` group (12 checks).
+2. **Geoff:** paste the Diagnostics from a Chrome tab with Desktop site on, and one from phone mode.
+3. **The fix:** a phone check based on those values, re-run whenever the app comes back to the screen, plus a test that copies the phone's exact values.
+
+**Status:** Step 1 built (awaiting Geoff's diagnostics paste).
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-21 | R2-6 | **Step 1 approved and built** (build 2026-10-21c): diagnostics in Settings | Fix follows Geoff's diagnostics paste |
 | 2026-10-21 | R2-4 | **Approved (B) and built** (build 2026-10-21b): next to the build folder, default name `data`; OneDrive default stays `HTML-ToDo-App` | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Approved and built** (build 2026-10-20c): details 1–4 as recommended | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Decided:** option B plus a tappable list chip and date chip (default Today; other dates or no date) on the quick-add line | Details 1–4 to confirm; not yet approved for build |
@@ -374,6 +401,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-21 — v11: R2-6 added (from the Feedback review); step 1 built.
 - 2026-10-21 — v10: R2-5 (a folder per list, file-explorer model) captured for exploration.
 - 2026-10-21 — v9: R2-4 approved (B, folder `data`) and built.
 - 2026-10-21 — v8: R2-4 added (default local task folder next to the app); OneDrive default renamed to `HTML-ToDo-App`.

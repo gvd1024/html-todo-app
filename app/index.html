@@ -310,7 +310,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-21b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-21c';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -335,6 +335,31 @@ const DESKTOP_SITE_ON_PHONE = IS_PHONE && !MOBILE_UA && innerWidth > screen.widt
 const PAGE_ZOOM = DESKTOP_SITE_ON_PHONE ? innerWidth / screen.width : 1;
 if (PAGE_ZOOM !== 1) document.documentElement.style.zoom = String(PAGE_ZOOM);
 document.documentElement.classList.toggle('phone', IS_PHONE);
+/* R2-6 diagnostics: what the browser reports and what the app decided (⋯ → Settings → Diagnostics). A short line
+   is logged on every load and every return to the screen, so an overnight switch to desktop mode leaves a trace. */
+function deviceReport(){
+  const mq = q => matchMedia(q).matches, nav = performance.getEntriesByType?.('navigation')?.[0];
+  return {
+    time: new Date().toISOString(), build: BUILD,
+    decided: { phone: IS_PHONE, mobileLabel: MOBILE_UA, touchOnly: TOUCH_ONLY, phoneScreen: PHONE_SCREEN, desktopSiteOnPhone: DESKTOP_SITE_ON_PHONE, zoom: +PAGE_ZOOM.toFixed(3) },
+    now: { mobileLabel: /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent), uaMobile: navigator.userAgentData?.mobile ?? null, uaPlatform: navigator.userAgentData?.platform ?? null,
+      pointerCoarse: mq('(pointer: coarse)'), pointerFine: mq('(pointer: fine)'), anyPointerFine: mq('(any-pointer: fine)'), anyPointerCoarse: mq('(any-pointer: coarse)'),
+      hover: mq('(hover: hover)'), anyHover: mq('(any-hover: hover)'), maxTouchPoints: navigator.maxTouchPoints },
+    sizes: { screen: screen.width + '×' + screen.height, avail: screen.availWidth + '×' + screen.availHeight, inner: innerWidth + '×' + innerHeight,
+      outer: outerWidth + '×' + outerHeight, visualViewport: window.visualViewport ? Math.round(visualViewport.width) + '×' + Math.round(visualViewport.height) : null,
+      dpr: devicePixelRatio, orientation: screen.orientation?.type ?? null },
+    page: { installedApp: mq('(display-mode: standalone)'), visible: document.visibilityState, load: nav?.type ?? null, wasDiscarded: !!document.wasDiscarded },
+    userAgent: navigator.userAgent,
+  };
+}
+function logDevice(why){
+  try { const r = deviceReport(); const line = `${r.time.slice(5, 16).replace('T', ' ')} ${why}: ${r.decided.phone ? 'PHONE' : 'PC'} zoom ${r.decided.zoom}` +
+      ` · label ${r.now.mobileLabel ? 'mobile' : 'desktop'} · coarse ${r.now.pointerCoarse} fine ${r.now.anyPointerFine} · screen ${r.sizes.screen} inner ${r.sizes.inner} · ${r.page.installedApp ? 'app' : 'tab'} ${r.page.load}${r.page.wasDiscarded ? ' (discarded)' : ''}`;
+    const log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); log.push(line);
+    localStorage.setItem('todo.deviceLog', JSON.stringify(log.slice(-20))); } catch {}
+}
+logDevice('load');
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') logDevice('back'); });
 const DEVICE = IS_PHONE ? 'Phone' : 'PC';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1879,6 +1904,15 @@ function searchDialog(){
   setTimeout(() => $('#m-q')?.focus(), 0);
   $('#m-q').addEventListener('keydown', e => { if (e.key === 'Enter'){ S.q = $('#m-q').value.trim(); closeModal(); render(); } });
 }
+function diagnosticsDialog(){
+  let log = []; try { log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); } catch {}
+  const text = JSON.stringify(deviceReport(), null, 1) + '\n\nRecent loads / returns (newest last):\n' + log.join('\n');
+  modal(`<h3>Diagnostics</h3><p style="font-size:12px;color:var(--muted)">What this browser reports about the device, and what the app decided. Tap Copy and paste it to Claude.</p>
+    <textarea id="diag-text" readonly style="width:100%;height:50vh;font:12px/1.35 monospace;white-space:pre">${esc(text)}</textarea>
+    <div class="btns"><button data-a="cancel">Close</button><button class="primary" data-a="copy">Copy</button></div>`,
+    async a => { if (a !== 'copy') return closeModal(); const ta = $('#diag-text'); ta.select();
+      try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { document.execCommand?.('copy'); toast('Selected — copy it from the box'); } }, { sheet:true });
+}
 function settingsDialog(){
   const src = ls.get('todo.source', 'onedrive');
   modal(`<h3>Settings</h3>
@@ -1896,8 +1930,9 @@ function settingsDialog(){
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="demo" ${src==='demo'?'checked':''}> Demo data (nothing is saved)</label>
     </fieldset>
     <p style="font-size:12px;color:var(--muted)">HTML-ToDo-App v${APP_VERSION} · build ${BUILD} · data format ${DATA_FORMAT} · ${S.auth?.user() ? 'signed in as ' + esc(S.auth.user()) : 'not signed in'}</p>
-    <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Apply</button></div>`,
+    <div class="btns"><button data-a="diag">Diagnostics…</button><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Apply</button></div>`,
     async a => {
+      if (a === 'diag'){ applyTextSize(textSize()); closeModal(); return diagnosticsDialog(); }
       if (a !== 'ok'){ applyTextSize(textSize()); return closeModal(); }          // cancel: undo the size preview
       const size = +document.querySelector('input[name=tsz]:checked').value;
       ls.set('todo.textSize', size); applyTextSize(size);
@@ -2096,7 +2131,7 @@ function sampleFiles(){
 }
 
 /* ---------------- boot ---------------- */
-window.__todo = { suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
+window.__todo = { deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */

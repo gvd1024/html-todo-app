@@ -1274,6 +1274,29 @@ def test_local_folder(browser):
     ctx.close()
 
 
+def test_diagnostics(browser):
+    print("\n[17] Device diagnostics (R2-6)")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+    page.click("#app-menu")
+    page.locator("#pop button", has_text="Settings").click()
+    page.click("#modal [data-a=diag]")
+    page.wait_for_selector("#diag-text")
+    txt = page.input_value("#diag-text")
+    for k in ['"decided"', '"pointerCoarse"', '"anyPointerFine"', '"screen"', '"inner"', '"installedApp"', '"userAgent"', "Recent loads"]:
+        check(f"diagnostics include {k}", k in txt, txt[:200])
+    check("diagnostics show this build and the phone decision", '"build": "%s"' % page.evaluate("__todo.BUILD") in txt and '"phone": true' in txt)
+    check("the load is logged", " load: PHONE" in txt, txt[-300:])
+    page.screenshot(path=str(SHOTS / "31-phone-diagnostics.png"))
+    page.click("#modal [data-a=cancel]")
+    page.reload(); page.wait_for_selector(".row")
+    log = page.evaluate("JSON.parse(localStorage.getItem('todo.deviceLog'))")
+    check("the log keeps earlier loads (2 after a reload)", len(log) == 2, log)
+    check("diagnostics: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1283,7 +1306,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics)]
         for name, fn in tests:
             if not only or name in only:
                 try:
