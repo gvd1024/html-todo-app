@@ -20,6 +20,7 @@ Same as round 1:
 |---|---|---|---|
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
+| R2-4 | Default task folder next to the app | Open | **A:** the app shows the sibling folder's path to paste into the folder picker |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -263,6 +264,37 @@ Same as round 1:
 
 ---
 
+## R2-4 — Default task folder next to the app
+
+**Reported** (Geoff, 2026-10-21, while renaming the OneDrive folder to `HTML-ToDo-App`): "For the App: B, but I want the default folder to be a sibling of the App folder that the HTML app index page is in".
+
+**Problem (restated):**
+- **Done (2026-10-21, build 2026-10-21a):** the OneDrive default is now `HTML-ToDo-App`.
+- **Still open:** when the app runs **from disk** (the work zips), the task folder should by default sit next to the app. The assumed layout (to confirm) is a sibling of the **build folder**, because a sibling of `app\` would be inside each build and left behind by the next one:
+  ```
+  <root>    html-todo-app-2026-10-21app\index.html
+    HTML-ToDo-App\              ← default task folder
+  ```
+- **Browser limit (verified):** the File System Access API lets a page open a folder only after you pick it in the browser's dialog. A page can't open a folder by path, can't check that one exists, and can't make the dialog start in a given path. (`startIn` only takes Desktop, Documents and similar, or a folder you already picked.)
+- **OneDrive mode (phone, PC browser):** the app comes from GitHub Pages, so it has no folder of its own. The default stays `HTML-ToDo-App` at the top of OneDrive.
+
+### Options
+- **A — Show the path to paste:** when a local folder is needed, the app works out `<root>\HTML-ToDo-App` from its own address and shows it with a **Copy** button. Paste it into the dialog's address bar, then pick it (or create it with *New folder* the first time). New builds already remember the folder, so this happens once per PC or browser.
+    - **Pros:** small; works within the browser's rules.
+    - **Cons:** still one paste and one click.
+- **B — A, plus a check:** after you pick, if the folder isn't named `HTML-ToDo-App` or doesn't look like a task folder (no `_todo.json`, no `.md` files), the app asks "Use this folder anyway?"
+    - **Pros:** catches picking the build folder or `app\` by mistake.
+    - **Cons:** a bit more code; an extra prompt for a new empty folder.
+- **C — Leave it as is:** pick the folder once; new builds remember it.
+    - **Pros:** no work.
+    - **Cons:** no guidance the first time.
+
+**Recommendation:** **B**. The sideways check guards the top priority (the `.md` files) cheaply.
+
+**Status:** Open.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
@@ -278,6 +310,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-21 — v8: R2-4 added (default local task folder next to the app); OneDrive default renamed to `HTML-ToDo-App`.
 - 2026-10-20 — v7: R2-3 approved and built.
 - 2026-10-20 — v6: R2-3 decided (B + list/date chips), details pitched.
 - 2026-10-20 — v5: R2-3 (quick-add in the Today view) added as Open.
