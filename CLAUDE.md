@@ -36,6 +36,15 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
 11. **OneDrive is the committed datastore** (personal now, work later; decided 2026-10-16). The architecture lives in `docs/specs/storage-spec.md`.
 12. **Public repo hygiene:** never write the employer's name or work folder paths in committed files. Say "work OneDrive" / "work PC".
 
+## Feedback review (Geoff's standing pattern, 2026-10-21) — do this at the start of every session
+Geoff writes app feedback as tasks in the **Feedback** list of his real task folder (OneDrive `HTML-ToDo-App`).
+1. Run `python tools/feedback_check.py`. It lists the **new or changed items** (an item = one top-level body line with its indented sub-lines, or a new Feedback task), each with a key. It only reads the task files; what's been discussed is recorded in `private/feedback-ledger.json` (local, git-ignored).
+2. Tell Geoff how many there are, then take them **one at a time**. Quote the item and give context (related spec items, whether it's already built) plus options and a recommendation.
+3. **Before moving on, ask for a disposition:** implement now, add to the current round spec, add to a backlog, move to another list, check off, delete, or leave as is. "Implement now" counts as approval for that item (rules 1–2); still run the tests before committing.
+4. Carry out the disposition. Edits to Feedback files follow rule 10: show the change first, re-read right before writing (S-12), keep key order and unknown keys.
+5. Record it with `python tools/feedback_check.py ack <key>`, using the **current** key (re-run the check after editing a line, since the key follows the text). An item that stays in the file is then never raised again unless Geoff edits it.
+6. Anything that becomes app work also goes into the current round spec as an R-item (rule 3), quoting the feedback line.
+
 ## Task file contract (don't break it) — data format 3
 ```markdown
 ---
