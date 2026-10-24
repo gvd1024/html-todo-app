@@ -465,6 +465,32 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 
 **Status:** A built 2026-10-23, awaiting Geoff's check on phone and PC. B, C, D and the cheaper local-folder check are not approved.
 
+## Agent rounds (designer/tester, 2026-10-23)
+An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
+
+**Round 1 — fixed (build 2026-10-23b, test group `agentr1`):**
+| # | Finding | Fix |
+|---|---|---|
+| T1-1 (critical) | Editing during the device-copy start-up window could silently drop another device's edit | A full load now treats the open editor like the change check does: an untouched editor is refilled; an edited one keeps the version it started from, shows the banner, and Save gets the conflict dialog |
+| T1-2 | Saving from the editor re-formatted the whole body (`- [ ]` → `* [ ]`, escapes, indents) even when only a field changed | An untouched body is written back byte for byte |
+| T1-3 | Local-folder device copy keyed by the folder's name, so another folder named `data` showed the first folder's tasks | Each picked folder gets its own id (matched with `isSameEntry`); the old name-only copies are dropped |
+| T1-4 | A recurring task with an unreadable `due` wrote `due: NaN-NaN-NaN` | `due` must be a real `YYYY-MM-DD` date, else ⚠ and kept; such a task checks off normally (no roll-forward); saving other fields keeps it |
+| T1-5 | CRLF files: checklist lines not recognized (no Check all dialog, no promote list) | Files are read as LF and written back in their own line endings |
+| T1-7 | The Today view didn't roll over at midnight | Redraws when the date changes (checked every minute and on return to the app) |
+| T1-8 | Sign out left every task file in the browser's device copy | Sign out deletes that account's copy |
+| T1-10 | Today/Tmrw buttons and the Upcoming/Overdue headers were under 44 px (R1-12 #8) | Headers are 44 px; the compact buttons keep their look with a 44 px tap area |
+| T1-11 | Titles not reachable by keyboard; dialogs not announced | Titles are focusable (Enter/Space opens); dialogs have `role=dialog`/`aria-modal`, take focus (never while typing) and return it on close |
+
+**Round 1 — for Geoff to decide:**
+- **T1-6** `monthly` from the 29th–31st (and `yearly` from Feb 29) drifts to the 28th for good, because each roll-forward re-anchors on the new due date. *Rec.:* when such a task rolls forward, write the intent into the file (`monthly` → `monthly on day 31`); for `yearly` on Feb 29, return to Feb 29 in leap years.
+- **T1-9** Saving drops YAML comments and moves unknown keys below the known ones (values are kept). *Rec.:* update only the changed lines of the frontmatter in place, so comments and key order survive; until then, note in CLAUDE.md that the app normalizes them.
+- **T1-12** Today view rows show no date. *Rec.:* a small muted date on Upcoming and Overdue rows (matches the Feedback item *List view*).
+- **T1-13** List-picker counts include hidden subtasks (Home 9 vs 7 rows). *Rec.:* count top-level open tasks.
+- **T1-14** `_todo.json` format isn't checked, and saving relabels a newer format as 3. *Rec.:* if `format` > the app's, open read-only with a banner and never write `_todo.json`; do it before R2-5.
+- **T1-15** The PC view is the phone layout stretched wide. *Rec.:* cap the content width (~760 px) first; extra PC info later.
+- **Also from T1-2:** when the body *is* edited in the Formatted editor, it still re-formats Markdown (`*` bullets, escapes). *Rec.:* either default new devices to Raw mode or restore the original list marker after editing.
+- **Also from T1-8:** copies for folders or accounts no longer used are never cleaned up. *Rec.:* drop copies unused for 30 days.
+
 ---
 
 ## Decision log
@@ -485,6 +511,7 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-23 — v14: Agent rounds section; round 1 (T1-1 … T1-15) fixed or listed for Geoff (build 2026-10-23b).
 - 2026-10-23 — v13: R2-7 A built; stress results added.
 - 2026-10-23 — v12: R2-7 (scale) added, with options A–H and an A/B/C comparison.
 - 2026-10-21 — v11: R2-6 added (from the Feedback review); step 1 built.

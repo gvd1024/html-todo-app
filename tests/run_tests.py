@@ -10,6 +10,7 @@ What it covers (all against test data in memory — never real files):
      list-order merge, and "no unconditional writes"
 Real Microsoft sign-in and real phones are Geoff's to test.
 """
+import datetime
 import json
 import pathlib
 import sys
@@ -1381,6 +1382,162 @@ def test_device_copy(browser):
     ctx.close()
 
 
+def test_agent_round1(browser):
+    print("\n[19] Agent round 1 fixes (T1-1 … T1-11)")
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    tid = lambda page, f: page.evaluate("f => __todo.all().find(t => t.file === f).id", f)
+
+    def hold_delta(page):                       # hold the device copy's change-feed check (the start-up window)
+        held = []
+        def h(route, req):
+            if ":/delta" in req.url and "token=" in req.url: held.append((route, req))
+            else: route.fallback()
+        page.route("https://graph.microsoft.com/**", h)
+        return held, h
+
+    def release(fg, page, held, h):
+        page.unroute("https://graph.microsoft.com/**", h)
+        for r, req in held: fg._handle(r, req)
+        page.wait_for_function(ready, timeout=5000); page.wait_for_timeout(300)
+
+    # --- T1-1: editing during the device-copy start-up window never silently drops another device's edit
+    for case in ("typed in the window", "opened in the window"):
+        fg = FakeGraph(FOLDER, dict(TEST_FILES))
+        ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Test List"}))
+        fg.install(page)
+        page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+        fg.ext_edit("sub-2.md", fg.files()["sub-2.md"].replace("yyy", "yyy\n\nADDED-ELSEWHERE"))
+        held, h = hold_delta(page)
+        page.reload(); page.wait_for_selector(".row"); page.wait_for_timeout(300)
+        in_window = page.evaluate("__todo.S.store.ready === false") and len(held) >= 1
+        page.evaluate("id => __todo.openDrawer(id)", tid(page, "sub-2.md")); page.wait_for_selector("#drawer.open")
+        if case == "typed in the window":
+            page.evaluate("() => __todo.S.editor.setMarkdown('yyy\\n\\nTYPED-HERE')")
+            release(fg, page, held, h)
+            check(f"T1-1 ({case}): cached rows shown while the check is pending", in_window)
+            check(f"T1-1 ({case}): the 'changed elsewhere' banner shows", page.locator("#d-banner.on").count() == 1)
+            page.click("#d-save"); page.wait_for_timeout(500)
+            check(f"T1-1 ({case}): Save → conflict dialog, the other edit is still on disk",
+                  "Changed elsewhere" in page.inner_text("#modal") and "ADDED-ELSEWHERE" in fg.files()["sub-2.md"], fg.files()["sub-2.md"])
+            page.click("#modal [data-a=both]"); page.wait_for_timeout(600)
+            names = [n for n in fg.files() if n.startswith("sub-2 (conflict")]
+            check(f"T1-1 ({case}): Keep both → both versions are kept", names and "TYPED-HERE" in fg.files()[names[0]] and "ADDED-ELSEWHERE" in fg.files()["sub-2.md"], list(fg.files()))
+        else:
+            release(fg, page, held, h)
+            check(f"T1-1 ({case}): the untouched editor is refilled with the fresh text", "ADDED-ELSEWHERE" in page.evaluate("__todo.S.editor.getMarkdown()"))
+            page.evaluate("() => __todo.S.editor.setMarkdown(__todo.S.editor.getMarkdown() + '\\n\\nTYPED-AFTER')")
+            page.click("#d-save"); page.wait_for_timeout(500)
+            f = fg.files()["sub-2.md"]
+            check(f"T1-1 ({case}): the save keeps both edits", "ADDED-ELSEWHERE" in f and "TYPED-AFTER" in f, f)
+        check(f"T1-1 ({case}): never wrote without If-Match", not fg.violations, fg.violations[:3])
+        check(f"T1-1 ({case}): no page errors", not errors, errors[:3])
+        ctx.close()
+
+    # --- T1-2, T1-4, T1-5 on a fake OneDrive with tricky files
+    fm = lambda i, title, extra="": f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: Inbox\norder: 1\n{extra}---\n"
+    files = {
+        "dash.md": fm("t-a", "Dash") + "\n- [ ] Rain jacket\n- [x] Charger\nsee file_name and C:\\dev\\path\n  indented line \n\n| a | b |\n|---|---|\n| 1 | 2 |\n",
+        "no-blank.md": fm("t-b", "No blank") + "Text added\nxxx",
+        "crlf.md": (fm("t-c", "Crlf trip") + "\n- [x] Charger\n- [ ] Passport\n").replace("\n", "\r\n"),
+        "bad-due.md": fm("t-d", "Bad due", "due: 10/20/2026\nrepeat: daily\n"),
+        "bad-due-2.md": fm("t-e", "Bad due two", "due: tomorrow\n") + "\nnotes\n",
+        "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n',
+    }
+    fg = FakeGraph(FOLDER, dict(files))
+    ctx, page, errors = new_page(browser, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    for name in ("dash.md", "no-blank.md"):
+        page.evaluate("id => __todo.openDrawer(id)", tid(page, name)); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(150)
+        page.fill("#f-title", page.input_value("#f-title") + " X"); page.click("#d-saveclose"); page.wait_for_timeout(400)
+        orig, new = files[name], fg.files()[name]
+        body = lambda s: s.split("\n---\n", 1)[1]
+        check(f"T1-2: changing only the title of {name} leaves the body byte for byte (Formatted editor)", body(new) == body(orig) and "X\n" in new, repr(new))
+    page.evaluate("id => __todo.openDrawer(id)", tid(page, "dash.md")); page.wait_for_selector("#drawer.open")
+    page.evaluate("() => __todo.S.editor.setMarkdown(__todo.S.editor.getMarkdown() + '\\n\\nNEW LINE')")
+    page.click("#d-saveclose"); page.wait_for_timeout(400)
+    check("T1-2: an edited body is still saved", "NEW LINE" in fg.files()["dash.md"])
+    # T1-5: CRLF
+    check("T1-5: a CRLF file's checklist counts", page.evaluate("__todo.checklistBlocks(__todo.get('t-c').body).length") == 2)
+    page.locator(".row[data-id=t-c] [data-act=toggle]").click(); page.wait_for_timeout(300)
+    check("T1-5: checking off a CRLF task with an open line asks Check all / only this", "Check all" in page.inner_text("#modal"))
+    page.click("#modal [data-a=one]"); page.wait_for_timeout(400)
+    f = fg.files()["crlf.md"]
+    check("T1-5: …and the file keeps CRLF line endings", "status: done" in f and f.count("\r\n") == f.count("\n"), repr(f))
+    # T1-4: unreadable due
+    check("T1-4: an unreadable due is flagged ⚠", page.locator(".row[data-id=t-d] .wflag").count() == 1 and "due: 10/20/2026" in page.evaluate("__todo.get('t-d').unknown.join()"))
+    page.locator(".row[data-id=t-d] [data-act=toggle]").click(); page.wait_for_timeout(400)
+    f = fg.files()["bad-due.md"]
+    check("T1-4: a recurring task with an unreadable due checks off normally (no NaN, due kept)", "NaN" not in f and "due: 10/20/2026" in f and "status: done" in f and "repeat: daily" in f, f)
+    page.evaluate("id => __todo.openDrawer(id)", "t-e"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(100)
+    page.fill("#f-title", "Bad due two X"); page.click("#d-saveclose"); page.wait_for_timeout(400)
+    f = fg.files()["bad-due-2.md"]
+    check("T1-4: saving another field keeps the unreadable due untouched", "due: tomorrow" in f and "title: Bad due two X" in f, f)
+    check("T1-4: nextDue never returns an invalid date", page.evaluate("__todo.nextDue(__todo.parseRepeat('daily'), '10/20/2026', '2026-10-23')") == "2026-10-24")
+    check("T1-2/4/5: never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("T1-2/4/5: no page errors", not errors, errors[:3])
+
+    # --- T1-8: Sign out removes this account's device copy
+    count = """async () => { const db = await new Promise(r => { const q = indexedDB.open('hta-device-copy'); q.onsuccess = () => r(q.result); });
+        return await new Promise(r => { const q = db.transaction('files').objectStore('files').count(); q.onsuccess = () => r(q.result); }); }"""
+    n0 = page.evaluate(count)
+    page.click("#app-menu"); page.locator("#pop button", has_text="Sign out").click(); page.wait_for_timeout(400)
+    n1 = page.evaluate(count)
+    check("T1-8: Sign out removes this account's files from the device copy", n0 >= len(files) and n1 == 0, (n0, n1))
+    ctx.close()
+
+    # --- T1-3: two local folders with the same name each get their own device copy
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "local", "todo.pollMs": 86400000}) + "window.__TEST_NO_BOOT__ = true;")
+    page.goto(APP)
+    page.evaluate("""async () => {
+        const root = await navigator.storage.getDirectory();
+        const mk = async (path, name, title) => { let d = root; for (const p of path.split('/')) d = await d.getDirectoryHandle(p, { create:true });
+          const w = await (await d.getFileHandle(name, { create:true })).createWritable();
+          await w.write(`---\\nid: ${name}\\ntitle: ${title}\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n`); await w.close(); return d; };
+        for (const r of ['r1a', 'r1b']) try { await root.removeEntry(r, { recursive:true }); } catch {}
+        window.__A = await mk('r1a/data', 'a.md', 'Folder A task'); window.__B = await mk('r1b/data', 'b.md', 'Folder B task'); }""")
+    open_dir = """async (k) => { window.__seen = []; const mo = new MutationObserver(() => { const ts = [...document.querySelectorAll('#rows .ttl')].map(e => e.textContent); if (ts.length) window.__seen.push(ts.join('|')); });
+        mo.observe(document.querySelector('#rows'), { childList:true, subtree:true });
+        await __todo.useStore(new __todo.FsStore(window[k])); mo.disconnect(); return { seen: window.__seen, scope: __todo.S.store.scope }; }"""
+    a1 = page.evaluate(open_dir, "__A"); b1 = page.evaluate(open_dir, "__B"); a2 = page.evaluate(open_dir, "__A")
+    check("T1-3: opening another folder named 'data' never shows the first folder's tasks", not any("Folder A" in s for s in b1["seen"]), b1)
+    check("T1-3: each folder has its own copy, found again on reopen", a1["scope"] != b1["scope"] and a1["scope"] == a2["scope"] and a2["seen"][0] == "Folder A task", (a1, b1, a2))
+    check("T1-3: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # --- T1-7, T1-10, T1-11 on demo data (phone)
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.view2": "due", "todo.pollMs": 5000}))
+    page.clock.install(time=datetime.datetime(2026, 10, 23, 23, 59, 30))
+    page.goto(APP); page.wait_for_selector("#tday-today")
+    over0 = page.inner_text("[data-tday=over]")
+    page.clock.run_for(5 * 60 * 1000); page.wait_for_timeout(200)
+    over1 = page.inner_text("[data-tday=over]")
+    check("T1-7: after midnight the Today view rolls over without a refresh", over0.endswith("1") and over1.endswith("2"), (over0, over1))
+    heads = page.evaluate("[...document.querySelectorAll('.tday-head')].map(e => e.getBoundingClientRect().height)")
+    z = page.evaluate("parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z'))")
+    check("T1-10: Today view section headers are ≥ 44 px tall", heads and min(heads) >= 44 * z - 0.5, (heads, z))
+    hit = page.evaluate("""z => { const b = document.querySelector('.row .qbtn'); const r = b.getBoundingClientRect(); const x = r.left + r.width / 2, e = 6 * z - 0.5;
+        return [r.height, document.elementFromPoint(x, r.top - e) === b, document.elementFromPoint(x, r.bottom + e - 1) === b]; }""", z)
+    check("T1-10: Today/Tmrw buttons keep their size but have a ≥ 44 px tap area", hit[1] and hit[2] and hit[0] + 12 * z >= 44 * z - 0.5, (hit, z))
+    page.evaluate("() => { __todo.S.view = 'list'; __todo.S.list = 'Home'; __todo.render(); }")
+    ttl = page.locator(".row .ttl").first
+    check("T1-11: task titles are focusable buttons", ttl.get_attribute("tabindex") == "0" and ttl.get_attribute("role") == "button")
+    sl0 = page.evaluate("document.querySelector('#scroller').scrollLeft")
+    ttl.focus(); page.keyboard.press("Enter"); page.wait_for_selector("#drawer.open")
+    check("T1-11: Enter on a focused title opens the task", page.locator("#drawer.open").count() == 1 and page.evaluate("document.querySelector('#scroller').scrollLeft") == sl0)
+    page.click("#d-close"); page.wait_for_timeout(200)
+    page.focus("#app-menu"); page.click("#app-menu"); page.locator("#pop button", has_text="Search").click(); page.wait_for_timeout(100)
+    page.keyboard.press("Escape"); page.wait_for_timeout(100)
+    page.focus("#list-name"); page.evaluate("() => document.querySelector('#list-name').click()"); page.wait_for_timeout(200)
+    role = page.evaluate("[document.querySelector('#modal').getAttribute('role'), document.querySelector('#modal').getAttribute('aria-modal'), document.querySelector('#modal').contains(document.activeElement)]")
+    check("T1-11: dialogs are role=dialog, aria-modal, and take focus", role == ["dialog", "true", True], role)
+    page.keyboard.press("Escape"); page.wait_for_timeout(100)
+    check("T1-11: closing a dialog returns focus to what opened it", page.evaluate("document.activeElement && document.activeElement.id") == "list-name")
+    check("T1-7/10/11: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1390,7 +1547,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1)]
         for name, fn in tests:
             if not only or name in only:
                 try:

@@ -113,15 +113,19 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .bullet{font-size:calc(22px*var(--z));color:var(--muted)}
 .rep-ico{color:var(--accent);font-size:calc(14px*var(--z));margin-left:6px}
 .wflag{color:var(--warn);font-size:calc(13px*var(--z));margin-left:6px}
-.badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));min-width:calc(44px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums}
+.badge{border:1px solid var(--badge);color:var(--badge);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));min-width:calc(44px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;font-variant-numeric:tabular-nums;position:relative}
 .badge.open{background:rgba(227,156,255,.12)}
 .row-more{border:0;background:none;width:calc(40px*var(--z));min-height:calc(44px*var(--z));font-size:calc(20px*var(--z));color:var(--muted);padding:0}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center;width:100vw;max-width:100vw;white-space:normal;position:sticky;left:0}
-.qbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;font-size:calc(12px*var(--z));height:calc(32px*var(--z));padding:0 calc(7px*var(--z));margin:0 2px;white-space:nowrap}
-.tday-head{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-transform:inherit;letter-spacing:inherit;padding:0;min-height:calc(28px*var(--z))}
+.qbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;font-size:calc(12px*var(--z));height:calc(32px*var(--z));padding:0 calc(7px*var(--z));margin:0 2px;white-space:nowrap;position:relative}
+/* T1-10 (R1-12 #8): compact buttons keep their look but get a 44 px tall tap area */
+.qbtn::after,.badge::after{content:"";position:absolute;left:0;right:0;top:calc(-6px*var(--z));bottom:calc(-6px*var(--z))}
+.badge::after{top:calc(-7px*var(--z));bottom:calc(-7px*var(--z))}
+.tday-head{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-transform:inherit;letter-spacing:inherit;padding:0;min-height:calc(44px*var(--z))}
 .tday-head.tday-fixed{cursor:default;color:var(--text)}
 .tday-later{display:block;border:0;border-bottom:1px solid var(--line);background:none;color:var(--accent);position:sticky;left:0;width:100vw;text-align:left;padding:0 14px;min-height:calc(44px*var(--z));font-size:calc(14px*var(--z))}
 .group-head{position:sticky;left:0;font-size:calc(12px*var(--z));color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:14px 12px 4px;width:100vw}
+.group-head.tday-group{padding-top:calc(14px - 8px*var(--z));padding-bottom:0}   /* the 44 px header button takes up the old padding */
 #snap{position:absolute;left:10px;bottom:10px;z-index:5;width:calc(44px*var(--z));height:calc(44px*var(--z));border-radius:22px;background:var(--accent-strong);color:#fff;border:0;font-size:calc(20px*var(--z));box-shadow:0 2px 10px rgba(0,0,0,.5)}
 #snap[hidden]{display:none}
 
@@ -182,6 +186,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 #modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:40}
 #modal-bg.on{display:flex}
 #modal-bg.sheet{align-items:flex-end}
+#modal:focus{outline:none}
 #modal{background:var(--panel);border-radius:12px;width:min(560px,94vw);max-height:88vh;overflow:auto;padding:16px 18px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
 #modal-bg.sheet #modal{width:100%;max-width:640px;border-radius:14px 14px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
 #modal h3{margin:0 0 10px}
@@ -290,7 +295,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
   </div>
 </aside>
 
-<div id="modal-bg"><div id="modal"></div></div>
+<div id="modal-bg"><div id="modal" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 <div id="pop"></div>
 <div id="toast"></div>
 <div id="drag-hint"></div>
@@ -310,7 +315,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-23a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-23b';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -597,6 +602,11 @@ const devCache = {
     for (const path of dels) f.delete([scope, path]);
     if (state) tx.objectStore('state').put({ scope, ...state });
     tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); },
+  async dropScopes(pred){ const db = await this.open(); return new Promise((res, rej) => {      // remove every copy whose scope matches
+    const tx = db.transaction(['files', 'state'], 'readwrite');
+    for (const name of ['files', 'state']) tx.objectStore(name).openCursor().onsuccess = e => { const c = e.target.result; if (!c) return;
+      if (pred(c.value.scope)) c.delete(); c.continue(); };
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); },
   async clear(){ const db = await this.open(); return new Promise((res, rej) => {
     const tx = db.transaction(['files', 'state'], 'readwrite'); tx.objectStore('files').clear(); tx.objectStore('state').clear();
     tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); },
@@ -686,8 +696,20 @@ class CachedStore {
   }
   info(){ return { scope:this.scope, files:this.mem.size, bookmark:!!this.token, usable:this.usable, fromCopyAtStart:this.stats.warm, downloaded:this.stats.fetched }; }
 }
-function deviceCopyScope(store){
-  return store.kind === 'onedrive' ? `onedrive|${S.auth?.user?.() || ''}|${store.folder.toLowerCase()}` : `${store.kind}|${store.name}`;
+/* Which copy belongs to this store. OneDrive: account + folder. Local folder (T1-3): many folders share a name (every
+   build root has a "data"), so each picked folder gets its own id, found again with isSameEntry(). null → no copy. */
+async function deviceCopyScope(store){
+  if (store.kind === 'onedrive') return `onedrive|${S.auth?.user?.() || ''}|${store.folder.toLowerCase()}`;
+  if (store.kind !== 'local' || !store.dir?.isSameEntry) return null;
+  devCache.dropScopes(s => /^local\|[^|]*$/.test(s)).catch(() => {});          // copies from build 2026-10-23a (keyed by name only)
+  try {
+    const known = (await idb.get('copyIds')) || [];
+    for (const k of known){ let same = false; try { same = !!(k && k.dir && await k.dir.isSameEntry(store.dir)); } catch {}
+      if (same) return `local|${k.id}|${store.name}`; }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    known.push({ dir:store.dir, id }); await idb.set('copyIds', known.slice(-50));
+    return `local|${id}|${store.name}`;
+  } catch (e){ console.warn('device copy: no folder id', e); return null; }
 }
 
 /* ---------------- sign-in (storage-spec S-5) ---------------- */
@@ -719,12 +741,14 @@ class MsalAuth {
 function titleFromName(n){ return baseName(n).replace(/\.md$/,'').replace(/[-_]+/g,' ').replace(/^\w/, c=>c.toUpperCase()); }
 function asArr(v){ return v == null || v === '' ? [] : Array.isArray(v) ? v.map(String) : String(v).split(',').map(s=>s.trim()).filter(Boolean); }
 function parseTask(path, text, version){
+  const raw = text, eol = /\r\n/.test(text) ? '\r\n' : '\n';   // T1-5: CRLF files (Notepad, OneDrive web) are read as LF, written back as CRLF
+  text = text.replace(/\r\n/g, '\n');
   let fm = {}, body = text, bad = false;
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/);
   if (m){ try { fm = jsyaml.load(m[1], { schema: jsyaml.CORE_SCHEMA }) || {}; if (typeof fm !== 'object' || Array.isArray(fm)) { fm = {}; bad = true; } }
           catch(e){ bad = true; fm = {}; } body = m[2]; }
   const t = {
-    file: path, version, raw: text, readonly: bad,
+    file: path, version, raw, eol, readonly: bad,
     id: String(fm.id ?? ('f-' + path.replace(/\.md$/,''))),
     title: fm.title != null ? String(fm.title) : titleFromName(path),
     status: String(fm.status || 'open'), prefix: fm.prefix != null ? String(fm.prefix) : '',
@@ -744,8 +768,11 @@ function unknownBits(t){            // R1-12: flag (never change) frontmatter th
   if (!STATUSES.includes(t.status)) u.unshift(`status: ${t.status}`);
   if (t.prefix && !PREFIXES.includes(t.prefix)) u.unshift(`prefix: ${t.prefix}`);
   if (t.repeat && !parseRepeat(t.repeat)) u.unshift(`repeat: ${t.repeat}`);
+  if (t.due && !isYmd(t.due)) u.unshift(`due: ${t.due}`);      // T1-4: not a real YYYY-MM-DD date
   return u;
 }
+function isYmd(s){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); if (!m) return false;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], 12); return d.getFullYear() === +m[1] && d.getMonth() === +m[2] - 1 && d.getDate() === +m[3]; }
 function serializeTask(t){
   const fm = { id:t.id, title:t.title, status:t.status };
   if (t.prefix) fm.prefix = t.prefix;
@@ -760,7 +787,8 @@ function serializeTask(t){
   if (t.demoted_into) fm.demoted_into = t.demoted_into;
   Object.assign(fm, t.extra);
   const y = jsyaml.dump(fm, { schema: jsyaml.CORE_SCHEMA, lineWidth: -1, flowLevel: 1 });
-  return '---\n' + y + '---\n' + (t.body || '');
+  const out = '---\n' + y + '---\n' + (t.body || '');
+  return t.eol === '\r\n' ? out.replace(/\r?\n/g, '\r\n') : out;   // keep the file's own line endings
 }
 function normBody(md){ md = (md || '').trim(); return md ? '\n' + md + '\n' : ''; }
 
@@ -837,10 +865,29 @@ async function loadAll(){
       try { const { text, version } = await S.store.read(e.path, { cached:true }); recs.push({ path:e.path, text, version }); }
       catch (err){ console.warn('read failed', e.path, err); }
     });
+    const prev = new Map(S.tasks);
     buildFrom(recs);
+    keepOpenEdit(prev);
     S.offline = false;
     syncLists(); render();
   } finally { busy(-1); }
+}
+/* T1-1: a full load replaces every task object. The open drawer must not end up holding a newer version than the text
+   it shows (e.g. the device copy is drawn, the task is opened, then the check brings the other device's edit): that
+   save would pass If-Match and silently drop the other edit. Same rules as applyChanges: refill an untouched drawer;
+   for an edited one keep the version the edit started from (so Save gets the conflict dialog) and show the banner. */
+function keepOpenEdit(prev){
+  for (const [id, t] of prev) if (t.isNew && !S.tasks.has(id)) S.tasks.set(id, t);      // unsaved new tasks stay
+  if (!S.editing) return;
+  const old = prev.get(S.editing); if (!old || old.isNew) return;
+  const fresh = get(S.editing) || byFile(old.file);
+  if (fresh && fresh.id !== old.id){ S.tasks.delete(fresh.id); fresh.id = old.id; S.tasks.set(old.id, fresh); }
+  if (fresh && fresh.version === old.version) return;
+  if (isDirty()){
+    if (fresh){ fresh.version = old.version; fresh.diskChanged = true; } else { old.diskChanged = true; S.tasks.set(old.id, old); }
+    $('#d-banner').classList.add('on');
+  } else if (fresh) fillDrawer(fresh);
+  else { closeDrawer(true); toast(`“${old.title}” was deleted elsewhere.`); }
 }
 function buildFrom(recs){                           // task map + lists from file records (a full load or the device copy)
   const map = new Map(); S.cfgVersion = null; S.cfgExtra = {}; let cfg = null;
@@ -962,6 +1009,10 @@ function conflictDialog(t){
 /* ---------------- watching for outside edits (S-4) ---------------- */
 let pollTimer = null, polling = false;
 function schedulePoll(){ clearTimeout(pollTimer); pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, POLL_MS); }
+/* T1-7: when the date changes (an app left open overnight), redraw so Today / Overdue / "Today" chips use the new date */
+function newDayCheck(){ if (S.renderDay && S.renderDay !== today() && !S.moving) render(); }
+setInterval(newDayCheck, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) newDayCheck(); });
 async function poll(force){
   if (!S.store || polling || document.hidden || S.moving || (!force && S.busy)) return;   // never redraw mid-drag
   polling = true; S.syncing = true; setStat();
@@ -1038,13 +1089,14 @@ function rowHTML(t, depth, opts = {}){
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
+    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
     <div class="act">${(opts.quick || []).map(q => `<button class="qbtn" data-act="q-${q}" title="Move to ${q === 'today' ? 'today' : 'tomorrow'}">${q === 'today' ? 'Today' : 'Tmrw'}</button>`).join('')}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
   return html;
 }
 function render(){
+  S.renderDay = today();
   syncListsQuiet();
   $('#list-label').textContent = S.view === 'due' ? 'Today' : (S.list || '…');
   $('#ver').textContent = 'v' + APP_VERSION;
@@ -1079,14 +1131,14 @@ function renderToday(rows){
   const soon = pool.filter(t => t.due > now && t.due <= wk).sort(desc), later = pool.filter(t => t.due > wk).sort(desc);
   const tod = pool.filter(t => t.due === now).sort(byOrder), over = pool.filter(t => t.due < now).sort(desc);
   const rowsOf = (list, quick) => list.map(t => rowHTML(t, 0, { flat:true, quick })).join('');
-  const head = (key, name, n) => `<div class="group-head"><button class="tday-head" data-tday="${key}" aria-expanded="${TODAY_OPEN[key]}">${TODAY_OPEN[key] ? '▾' : '▸'} ${name} · ${n}</button></div>`;
+  const head = (key, name, n) => `<div class="group-head tday-group"><button class="tday-head" data-tday="${key}" aria-expanded="${TODAY_OPEN[key]}">${TODAY_OPEN[key] ? '▾' : '▸'} ${name} · ${n}</button></div>`;
   let html = head('up', 'Upcoming', soon.length + later.length);
   if (TODAY_OPEN.up){
     if (later.length) html += TODAY_OPEN.later ? rowsOf(later, ['today'])
       : `<button class="tday-later" data-tday="later">+ ${later.length} later (after ${esc(niceDate(wk))})</button>`;
     html += rowsOf(soon, ['today']);
   }
-  html += `<div class="group-head" id="tday-today"><span class="tday-head tday-fixed">Today · ${tod.length}</span></div>`;
+  html += `<div class="group-head tday-group" id="tday-today"><span class="tday-head tday-fixed">Today · ${tod.length}</span></div>`;
   html += rowsOf(tod, ['tomorrow']) || '<div class="empty-hint">Nothing due today.</div>';
   html += head('over', 'Overdue', over.length);
   if (TODAY_OPEN.over) html += rowsOf(over, ['today', 'tomorrow']);
@@ -1294,6 +1346,8 @@ $('#scroller').addEventListener('scroll', () => { updateSnapBtn(); clearTimeout(
 $('#snap').onclick = () => snapBack();
 
 /* ---------------- list interactions ---------------- */
+$('#rows').addEventListener('keydown', e => {           // T1-11: a focused title opens with Enter or Space (keyboard on the PC)
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.ttl[data-act=open]')){ e.preventDefault(); e.target.click(); } });
 $('#rows').addEventListener('click', async e => {
   const tg = e.target.closest('[data-tday]'); if (tg){ todayToggle(tg.dataset.tday); return; }
   const actEl = e.target.closest('[data-act]'); if (!actEl) return;
@@ -1369,7 +1423,7 @@ function stepAfter(r, d, anchor){                       // the first occurrence 
   return addD(d, 1);
 }
 function nextDue(r, dueStr, todayStr = today()){        // R2-1 Q3: skip missed (default) · catch up · after done
-  const now = pd(todayStr), due = pd(dueStr || todayStr);
+  const now = pd(todayStr), due = pd(isYmd(dueStr) ? dueStr : todayStr);     // never compute from an unreadable date
   if (r.mode === 'afterdone') return fd(stepAfter(r, now, now));
   let c = stepAfter(r, due, due);
   if (r.mode === 'catchup') return fd(c);
@@ -1442,8 +1496,8 @@ async function toggleDone(t){
   if (!STATUSES.includes(t.status)) return toast('Unrecognized status — fix it in the editor first.');
   if (S.editing && isDirty()) return toast('Save or close the open editor first.');
   if (t.status === 'done') return setDone([t], false, { label:`Unchecked “${t.title}”` });
-  const rule = t.repeat ? parseRepeat(t.repeat) : null;
-  if (rule && !rule.keep) return recycleTask(t, rule);                       // R2-1 Recycle: no dialog, everything resets
+  const rule = t.repeat && (!t.due || isYmd(t.due)) ? parseRepeat(t.repeat) : null;   // T1-4: an unreadable due (⚠) checks off like a normal task
+  if (rule && !rule.keep) return recycleTask(t, rule);                      // R2-1 Recycle: no dialog, everything resets
   const openSubs = descendants(t.id).filter(d => STATUSES.includes(d.status) && d.status !== 'done' && d.status !== 'archived');
   const openLines = openLinesIn(t.body);
   if (rule && rule.keep && !openSubs.length && !openLines) return copyTask(t, rule);
@@ -1815,10 +1869,13 @@ function fillDrawer(t){
   $('#d-banner').classList.toggle('on', !!t.diskChanged);
   S.snapshot = null;
   S.editor.setMarkdown((t.body || '').replace(/^\n/, ''), false);
-  S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown() };
+  takeSnapshot(t);
   $('#d-demote').disabled = !!t.isNew; $('#d-delete').disabled = false;
   onDirtyCheck(); renderChecklist();
 }
+/* What the drawer was filled from: the fields, the editor's Markdown (the body is written back unchanged unless the
+   text was edited — T1-2: the editor re-formats Markdown, e.g. - [ ] → * [ ]) and the task's due value (T1-4). */
+function takeSnapshot(t){ S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown(), due: t.due || '' }; }
 $('#d-parent').addEventListener('click', e => { const a = e.target.closest('[data-open]'); if (a){ e.preventDefault(); openDrawer(a.dataset.open); } });
 
 function readDrawerInto(t){
@@ -1829,10 +1886,13 @@ function readDrawerInto(t){
   if (t.status !== 'done') t.completed = '';                    // finding 1
   const pv = $('#f-prefix').value; t.prefix = (pv === 'checkbox' && !t.prefix) ? '' : pv;
   if (!hasParent(t)) t.list = $('#f-list').value === '__new' ? t.list : $('#f-list').value;
-  t.due = $('#f-due').value; t.collections = asArr($('#f-coll').value);
+  const dueIn = $('#f-due').value, dueField0 = JSON.parse(S.snapshot.fields).due;
+  if (!(t.due && !isYmd(t.due) && dueIn === dueField0 && t.due === S.snapshot.due)) t.due = dueIn;   // T1-4: an unreadable due stays as is unless the field is changed
+  t.collections = asArr($('#f-coll').value);
   if (repControlsKey() !== S.repKey){ t.repeat = repPhrase(); }              // only rewrite repeat: when its controls changed
   if (t.repeat && !t.due) t.due = today();
-  t.body = normBody(S.editor.getMarkdown());
+  const md = S.editor.getMarkdown();
+  if (md !== S.snapshot.md) t.body = normBody(md);                          // T1-2: an untouched body is written back byte for byte
   const changed = [t];
   if (t.list !== oldList) for (const d of descendants(t.id)){ d.list = t.list; changed.push(d); }
   return changed;
@@ -1841,7 +1901,7 @@ async function saveDrawer(){
   const t = get(S.editing); if (!t) return false;
   const changed = readDrawerInto(t);
   const ok = await saveMany(changed);
-  if (ok && get(S.editing) === t){ S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown() }; $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
+  if (ok && get(S.editing) === t){ takeSnapshot(t); $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
     $('#d-unknown').textContent = t.unknown?.length ? '⚠ Unrecognized frontmatter (kept as is): ' + t.unknown.join(' · ') : ''; toast('Saved'); }
   onDirtyCheck(); syncLists(); render(); return ok;
 }
@@ -2024,11 +2084,16 @@ async function doDemote(t, target, o){
 
 /* ---------------- modal / toast ---------------- */
 function modal(html, onAction, { sheet = false, noDismiss = false } = {}){
+  const ae = document.activeElement, typing = ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName));
+  if (!$('#modal-bg').classList.contains('on')) S.modalReturn = typing ? null : ae;      // T1-11: focus goes back here on close
   $('#modal').innerHTML = html; $('#modal-bg').classList.add('on'); $('#modal-bg').classList.toggle('sheet', sheet);
+  const h = $('#modal h3'); if (h){ h.id = 'modal-title'; $('#modal').setAttribute('aria-labelledby', 'modal-title'); } else $('#modal').removeAttribute('aria-labelledby');
+  if (!typing && !$('#modal').contains(document.activeElement)) $('#modal').focus({ preventScroll:true });   // (never while typing: no keyboard jumps on phones)
   S.modalNoDismiss = noDismiss;
   $('#modal').onclick = e => { const b = e.target.closest('[data-a]'); if (b) onAction(b.dataset.a); };
 }
-function closeModal(){ $('#modal-bg').classList.remove('on'); $('#modal').innerHTML = ''; S.modalNoDismiss = false; }
+function closeModal(){ $('#modal-bg').classList.remove('on'); $('#modal').innerHTML = ''; S.modalNoDismiss = false;
+  const r = S.modalReturn; S.modalReturn = null; if (r && r.isConnected && r !== document.body) try { r.focus({ preventScroll:true }); } catch {} }
 $('#modal-bg').addEventListener('mousedown', e => { if (e.target.id === 'modal-bg' && !S.modalNoDismiss) closeModal(); });
 let toastTimer; function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 2800); }
 
@@ -2044,7 +2109,7 @@ $('#app-menu').onclick = () => {
     { sep:true },
     { label: 'Settings…', fn: settingsDialog },
   ];
-  if (src === 'onedrive' && S.auth?.user()) items.push({ label:'Sign out', fn: () => { S.redirecting = true; S.auth.signOut(); } });
+  if (src === 'onedrive' && S.auth?.user()) items.push({ label:'Sign out', fn: signOut });
   popover($('#app-menu'), items);
 };
 function searchDialog(){
@@ -2106,8 +2171,9 @@ function settingsDialog(){
 /* ---------------- start-up / storage choice ---------------- */
 async function useStore(store){
   if (S.editing) closeDrawer(true);
-  if (store.snapshot && ls.get('todo.deviceCopy', true) && window.indexedDB){      // R2-7 A: keep a copy on this device
-    store = new CachedStore(store, deviceCopyScope(store));
+  const scope = store.snapshot && ls.get('todo.deviceCopy', true) && window.indexedDB ? await deviceCopyScope(store) : null;
+  if (scope){                                                                     // R2-7 A: keep a copy on this device
+    store = new CachedStore(store, scope);
     navigator.storage?.persist?.().catch(() => {});
   }
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
@@ -2157,6 +2223,14 @@ function signIn(){
   stashDraft(); S.redirecting = true;
   $('#rows').innerHTML = '<div class="start"><h2>Signing in…</h2><p>Taking you to Microsoft.</p></div>';
   Promise.resolve(S.auth.signIn()).catch(e => { S.redirecting = false; showStart('Sign-in failed: ' + (e.errorCode || e.message)); });
+}
+/* T1-8: signing out also removes this account's task files from the device copy (they'd otherwise stay in the browser) */
+async function signOut(){
+  if (S.editing && isDirty()) return toast('Save or close the open task first.');
+  const user = S.auth?.user?.() || '';
+  clearTimeout(pollTimer); if (S.store?.cachedLayer) S.store.usable = false;        // nothing more goes into the copy
+  try { if (window.indexedDB) await devCache.dropScopes(s => String(s).startsWith(`onedrive|${user}|`)); } catch (e){ console.warn('device copy: not cleared', e); }
+  S.redirecting = true; S.auth.signOut();
 }
 function reauth(){                       // session gone mid-use: bounce once automatically, else show the button (S-5)
   if (S.signedOut) return;                // already handled — don't repeat on every poll
