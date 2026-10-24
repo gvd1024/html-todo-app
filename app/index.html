@@ -315,7 +315,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-24a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-24b';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -869,7 +869,7 @@ async function loadAll(){
       catch (err){ console.warn('read failed', e.path, err); }
     });
     const prev = new Map(S.tasks);
-    buildFrom(recs);
+    buildFrom(recs); S.firstFill = null;                 // a finished load ends the first fill
     keepOpenEdit(prev);
     S.offline = false;
     syncLists(); render();
@@ -1108,10 +1108,12 @@ function render(){
   fitListName();
   $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${S.list}…`;
   qaChips();
-  $('#qa').disabled = !S.store;
+  $('#qa').disabled = !S.store || !!S.firstFill;
   setStat();
   const rows = $('#rows');
   if (!S.store){ return; }
+  if (S.firstFill){ const f = S.firstFill;
+    rows.innerHTML = `<div class="empty-hint" id="first-fill">Downloading your tasks to this device…${f.total ? ` ${f.n} / ${f.total}` : ''}</div>`; return; }
   if (S.view === 'due') return renderToday(rows);
   const top = all().filter(t => t.list === S.list && !hasParent(t)).sort(byOrder).filter(visible);
   rows.innerHTML = top.map(t => rowHTML(t, 0)).join('') ||
@@ -1627,6 +1629,7 @@ $('#list-name').onclick = () => listPicker();
 function openCount(l){ return all().filter(t => t.list === l && t.status !== 'archived' && t.status !== 'done').length; }
 function listPicker(){
   if (!S.store) return;
+  if (S.firstFill) return toast('Still downloading your tasks — one moment.');
   modal(`<h3>Lists</h3>${S.lists.map(l => `<div class="pick ${l===S.list && S.view==='list'?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button>
       <span class="cnt">${openCount(l)}</span><button class="ren" data-a="r:${esc(l)}" title="Rename or remove">✎</button></div>`).join('')}
     <div class="pick ${S.view==='due'?'on':''}"><button class="go" data-a="due">📅 Today (all lists)</button></div>
@@ -1696,7 +1699,7 @@ $('#qa-date').onclick = () => {
 };
 $('#qa').addEventListener('keydown', async e => {
   if (e.key !== 'Enter' || e.isComposing) return;
-  const title = $('#qa').value.trim(); if (!title || !S.store) return;
+  const title = $('#qa').value.trim(); if (!title || !S.store || S.firstFill) return;
   e.preventDefault();
   const inToday = S.view === 'due';
   const list = inToday ? qaList() : S.list, due = inToday ? qaDate() : '';
@@ -1912,7 +1915,11 @@ function readDrawerInto(t){
 async function saveDrawer(){
   const t = get(S.editing); if (!t) return false;
   const changed = readDrawerInto(t);
-  const ok = await saveMany(changed);
+  let ok;
+  if (t.diskChanged && !t.isNew){                     // T3-1: the banner is up (changed elsewhere, or by the app's own check-off) → ask, never overwrite silently
+    ok = await conflictDialog(t);
+    if (ok) ok = await saveMany(changed.filter(x => x !== t));
+  } else ok = await saveMany(changed);
   if (ok && get(S.editing) === t){ takeSnapshot(t); $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
     $('#d-unknown').textContent = t.unknown?.length ? '⚠ Unrecognized frontmatter (kept as is): ' + t.unknown.join(' · ') : ''; toast('Saved'); }
   onDirtyCheck(); syncLists(); render(); return ok;
@@ -2191,12 +2198,14 @@ async function useStore(store){
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
   let fromCopy = false;
   if (store.warm){ const recs = await store.warm(); if (recs.length){ buildFrom(recs); syncLists(); render(); fromCopy = true; } }
-  if (store.cachedLayer && !fromCopy)                 // T2-4: nothing on this device yet — say what's happening while every file downloads once
-    store.onProgress = (n, total) => { if (S.store !== store || S.tasks.size || total < 1) return;
-      $('#rows').innerHTML = `<div class="empty-hint" id="first-fill">Downloading your tasks to this device… ${n} / ${total}</div>`; };
+  if (store.cachedLayer && !fromCopy){                // T2-4: nothing on this device yet — say what's happening while every file downloads once
+    S.firstFill = { n:0, total:0 };                   // T3-2: until it's done the half-loaded list can't be acted on (render, quick-add, list picker)
+    store.onProgress = (n, total) => { if (S.store !== store || !S.firstFill) return; S.firstFill = { n, total }; render(); };
+  }
   try { await loadAll(); }
   catch (e){
     if (store.cachedLayer) store.onProgress = null;
+    S.firstFill = null;
     if (fromCopy && e instanceof OfflineError){            // no connection: keep showing this device's copy, keep retrying
       S.offline = true; setStat(); toast("Offline — showing this device's saved copy"); schedulePoll(); return;
     }

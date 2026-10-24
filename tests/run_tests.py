@@ -1626,6 +1626,69 @@ def test_agent_round2(browser):
     ctx.close()
 
 
+def test_agent_round3(browser):
+    print("\n[21] Agent round 3 fixes (T3-1, T3-2)")
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    fm = lambda i, title: f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: Inbox\norder: 1\n---\n"
+
+    # T3-1: typing while the Check-all save is in flight → banner, and Save asks instead of overwriting
+    files = {"ck.md": fm("t-ck", "Check in flight") + "\n- [ ] open line\n- [x] done line\n", "_todo.json": '{"format": 3, "lists": ["Inbox"]}\n'}
+    fg = FakeGraph(FOLDER, dict(files))
+    ctx, page, errors = new_page(browser, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    held = []
+    def hold_put(route, req):
+        if req.method == "PUT": held.append((route, req))
+        else: route.fallback()
+    page.route("https://graph.microsoft.com/**", hold_put)
+    page.evaluate("() => __todo.openDrawer('t-ck')"); page.wait_for_selector("#drawer.open")
+    page.locator(".row[data-id=t-ck] [data-act=toggle]").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(300)
+    page.evaluate("() => __todo.S.editor.setMarkdown(__todo.S.editor.getMarkdown() + ' TYPED DURING SAVE')")
+    page.unroute("https://graph.microsoft.com/**", hold_put)
+    for r, req in held: fg._handle(r, req)
+    page.wait_for_timeout(500)
+    check("T3-1: typing during the check-off save → the banner shows", page.locator("#d-banner.on").count() == 1)
+    page.click("#d-save"); page.wait_for_timeout(400)
+    asked = "Changed elsewhere" in page.inner_text("#modal")
+    f = fg.files()["ck.md"]
+    check("T3-1: …and Save asks first (no silent overwrite of the checkmarks)", asked and "[ ] open line" not in f and "status: done" in f, (asked, f))
+    page.click("#modal [data-a=both]"); page.wait_for_timeout(600)
+    copies = [n for n in fg.files() if n.startswith("ck (conflict")]
+    check("T3-1: Keep both keeps the checkmarks and the typed text", copies and "TYPED DURING SAVE" in fg.files()[copies[0]] and "[ ] open line" not in fg.files()["ck.md"], list(fg.files()))
+    check("T3-1: never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("T3-1: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # T3-2: during the first download the half-loaded list can't be acted on
+    many = {f"task-{i:03}.md": fm(f"t-{i:03}", f"Task {i}") for i in range(20)}
+    many["_todo.json"] = '{"format": 3, "lists": ["Inbox"]}\n'
+    fg = FakeGraph(FOLDER, many)
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    held, seen = [], [0]
+    def hold(route, req):
+        seen[0] += 1
+        if seen[0] > 3: held.append((route, req))
+        else: fg._download(route, req)
+    page.route("https://fake-dl.test/**", hold)
+    page.goto(APP); page.wait_for_selector("#first-fill", timeout=10000); page.wait_for_timeout(300)
+    page.click("#app-menu"); page.locator("#pop button", has_text="Show done").click(); page.wait_for_timeout(200)
+    check("T3-2: a menu action during the first download keeps the progress line", page.locator("#first-fill").count() == 1 and "No " not in page.inner_text("#rows"), page.inner_text("#rows"))
+    check("T3-2: …quick-add stays off", page.evaluate("document.querySelector('#qa').disabled") is True)
+    page.click("#list-name"); page.wait_for_timeout(200)
+    check("T3-2: …and the list picker waits", page.locator("#modal-bg.on").count() == 0 and "downloading" in page.inner_text("#toast").lower(), page.inner_text("#toast"))
+    page.unroute("https://fake-dl.test/**", hold)
+    for r, req in held: fg._download(r, req)
+    page.wait_for_function(ready); page.wait_for_selector(".row")
+    check("T3-2: after the download, the list and quick-add work", page.locator("#first-fill").count() == 0 and page.locator(".row").count() == 20 and page.evaluate("document.querySelector('#qa').disabled") is False)
+    page.click("#app-menu"); page.locator("#pop button", has_text="Show done").click()
+    check("T3-2: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1635,7 +1698,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3)]
         for name, fn in tests:
             if not only or name in only:
                 try:

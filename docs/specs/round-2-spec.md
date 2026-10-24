@@ -504,6 +504,27 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 - **T2-4, further:** draw tasks as they arrive during the first download (faster to see on a phone with 1,000+ tasks), with actions enabled only once a task's file and its subtasks are in. Not built: acting on a half-loaded list (missing subtasks, missing `_todo.json`) is a data-safety risk, so it needs its own design.
 - **Sign out vs. the device copy (from T1-8):** Sign out now deletes this account's copy, so the next sign-in downloads everything again (the progress line above shows it). The tradeoff is privacy (nothing left in the browser, important on a shared or work PC) vs. a slow first start (stress: ~20 s per 1,000 tasks). *Rec.:* keep deleting (sign-out is rare and usually means "leave nothing behind"); optionally add a "Keep this device's copy" tick box to the sign-out step later.
 
+**Round 3 — fixed (build 2026-10-24b, test group `agentr3`).** The tester's verdict on 2026-10-24a: safe to merge for daily use, nothing must-fix; every T1/T2 data-safety fix held.
+| # | Finding | Fix |
+|---|---|---|
+| T3-1 | Typing in the open editor while a Check-all save was still in flight, then Save, reverted the checkmarks. The banner promised "Save will ask", but it didn't | While the "changed elsewhere" banner is up, Save always goes through the conflict dialog (*Use their version / Overwrite with mine / Keep both*) |
+| T3-2 | During the first download, menu actions replaced the progress line with "No tasks…", quick-add came on (a task added then stayed hidden until the next check) and the list picker was empty | Until the first download finishes, the list keeps the progress line, quick-add stays off and the list picker says it's still downloading |
+
+**Decisions waiting for Geoff (all agent rounds, consolidated):**
+| # | Item | Recommendation |
+|---|---|---|
+| T1-14 | `_todo.json` format isn't checked; saving relabels a newer format as 3 | Open read-only with a banner when `format` > the app's; never write `_todo.json` then. **Do before R2-5** (data safety) |
+| T1-9 | Saving drops YAML comments and moves unknown keys below the known ones | Patch only the changed frontmatter lines in place |
+| T1-2 (rest) | Editing notes in the Formatted editor re-formats Markdown (`*` bullets, escapes) | Restore the original list marker after editing, or default new devices to Raw |
+| T1-6 | `monthly` from the 29th–31st and `yearly` from Feb 29 drift to the 28th | On roll-forward, write the intent into the phrase (`monthly on day 31`); Feb 29 in leap years |
+| T3-3 | Phone editor: the notes get only ~¼ of the screen (fields above, the promote list below); Geoff's own Feedback item *Edit task screen* asks for a full-screen notes box | Phones: fields behind a collapsible "Details" row, promote moved into a per-line menu, notes fill the rest. Take it with that Feedback item |
+| T1-12 | Today view rows show no date | A small muted date on Upcoming and Overdue rows (also in Feedback *List view*) |
+| T1-13 | List-picker counts include hidden subtasks | Count top-level open tasks |
+| T1-15 | The PC view is the phone layout stretched wide | Cap the content width (~760 px) first |
+| T2-4 (rest) | First download: tasks appear only when every file is in | Draw rows read-only as they arrive; enable actions when the load finishes |
+| T1-8 (rest) | Sign out deletes the device copy, so the next sign-in downloads everything again | Keep it (privacy); optionally a "Keep this device's copy" tick box |
+| T1-8 (rest) | Copies for folders or accounts no longer used are never cleaned up | Drop copies unused for 30 days |
+
 ---
 
 ## Decision log
@@ -524,6 +545,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-24 — v16: Agent rounds, round 3 (T3-1, T3-2 fixed; T3-3 for Geoff) and a consolidated list of decisions waiting for Geoff (build 2026-10-24b).
 - 2026-10-24 — v15: Agent rounds, round 2 (T2-1 … T2-5) fixed or listed for Geoff (build 2026-10-24a).
 - 2026-10-23 — v14: Agent rounds section; round 1 (T1-1 … T1-15) fixed or listed for Geoff (build 2026-10-23b).
 - 2026-10-23 — v13: R2-7 A built; stress results added.
