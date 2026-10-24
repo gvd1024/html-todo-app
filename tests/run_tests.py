@@ -1538,6 +1538,94 @@ def test_agent_round1(browser):
     ctx.close()
 
 
+def test_agent_round2(browser):
+    print("\n[20] Agent round 2 fixes (T2-1 … T2-5)")
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    fm = lambda i, title, extra="": f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: Inbox\norder: 1\n{extra}---\n"
+    today = datetime.date.today().isoformat()
+    files = {
+        "check-all.md": fm("t-ca", "Check all here") + "\n- [ ] open line\n- [x] done line\n",
+        "recycle.md": fm("t-rc", "Recycle here", f"due: {today}\nrepeat: daily\n") + "\n- [x] step one\n",
+        "bad-due.md": fm("t-bd", "Bad due", "due: 10/20/2026\n") + "\nnotes\n",
+        "goes-away.md": fm("t-ga", "Goes away") + "\nkeep me\n",
+        "target.md": "---\nid: t-tg\ntitle: Target\nstatus: open\nlist: Home\norder: 1\n---\n\n- [ ] existing\n",
+        "child.md": "---\nid: t-ch\ntitle: Child\nstatus: open\nlist: Inbox\norder: 2\n---\n\nchild notes\n",
+        "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox", "Home"]\n}\n',
+    }
+    fg = FakeGraph(FOLDER, dict(files))
+    ctx, page, errors = new_page(browser, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    md = lambda: page.evaluate("__todo.S.editor.getMarkdown()")
+    add_text = lambda s: page.evaluate("s => __todo.S.editor.setMarkdown(__todo.S.editor.getMarkdown() + '\\n\\n' + s)", s)
+
+    # T2-1: Check all from the row while the task is open in the drawer
+    page.evaluate("() => __todo.openDrawer('t-ca')"); page.wait_for_selector("#drawer.open")
+    page.locator(".row[data-id=t-ca] [data-act=toggle]").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(500)
+    check("T2-1: after Check all, the open drawer shows the checked notes", "[ ]" not in md() and page.input_value("#f-status") == "done", md())
+    add_text("EXTRA WORD"); page.click("#d-save"); page.wait_for_timeout(400)
+    f = fg.files()["check-all.md"]
+    check("T2-1: …and a later notes edit keeps the Check all", "[ ]" not in f and "status: done" in f and "EXTRA WORD" in f, f)
+    # T2-1: Recycle from the row while open
+    page.evaluate("() => __todo.openDrawer('t-rc')"); page.wait_for_selector("#drawer.open")
+    page.locator(".row[data-id=t-rc] [data-act=toggle]").click(); page.wait_for_timeout(500)
+    check("T2-1: after Recycle, the open drawer shows the reset notes and the new date", "[ ] step one" in md() and page.input_value("#f-due") > today, (md(), page.input_value("#f-due")))
+    add_text("RECYCLE NOTE"); before = fg.files()["recycle.md"]
+    page.click("#undo-btn"); page.wait_for_timeout(300)
+    check("T2-1: Undo waits while the open editor has unsaved edits", fg.files()["recycle.md"] == before and "Save or close" in page.inner_text("#toast"))
+    page.click("#d-save"); page.wait_for_timeout(400)
+    f = fg.files()["recycle.md"]
+    check("T2-1: …and saving the notes keeps the Recycle (unchecked, next date)", "[ ] step one" in f and "[x] step one" not in f and "RECYCLE NOTE" in f and f"due: {today}" not in f, f)
+    page.click("#d-close"); page.wait_for_timeout(200)
+
+    # T2-2: clearing the Due field removes an unreadable due
+    page.evaluate("() => __todo.openDrawer('t-bd')"); page.wait_for_selector("#drawer.open")
+    page.fill("#f-due", "2026-11-01"); page.fill("#f-due", ""); page.fill("#f-title", "Bad due X")
+    page.click("#d-saveclose"); page.wait_for_timeout(400)
+    f = fg.files()["bad-due.md"]
+    check("T2-2: clearing the Due field removes an unreadable due", "due:" not in f and "title: Bad due X" in f, f)
+
+    # T2-3: Keep both after the original was deleted elsewhere → the drawer doesn't carry on as the copy
+    page.evaluate("() => __todo.openDrawer('t-ga')"); page.wait_for_selector("#drawer.open")
+    add_text("MY EDIT"); fg.ext_delete("goes-away.md")
+    page.click("#d-save"); page.wait_for_selector("#modal [data-a=both]"); page.click("#modal [data-a=both]"); page.wait_for_timeout(700)
+    copies = [n for n in fg.files() if n.startswith("goes-away (conflict")]
+    check("T2-3: Keep both on a deleted file saves my version as a copy", copies and "MY EDIT" in fg.files()[copies[0]], list(fg.files()))
+    check("T2-3: …and closes the editor instead of silently editing the copy", page.locator("#drawer.open").count() == 0 and "saved as" in page.inner_text("#toast"), page.inner_text("#toast"))
+
+    # T2-5: a demoted, archived task takes the target's list
+    page.evaluate("async () => { await __todo.doDemote(__todo.get('t-ch'), __todo.get('t-tg'), { keep:true, kids:'move' }); }"); page.wait_for_timeout(400)
+    f = fg.files()["child.md"]
+    check("T2-5: demote (keep) writes the target's list on the archived task", "status: archived" in f and "parent: t-tg" in f and "list: Home" in f, f)
+    check("T2-*: never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("T2-*: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # T2-4: first fill on a new device shows progress while every file downloads
+    many = {f"task-{i:03}.md": fm(f"t-{i:03}", f"Task {i}") for i in range(30)}
+    many["_todo.json"] = '{"format": 3, "lists": ["Inbox"]}\n'
+    fg = FakeGraph(FOLDER, many)
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    held, seen = [], [0]
+    def hold(route, req):
+        seen[0] += 1
+        if seen[0] > 5: held.append((route, req))
+        else: fg._download(route, req)
+    page.route("https://fake-dl.test/**", hold)
+    page.goto(APP); page.wait_for_selector("#first-fill", timeout=10000); page.wait_for_timeout(300)
+    txt = page.inner_text("#first-fill")
+    check("T2-4: a new device shows 'Downloading your tasks… n / total' instead of an empty list", "Downloading your tasks" in txt and f"/ {len(many)}" in txt, txt)
+    page.unroute("https://fake-dl.test/**", hold)
+    for r, req in held: fg._download(r, req)
+    page.wait_for_function(ready); page.wait_for_selector(".row")
+    check("T2-4: …then the tasks appear", page.locator("#first-fill").count() == 0 and page.locator(".row").count() == 30)
+    check("T2-4: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1547,7 +1635,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2)]
         for name, fn in tests:
             if not only or name in only:
                 try:

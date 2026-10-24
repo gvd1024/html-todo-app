@@ -70,7 +70,7 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 - These files are not tasks: names starting with `_` or `.`, and `README.md`.
 - A subtask's `list` always matches its parent's. `parent:` is the source of truth for nesting (S-11), not folders.
 - File names are a slug of the title when the task is created (S-11 rules: lowercase, dashes, max 40 characters, Unicode letters kept, Windows reserved names avoided, case-insensitive unique). Renaming the title doesn't rename the file.
-- **Demote:** a task becomes a checklist line in another task's body. When the original is kept, it becomes `status: archived` plus `demoted_into`, and the line ends with a link like `[↗](file.md)` (each path segment URL-encoded). **Promote** restores from that link; the nested body text wins over the archived file's body.
+- **Demote:** a task becomes a checklist line in another task's body. When the original is kept, it becomes `status: archived` plus `demoted_into` (and takes the target's `list`), and the line ends with a link like `[↗](file.md)` (each path segment URL-encoded). **Promote** restores from that link; the nested body text wins over the archived file's body.
 - **Recurring tasks (R2-1):**
     - **Phrase format:** `repeat: <schedule>[, keep copies][, catch up | after done]`, case-insensitive.
     - **Schedules:** `daily` · `every N days` · `weekdays` · `weekly` (the due date's weekday) · `weekly on mon, thu` · `every N weeks [on …]` · `monthly` · `monthly on day N` · `monthly on last day` · `every N months [on day N | on last day]` · `yearly` · `every N years`.

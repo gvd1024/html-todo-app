@@ -491,6 +491,19 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 - **Also from T1-2:** when the body *is* edited in the Formatted editor, it still re-formats Markdown (`*` bullets, escapes). *Rec.:* either default new devices to Raw mode or restore the original list marker after editing.
 - **Also from T1-8:** copies for folders or accounts no longer used are never cleaned up. *Rec.:* drop copies unused for 30 days.
 
+**Round 2 — fixed (build 2026-10-24a, test group `agentr2`):** the tester re-tested every round-1 fix as fixed.
+| # | Finding | Fix |
+|---|---|---|
+| T2-1 (major) | With the task open (PC side panel), Check all / Recycle / Copy from its row, then a notes edit + Save, wrote the old notes back: done but unchecked, silently | After the app changes the open task, a clean drawer is refilled (status, date, notes). Undo waits while the editor has unsaved edits. (Check-off already did.) |
+| T2-2 | After T1-4, an unreadable `due` couldn't be removed in the editor | The bad value is kept only while the Due field is untouched; using the field (e.g. clearing it) replaces it |
+| T2-3 | After *Keep both* on a file deleted elsewhere, the editor carried on editing the conflict copy under the original's name | The editor closes; the toast names the saved copy |
+| T2-4 | A new or cleared device showed an empty list until every file had downloaded | A "Downloading your tasks to this device… n / total" line until the first download finishes |
+| T2-5 | Demote (keep) left the archived task's `list` different from its new parent's | The archived task takes the target's list |
+
+**Round 2 — for Geoff to decide:**
+- **T2-4, further:** draw tasks as they arrive during the first download (faster to see on a phone with 1,000+ tasks), with actions enabled only once a task's file and its subtasks are in. Not built: acting on a half-loaded list (missing subtasks, missing `_todo.json`) is a data-safety risk, so it needs its own design.
+- **Sign out vs. the device copy (from T1-8):** Sign out now deletes this account's copy, so the next sign-in downloads everything again (the progress line above shows it). The tradeoff is privacy (nothing left in the browser, important on a shared or work PC) vs. a slow first start (stress: ~20 s per 1,000 tasks). *Rec.:* keep deleting (sign-out is rare and usually means "leave nothing behind"); optionally add a "Keep this device's copy" tick box to the sign-out step later.
+
 ---
 
 ## Decision log
@@ -511,6 +524,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-24 — v15: Agent rounds, round 2 (T2-1 … T2-5) fixed or listed for Geoff (build 2026-10-24a).
 - 2026-10-23 — v14: Agent rounds section; round 1 (T1-1 … T1-15) fixed or listed for Geoff (build 2026-10-23b).
 - 2026-10-23 — v13: R2-7 A built; stress results added.
 - 2026-10-23 — v12: R2-7 (scale) added, with options A–H and an A/B/C comparison.

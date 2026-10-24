@@ -315,7 +315,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-23b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-24a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -648,11 +648,14 @@ class CachedStore {
     const dels = [...this.mem.values()].filter(r => !want.has(r.path.toLowerCase())).map(r => r.path);
     const puts = [];
     this.known = new Map(entries.map(e => [e.path, e.version]));
+    let done = 0; const tell = () => { try { this.onProgress?.(done, stale.length); } catch {} };   // T2-4: first fill progress
+    if (stale.length) tell();
     try {
       await pool(stale, 6, async e => {
         try { const f = await this.src.read(e.path, { cached:true }); const r = this.rec(e.path, f);
           this.mem.set(e.path.toLowerCase(), r); this.known.set(e.path, f.version); puts.push(r); this.stats.fetched++; }
         catch (err){ if (err instanceof NotFoundError){ this.known.delete(e.path); return; } throw err; }
+        finally { done++; tell(); }
       });
     } catch (err){ await this.save(puts, [], undefined); throw err; }   // keep what arrived; the bookmark stays behind
     for (const path of dels) this.mem.delete(path.toLowerCase());
@@ -992,7 +995,9 @@ function conflictDialog(t){
           busy(1);
           try {
             const copy = conflictCopyName(t); await S.store.create(copy, serializeTask(t));
-            try { const f = await reloadOne(t); if (S.editing === t.id) fillDrawer(f); } catch (e){ if (e instanceof NotFoundError) S.tasks.delete(t.id); else throw e; }
+            try { const f = await reloadOne(t); if (S.editing === t.id) fillDrawer(f); }
+            catch (e){ if (!(e instanceof NotFoundError)) throw e;
+              S.tasks.delete(t.id); if (S.editing === t.id) closeDrawer(true); }            // T2-3: the original is gone — don't carry on editing the copy under its name
             await poll(true); toast(`Your version was saved as “${copy}”`);
           } catch (e){ storeError(e, 'keep both'); }
           finally { busy(-1); render(); done(false); }
@@ -1527,8 +1532,13 @@ async function setDone(tasks, done, { lines = [], label = '' } = {}){
     render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
   });
 }
-function syncEditorStatus(tasks){ const t = tasks.find(x => x.id === S.editing); if (!t) return;
-  fillStatusSelect(t.status); $('#f-status').value = t.status; updateSnapshotField('status', t.status); }
+/* After a check-off, Recycle, Copy or Undo changed the open task: refill a clean drawer with everything (status, due,
+   notes), so a later save can't write the old notes back (T2-1). A drawer edited meanwhile keeps its text; the banner
+   offers the saved version. */
+function syncEditorStatus(tasks){ const t = tasks.find(x => x.id === S.editing); if (!t || get(S.editing) !== t) return;
+  if (!isDirty()){ fillDrawer(t); return; }
+  fillStatusSelect(t.status); $('#f-status').value = t.status; updateSnapshotField('status', t.status);
+  if ((t.body || '') !== S.snapshot.body){ t.diskChanged = true; $('#d-banner').classList.add('on'); } }
 
 /* Undo bar: 5 s, one at a time (a new action replaces the previous offer) */
 let undoTimer = null, undoFn = null;
@@ -1538,7 +1548,8 @@ function showUndo(msg, fn){
   undoTimer = setTimeout(hideUndo, 5000);
 }
 function hideUndo(){ clearTimeout(undoTimer); undoFn = null; $('#undo').classList.remove('on'); }
-$('#undo-btn').onclick = async () => { const fn = undoFn; hideUndo(); if (fn){ await fn(); toast('Undone'); } };
+$('#undo-btn').onclick = async () => { if (S.editing && isDirty()) return toast('Save or close the open editor first.');   // T2-1: Undo rewrites notes too
+  const fn = undoFn; hideUndo(); if (fn){ await fn(); toast('Undone'); } };
 
 function popover(anchor, items){
   const pop = $('#pop');
@@ -1802,6 +1813,7 @@ function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on
 function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
 ['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
 ['#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-due'].forEach(s => $(s).addEventListener('input', repUI));
+['input', 'change'].forEach(ev => $('#f-due').addEventListener(ev, () => { S.dueTouched = true; }));
 /* Repeat controls ↔ phrase (R2-1). The phrase is only rewritten when these controls actually change. */
 function repBase(){
   const v = $('#f-rep').value, due = $('#f-due').value || today(), d = pd(due);
@@ -1875,7 +1887,7 @@ function fillDrawer(t){
 }
 /* What the drawer was filled from: the fields, the editor's Markdown (the body is written back unchanged unless the
    text was edited — T1-2: the editor re-formats Markdown, e.g. - [ ] → * [ ]) and the task's due value (T1-4). */
-function takeSnapshot(t){ S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown(), due: t.due || '' }; }
+function takeSnapshot(t){ S.snapshot = { fields: fieldState(), md: S.editor.getMarkdown(), due: t.due || '', body: t.body || '' }; S.dueTouched = false; }
 $('#d-parent').addEventListener('click', e => { const a = e.target.closest('[data-open]'); if (a){ e.preventDefault(); openDrawer(a.dataset.open); } });
 
 function readDrawerInto(t){
@@ -1886,8 +1898,8 @@ function readDrawerInto(t){
   if (t.status !== 'done') t.completed = '';                    // finding 1
   const pv = $('#f-prefix').value; t.prefix = (pv === 'checkbox' && !t.prefix) ? '' : pv;
   if (!hasParent(t)) t.list = $('#f-list').value === '__new' ? t.list : $('#f-list').value;
-  const dueIn = $('#f-due').value, dueField0 = JSON.parse(S.snapshot.fields).due;
-  if (!(t.due && !isYmd(t.due) && dueIn === dueField0 && t.due === S.snapshot.due)) t.due = dueIn;   // T1-4: an unreadable due stays as is unless the field is changed
+  const dueIn = $('#f-due').value;
+  if (!(t.due && !isYmd(t.due) && !S.dueTouched && t.due === S.snapshot.due)) t.due = dueIn;   // T1-4: an unreadable due stays unless the Due field was used (T2-2: clearing it removes it)
   t.collections = asArr($('#f-coll').value);
   if (repControlsKey() !== S.repKey){ t.repeat = repPhrase(); }              // only rewrite repeat: when its controls changed
   if (t.repeat && !t.due) t.due = today();
@@ -2074,7 +2086,7 @@ async function doDemote(t, target, o){
     changed.push(c); for (const d of descendants(c.id)){ d.list = target.list; changed.push(d); } }
   // 3) the demoted task(s): archive or delete
   const gone = [t, ...tree];
-  if (o.keep){ for (const g of gone){ g.status = 'archived'; g.demoted_into = target.id; if (g === t) g.parent = target.id; changed.push(g); } }
+  if (o.keep){ for (const g of gone){ g.status = 'archived'; g.demoted_into = target.id; if (g === t) g.parent = target.id; g.list = target.list; changed.push(g); } }   // T2-5: a subtask's list = its parent's
   if (!(await saveMany(changed))) { toast('Demote stopped — nothing was deleted.'); render(); return; }
   if (!o.keep) for (const g of gone) await removeTask(g);
   if (S.editing === t.id || tree.some(d => d.id === S.editing)) closeDrawer(true);
@@ -2179,8 +2191,12 @@ async function useStore(store){
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
   let fromCopy = false;
   if (store.warm){ const recs = await store.warm(); if (recs.length){ buildFrom(recs); syncLists(); render(); fromCopy = true; } }
+  if (store.cachedLayer && !fromCopy)                 // T2-4: nothing on this device yet — say what's happening while every file downloads once
+    store.onProgress = (n, total) => { if (S.store !== store || S.tasks.size || total < 1) return;
+      $('#rows').innerHTML = `<div class="empty-hint" id="first-fill">Downloading your tasks to this device… ${n} / ${total}</div>`; };
   try { await loadAll(); }
   catch (e){
+    if (store.cachedLayer) store.onProgress = null;
     if (fromCopy && e instanceof OfflineError){            // no connection: keep showing this device's copy, keep retrying
       S.offline = true; setStat(); toast("Offline — showing this device's saved copy"); schedulePoll(); return;
     }
@@ -2191,6 +2207,7 @@ async function useStore(store){
       return;
     }
     showStart(e instanceof FolderError ? e.message : e instanceof OfflineError ? "You're offline — connect and reload." : 'Could not load the task files: ' + e.message); return; }
+  if (store.cachedLayer) store.onProgress = null;
   if (store.kind !== 'demo' && S.tasks.size === 0 && !S.cfgVersion) offerSeed();
   restoreDraft();
   schedulePoll();
