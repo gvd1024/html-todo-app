@@ -22,7 +22,7 @@ Same as round 1:
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Step 1 built** (diagnostics) | Read what Chrome reports, then fix the phone check from real values |
-| R2-7 | Scale: support many more tasks | Discussing | **A** first (a copy on each device + change-only sync), then B; C only if needed |
+| R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -448,7 +448,22 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 - edits from another device while offline
 - a cleared browser storage
 
-**Status:** Discussing. Geoff is leaning toward A, B or C; Claude recommends A first. Not approved for build.
+**Decision (Geoff, 2026-10-23):** "can you implement A but keep in mind and try to design it with the idea that we may have to change up the data source from a to c or maybe even F with the addition of B and other options that improve the performance without actually changing the underlying data storage option".
+
+### A — as built (build 2026-10-23a)
+- **Layers:** app ⇄ `CachedStore` (the device copy) ⇄ source store.
+    - A **source** is any store with the usual interface plus `snapshot()` (every file + a change bookmark) and, optionally, `changesSince(bookmark)`.
+    - Today's sources: `GraphStore` (OneDrive; delta link as the bookmark) and `FsStore` (local folder; no bookmark, so it lists file versions).
+    - **Swapping later:** C (an index file) or F (a backend) becomes another source, or seeds the copy, with no change to the app or the copy. B is drawing-only and doesn't touch this layer.
+- **Device copy:** IndexedDB `hta-device-copy`, keyed by a scope (OneDrive account + folder, or folder name). The files and the bookmark are saved in **one transaction**. Writes always go to the source first, with the same conditional writes as before. A cached file is used only when its version matches what the source reports. If IndexedDB fails, the app works as before.
+- **Startup:** the copy is drawn at once, then checked: one change-feed request with the bookmark, or a full re-check if the bookmark expired. Only differing files are downloaded.
+- **Offline start:** shows the copy, marked offline, and catches up when the connection is back.
+- **Diagnostics** show the copy's state; **Clear device copy** forces a full re-download.
+- **A → C path kept open:** the copy is one list of records (path, version, content, source metadata) plus a bookmark, so it can be exported as an index file.
+- **Tests:** a `devicecopy` group (22 checks): second start downloads nothing; edits and deletes made elsewhere while closed; own saves; expired bookmark; offline start and catch-up; Clear device copy; local folder. The `onedrive` and `resilience` checks now accept the change feed as a re-check. 341 checks pass.
+- **Stress test** (`docs/stress-test-results.md`, "After R2-7 A"): OneDrive limit **200–400 → ~8,000–10,000 tasks on the PC (~25–40×)** and **~2,000–3,000 on the phone (~7–10×)**. The limit is now redrawing (B). The local-folder background check is unchanged (~5,000).
+
+**Status:** A built 2026-10-23, awaiting Geoff's check on phone and PC. B, C, D and the cheaper local-folder check are not approved.
 
 ---
 
@@ -456,6 +471,7 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-23 | R2-7 | **A approved and built** (build 2026-10-23a): device copy + change-only sync, source-swappable | OneDrive limit ~25–40× (PC), ~7–10× (phone) |
 | 2026-10-21 | R2-6 | **Step 1 approved and built** (build 2026-10-21c): diagnostics in Settings | Fix follows Geoff's diagnostics paste |
 | 2026-10-21 | R2-4 | **Approved (B) and built** (build 2026-10-21b): next to the build folder, default name `data`; OneDrive default stays `HTML-ToDo-App` | Awaiting Geoff's check |
 | 2026-10-20 | R2-3 | **Approved and built** (build 2026-10-20c): details 1–4 as recommended | Awaiting Geoff's check |
@@ -469,6 +485,7 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-23 — v13: R2-7 A built; stress results added.
 - 2026-10-23 — v12: R2-7 (scale) added, with options A–H and an A/B/C comparison.
 - 2026-10-21 — v11: R2-6 added (from the Feedback review); step 1 built.
 - 2026-10-21 — v10: R2-5 (a folder per list, file-explorer model) captured for exploration.

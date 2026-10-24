@@ -85,3 +85,32 @@ The real OneDrive delay wasn't measured; these delays are assumptions. Microsoft
 - **Draw only what changed,** and index subtasks by parent, so actions stay fast as lists grow. A "virtual list" that draws only the rows on screen would handle a very long single list.
 - **Make the local-folder check cheaper:** check less often when idle or in the background, and only when the app is visible. Chrome's new folder-change notifications could replace polling where available.
 - **Move old done tasks out of the live folder,** e.g. a yearly archive folder (the "done journal" idea). That keeps the file count down whatever else is done.
+
+---
+
+# After R2-7 A: device copy + change-only sync (2026-10-23, build 2026-10-23a)
+**What changed:** each device keeps a copy of every file and OneDrive's change bookmark. A launch draws from the copy, then asks OneDrive what changed (one request) and downloads only those files. The **first launch on a new device** still downloads everything, once.
+
+**Measured:** the same harness, plus a **second launch** (the everyday case). "Ready" = the copy is checked against OneDrive. Simulated OneDrive at 120 ms per request.
+
+| Tasks | PC: on screen | PC: ready | PC: check-off | Phone stand-in: on screen | Phone: ready | Phone: check-off |
+|---|---|---|---|---|---|---|
+| 1,000 | 26 ms | 0.18 s (1 request) | 151 ms | 119 ms | 0.61 s | 434 ms |
+| 2,000 | 53 ms | 0.23 s | 164 ms | 229 ms | 0.78 s | 470 ms |
+| 5,000 | 157 ms | 0.39 s | 280 ms | 674 ms | 1.6 s | **1.3 s** |
+| 10,000 | 390 ms | 0.85 s | **614 ms** | 1.9 s | 3.9 s | 3.0 s |
+| 20,000 | 1.1 s | 2.3 s | 1.9 s | — | — | — |
+| 50,000 | 6.5 s | 13 s | 11 s | — | — | — |
+
+(Check-off includes the save to OneDrive, ~120 ms here.)
+
+**Local folder (PC), second launch:** 1,000: 0.25 s · 5,000: 1.8 s · 10,000: 3.5 s · 20,000: 8.3 s (was 0.7 / 4.2 / 9.0 / 18.5 s). The **background check is unchanged** (A doesn't touch it): 1.1 s of every 5 s at 5,000 tasks, so that remains the local-folder limit.
+
+## New limits (where it becomes unacceptable)
+| Setup | Before A | After A | Gain | What limits it now |
+|---|---|---|---|---|
+| **OneDrive on the PC** | 200–400 | **~8,000–10,000** | **~25–40×** | Actions (full redraws): check-off over 0.5 s at ~10k |
+| **OneDrive on the phone** | 200–400 | **~2,000–3,000** | **~7–10×** | Actions (full redraws): check-off ~0.5 s at 2k, 1.3 s at 5k. Startup is fine to ~10k |
+| **Local folder on the PC** | ~4,000–5,000 | **~5,000** for the background check; startup is fine to ~10k | ~1× (startup ~2×) | The 5 s background check re-reads every file's details |
+
+**Next bottlenecks:** R2-7 **B** (redraw only what changed) for OneDrive on both devices, and a cheaper background check for local folders.

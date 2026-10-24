@@ -21,6 +21,7 @@ class FakeGraph:
         self.n = 0               # eTag counter
         self.requests = []       # (method, path, if_match)
         self.violations = []
+        self.urls = []           # full request URLs (with query), for checks on how the app asked
         self.expire_before = 0   # delta tokens below this return 410 (simulates an expired change feed)
         for name, text in files.items():
             self._create(name, text)
@@ -84,6 +85,13 @@ class FakeGraph:
             self._touch(it)
 
     # ---------- routing ----------
+    def full_checks(self):
+        """How many times the app re-read the whole folder: a listing, or the change feed without a bookmark."""
+        return sum(1 for u in self.urls if u.split("?")[0].endswith(":/children") or (u.split("?")[0].endswith(":/delta") and "token=" not in u))
+
+    def downloads(self):
+        return sum(1 for u in self.urls if u.startswith(DL))
+
     def install(self, page):
         page.route("https://graph.microsoft.com/**", self._handle)
         page.route("https://fake-dl.test/**", self._download)
@@ -100,6 +108,7 @@ class FakeGraph:
         self._reply(route, status, {"error": {"code": str(status), "message": msg}})
 
     def _download(self, route, request):
+        self.urls.append(request.url)
         iid = urlparse(request.url).path.strip("/")
         it = self.items.get(iid)
         if not it or it["deleted"]:
@@ -116,6 +125,7 @@ class FakeGraph:
         method = request.method
         if_match = request.headers.get("if-match")
         self.requests.append((method, unquote(path), if_match))
+        self.urls.append(unquote(request.url))
 
         # test-only endpoints
         if path.startswith("/__test/"):

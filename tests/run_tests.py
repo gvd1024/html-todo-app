@@ -296,7 +296,7 @@ def test_onedrive(browser):
 
     # pull to refresh (real touch drag via Chrome DevTools)
     cdp = ctx.new_cdp_session(page)
-    lists_before = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    lists_before = len([u for u in fg.urls if ":/delta" in u or ":/children" in u])
     sc = page.locator("#scroller").bounding_box()
     x, y = sc["x"] + 200, sc["y"] + 20
     cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
@@ -305,9 +305,9 @@ def test_onedrive(browser):
     ready_text = page.inner_text("#ptr-text")
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     page.wait_for_timeout(800)
-    lists_after = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    lists_after = len([u for u in fg.urls if ":/delta" in u or ":/children" in u])
     check("pull down at the top shows 'Release to refresh'", ready_text == "Release to refresh", ready_text)
-    check("releasing re-reads the file list from OneDrive", lists_after > lists_before, (lists_before, lists_after))
+    check("releasing re-checks OneDrive (change feed or listing)", lists_after > lists_before, (lists_before, lists_after))
     check("refresh indicator closes afterwards", page.eval_on_selector("#ptr", "e => e.getBoundingClientRect().height") < 1)
 
     # toggle → conditional PUT
@@ -454,11 +454,11 @@ def test_resilience(browser):
     page.wait_for_selector(".row")
     # phone asleep long enough for OneDrive to expire the change token; meanwhile another device edits
     fg.expire_before = fg.seq + 1   # every token the app holds is now expired (tokens issued after the edit work)
-    lists_before = sum(1 for m, p, _ in fg.requests if p.endswith(":/children"))
+    lists_before = fg.full_checks()
     fg.ext_edit("board-view.md", fg.files()["board-view.md"].replace("title: Board View", "title: Board View (edited while asleep)"))
     page.wait_for_selector(".ttl:has-text('edited while asleep')", timeout=5000)
     got410 = any(p.endswith(":/delta") for m, p, _ in fg.requests)  # delta was polled
-    reloaded = sum(1 for m, p, _ in fg.requests if p.endswith(":/children")) > lists_before
+    reloaded = fg.full_checks() > lists_before
     check("expired change feed → full reload picks up edits made in the gap", got410 and reloaded, (got410, reloaded))
     check("resilience: no page errors", not errors, errors[:3])
     ctx.close()
@@ -1297,6 +1297,90 @@ def test_diagnostics(browser):
     ctx.close()
 
 
+def test_device_copy(browser):
+    print("\n[18] Device copy: start from this device's copy, download only changes (R2-7 A)")
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=TEST_AUTH + ls_init(**{
+        "todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.list": "Feedback", "todo.everSignedIn": True}))
+    fg.install(page)
+    n_files = len(TEST_FILES)
+    title = lambda name: page.evaluate("f => __todo.all().find(t => t.file === f)?.title ?? null", name)
+    def restart():
+        page.reload(); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store && __todo.S.store.ready === true"); page.wait_for_timeout(150)
+
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store.ready === true")
+    check("first start downloads every file once", fg.downloads() == n_files, (fg.downloads(), n_files))
+    check("the app runs on the device-copy layer", page.evaluate("__todo.S.store.cachedLayer === true && __todo.S.store.kind === 'onedrive'"))
+
+    d0, f0 = fg.downloads(), fg.full_checks(); restart()
+    check("second start downloads nothing", fg.downloads() == d0, (d0, fg.downloads()))
+    check("…and doesn't re-read the folder (one change-feed call with the bookmark)", fg.full_checks() == f0, (f0, fg.full_checks()))
+    check("…and shows the same tasks", title("board-view.md") == "Board View" and page.evaluate("__todo.all().length") == n_files - 1)
+
+    fg.ext_edit("board-view.md", fg.files()["board-view.md"].replace("title: Board View", "title: Board View (edited elsewhere)"))
+    fg.ext_delete("round-1.md")
+    d0 = fg.downloads(); restart()
+    check("edits made elsewhere while closed: only that file is downloaded", fg.downloads() - d0 == 1, fg.downloads() - d0)
+    check("…the edit shows", title("board-view.md") == "Board View (edited elsewhere)", title("board-view.md"))
+    check("…and a file deleted elsewhere is gone", title("round-1.md") is None)
+
+    page.evaluate("async () => { const t = __todo.all().find(x => x.file === 'access-from-android-phone.md'); t.title = 'Saved here'; await __todo.saveTask(t); }")
+    d0 = fg.downloads(); restart()
+    check("our own save: kept in the copy, not downloaded again", fg.downloads() == d0 and title("access-from-android-phone.md") == "Saved here", (fg.downloads() - d0, title("access-from-android-phone.md")))
+
+    fg.expire_before = fg.seq + 1
+    f0, d0 = fg.full_checks(), fg.downloads(); restart()
+    check("expired bookmark → one full re-check of the folder", fg.full_checks() == f0 + 1, (f0, fg.full_checks()))
+    check("…but nothing is downloaded when the versions match", fg.downloads() == d0, fg.downloads() - d0)
+    fg.expire_before = 0
+
+    # start with no connection: the copy shows; when the connection is back, the app catches up
+    offline = lambda route: route.abort()
+    page.route("https://graph.microsoft.com/**", offline)
+    page.reload(); page.wait_for_selector(".row"); page.wait_for_timeout(500)
+    check("offline start: tasks show from the device copy", title("board-view.md") == "Board View (edited elsewhere)" and page.locator(".row").count() >= 2)
+    check("…marked offline, with a toast", page.evaluate("__todo.S.offline === true") and "Offline" in page.inner_text("#toast"), page.inner_text("#toast"))
+    page.unroute("https://graph.microsoft.com/**", offline)
+    fg.ext_edit("desktop-app.md", "---\nid: t-x\ntitle: Back online\nstatus: open\nlist: Feedback\norder: 9\n---\n") if "desktop-app.md" in fg.files() else fg.ext_edit("board-view.md", fg.files()["board-view.md"].replace("Board View (edited elsewhere)", "Back online"))
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(600)
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(400)
+    check("back online: the next check catches up", page.evaluate("__todo.S.offline === false && __todo.all().some(t => t.title === 'Back online')"))
+
+    # Settings → Diagnostics → Clear device copy → everything is downloaded again
+    page.click("#app-menu"); page.locator("#pop button", has_text="Settings").click(); page.click("#modal [data-a=diag]")
+    check("diagnostics show the device copy", '"deviceCopy"' in page.input_value("#diag-text") and '"bookmark": true' in page.input_value("#diag-text"))
+    d0 = fg.downloads()
+    page.click("#modal [data-a=clearcopy]"); page.wait_for_timeout(1500); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store.ready === true")
+    check("Clear device copy → the next start downloads everything again", fg.downloads() - d0 == len(fg.files()), (fg.downloads() - d0, len(fg.files())))
+    check("never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("device copy (OneDrive): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # local folder: an edit made outside the app while it was closed shows up after a restart
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "local", "todo.pollMs": 86400000}))
+    page.goto(APP)
+    page.evaluate("""async () => {
+        const root = await navigator.storage.getDirectory(); try { await root.removeEntry('dc', { recursive:true }); } catch {}
+        const d = await root.getDirectoryHandle('dc', { create:true });
+        const put = async (n, s) => { const w = await (await d.getFileHandle(n, { create:true })).createWritable(); await w.write(s); await w.close(); };
+        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n');
+        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n');
+        await __todo.useStore(new __todo.FsStore(d));
+        const db = await new Promise(r => { const q = indexedDB.open('task-board', 1); q.onupgradeneeded = () => q.result.createObjectStore('kv'); q.onsuccess = () => r(q.result); });
+        await new Promise(r => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(d, 'dir'); tx.oncomplete = r; }); }""")
+    page.wait_for_selector(".row")
+    check("local folder runs on the device-copy layer", page.evaluate("__todo.S.store.cachedLayer === true && __todo.S.store.kind === 'local'"))
+    page.evaluate("""async () => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('dc');
+        await new Promise(r => setTimeout(r, 20));
+        const w = await (await d.getFileHandle('two.md')).createWritable(); await w.write('---\\nid: t-2\\ntitle: Two (edited outside)\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n'); await w.close(); }""")
+    page.reload(); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store && __todo.S.store.ready === true")
+    info = page.evaluate("__todo.S.store.info()")
+    check("local folder: the outside edit shows after a restart", page.evaluate("__todo.all().some(t => t.title === 'Two (edited outside)')"))
+    check("…started from the copy and re-read only the changed file", info["fromCopyAtStart"] == 2 and info["downloaded"] == 1, info)
+    check("device copy (local): no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1306,7 +1390,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy)]
         for name, fn in tests:
             if not only or name in only:
                 try:

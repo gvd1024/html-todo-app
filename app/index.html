@@ -310,7 +310,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-21c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-23a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -451,6 +451,7 @@ class FsStore {                               // a local folder (desktop Chrome/
     await this._put(th, await f.text());
     await (await this._dir(path, false)).removeEntry(baseName(path)); }
   changes(){ return listDiff(this); }
+  async snapshot(){ return { entries: await this.list(), token: null }; }    // R2-7: a folder has no change feed
 }
 
 class GraphStore {                            // OneDrive through Microsoft Graph (proven by the PoC, R1-10 step 1)
@@ -520,6 +521,27 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     catch (e){ if (e.status === 404){ this.forget(path.toLowerCase()); return; } if (e.status === 412) throw new ConflictError(path); throw e; }
     this.forget(path.toLowerCase());
   }
+  /* R2-7 source abilities: every file + a change bookmark (delta link), and only what changed since a bookmark */
+  metaOf(path){ const e = this.items.get(path.toLowerCase()); return e ? { id:e.id } : null; }
+  restore(records){ for (const r of records) if (r.meta?.id) this.remember({ id:r.meta.id, name:r.path, eTag:r.version }); }
+  async snapshot(){
+    if (this.deltaOk){
+      this.items.clear(); this.byId.clear(); this.deltaLink = null; this.baselined = false;
+      try { await this.changes(); }
+      catch (e){ if (e.status === 404) throw new FolderError(`The folder "${this.folder}" wasn't found in your OneDrive.`); throw e; }
+      if (this.deltaOk) return { entries: [...this.items.values()].filter(e => isStorePath(e.path)).map(e => ({ path:e.path, version:e.eTag })), token: this.deltaLink };
+    }
+    return { entries: await this.list(), token: null };              // work OneDrive without folder delta: a listing
+  }
+  async changesSince(token){
+    if (!this.deltaOk) throw new TokenExpired();
+    this.deltaLink = token; this.baselined = true;
+    let ch;
+    try { ch = await this.changes(); }
+    catch (e){ if (e.status === 410 || e.status === 404){ this.deltaLink = null; throw new TokenExpired(); } throw e; }
+    if (ch.some(c => c.resync)) throw new TokenExpired();
+    return { changes: ch, token: this.deltaLink };
+  }
   async changes(){
     if (!this.deltaOk) return listDiff(this);       // work OneDrive: folder delta unsupported → listing (S-4)
     let url = this.deltaLink || `/me/drive/root:/${this.fp()}:/delta`; const first = !this.deltaLink; const out = [];
@@ -544,6 +566,128 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     this.baselined = true;
     return resync ? [{ resync:true }] : out;
   }
+}
+
+/* ---------------- device copy (R2-7 A) ----------------
+   Layers:  app  ⇄  CachedStore (a copy of every file on this device)  ⇄  source store
+   A source is anything with the store interface plus snapshot() [every file + a change bookmark] and, optionally,
+   changesSince(bookmark) [only what changed]. Today: GraphStore (OneDrive) and FsStore (local folder). Later sources
+   (an index file in OneDrive, a backend) plug in the same way; drawing speed-ups (R2-7 B) don't touch this layer.
+   Rules: writes always go to the source first, with the same conditional writes as before. A cached file is used only
+   when its version equals the version the source reports. Files and the bookmark are saved in one transaction, so the
+   bookmark never runs ahead of the files. If the copy can't be used, everything works as before, just slower. */
+class TokenExpired extends Error {}
+const CACHE_FORMAT = 1;
+const devCache = {
+  db: null,
+  open(){
+    if (!this.db) this.db = new Promise((res, rej) => { const r = indexedDB.open('hta-device-copy', 1);
+      r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('files', { keyPath:['scope', 'path'] }).createIndex('scope', 'scope'); d.createObjectStore('state', { keyPath:'scope' }); };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    return this.db;
+  },
+  async load(scope){ const db = await this.open(); return new Promise((res, rej) => {
+    const tx = db.transaction(['files', 'state']); const out = { files:[], state:null };
+    tx.objectStore('files').index('scope').getAll(scope).onsuccess = e => { out.files = e.target.result; };
+    tx.objectStore('state').get(scope).onsuccess = e => { out.state = e.target.result || null; };
+    tx.oncomplete = () => res(out); tx.onerror = () => rej(tx.error); }); },
+  async commit(scope, puts, dels, state){ const db = await this.open(); return new Promise((res, rej) => {
+    const tx = db.transaction(['files', 'state'], 'readwrite'); const f = tx.objectStore('files');
+    for (const r of puts) f.put({ scope, path:r.path, text:r.text, version:r.version, meta:r.meta ?? null });
+    for (const path of dels) f.delete([scope, path]);
+    if (state) tx.objectStore('state').put({ scope, ...state });
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); },
+  async clear(){ const db = await this.open(); return new Promise((res, rej) => {
+    const tx = db.transaction(['files', 'state'], 'readwrite'); tx.objectStore('files').clear(); tx.objectStore('state').clear();
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); },
+};
+class CachedStore {
+  constructor(src, scope){ this.src = src; this.scope = scope; this.cachedLayer = true;
+    this.mem = new Map();        // lower-case path → { path, text, version, meta }: the copy
+    this.known = new Map();      // path → the version the source last reported
+    this.token = null; this.ready = false; this.usable = true; this.stats = { warm:0, fetched:0 }; }
+  get kind(){ return this.src.kind; } get name(){ return this.src.name; } get demo(){ return this.src.demo; } get caps(){ return this.src.caps; }
+  rec(path, f){ return { path, text:f.text, version:f.version, meta:this.src.metaOf?.(path) ?? null }; }
+  async save(puts, dels, token){                       // token === undefined → leave the bookmark alone
+    if (!this.usable) return;
+    try { await devCache.commit(this.scope, puts, dels, token === undefined ? null : { format:CACHE_FORMAT, token, savedAt:Date.now() }); }
+    catch (e){ console.warn('device copy: write failed, continuing without it', e); this.usable = false; }
+  }
+  async warm(){                                        // the saved copy, for drawing at once (not yet checked)
+    try {
+      const { files, state } = await devCache.load(this.scope);
+      if (!state || state.format !== CACHE_FORMAT) return [];
+      for (const r of files) this.mem.set(r.path.toLowerCase(), r);
+      this.token = state.token || null; this.src.restore?.(files); this.stats.warm = files.length;
+      return files;
+    } catch (e){ console.warn('device copy unavailable', e); this.usable = false; return []; }
+  }
+  async list(){                                        // check the copy against the source; download only what differs
+    let entries = null, token;
+    if (this.token && this.src.changesSince){
+      try {
+        const r = await this.src.changesSince(this.token); token = r.token;
+        const v = new Map([...this.mem.values()].map(x => [x.path, x.version]));
+        for (const c of r.changes){ if (c.deleted) v.delete(c.path); else v.set(c.path, c.version); }
+        entries = [...v].map(([path, version]) => ({ path, version }));
+      } catch (e){ if (!(e instanceof TokenExpired)) throw e; }
+    }
+    if (!entries){ const s = await this.src.snapshot(); entries = s.entries; token = s.token; }
+    const want = new Set(entries.map(e => e.path.toLowerCase()));
+    const stale = entries.filter(e => this.mem.get(e.path.toLowerCase())?.version !== e.version);
+    const dels = [...this.mem.values()].filter(r => !want.has(r.path.toLowerCase())).map(r => r.path);
+    const puts = [];
+    this.known = new Map(entries.map(e => [e.path, e.version]));
+    try {
+      await pool(stale, 6, async e => {
+        try { const f = await this.src.read(e.path, { cached:true }); const r = this.rec(e.path, f);
+          this.mem.set(e.path.toLowerCase(), r); this.known.set(e.path, f.version); puts.push(r); this.stats.fetched++; }
+        catch (err){ if (err instanceof NotFoundError){ this.known.delete(e.path); return; } throw err; }
+      });
+    } catch (err){ await this.save(puts, [], undefined); throw err; }   // keep what arrived; the bookmark stays behind
+    for (const path of dels) this.mem.delete(path.toLowerCase());
+    this.token = token; this.ready = true;
+    await this.save(puts, dels, token);
+    return entries.filter(e => this.known.has(e.path)).map(e => ({ path:e.path, version:this.known.get(e.path) }));
+  }
+  async read(path, { cached = false } = {}){
+    const r = this.mem.get(path.toLowerCase());
+    if (cached && r && this.known.get(r.path) === r.version) return { text:r.text, version:r.version };
+    try { const f = await this.src.read(path, { cached }); this.keep(path, f); return f; }
+    catch (e){ if (e instanceof NotFoundError) this.drop(path); throw e; }
+  }
+  keep(path, f){ const r = this.rec(path, f); this.mem.set(path.toLowerCase(), r); this.known.set(path, f.version); this.save([r], [], undefined); }
+  drop(path){ const r = this.mem.get(path.toLowerCase()); this.mem.delete(path.toLowerCase()); this.known.delete(path);
+    this.save([], [r ? r.path : path], undefined); }
+  async write(path, text, expected){ const version = await this.src.write(path, text, expected); this.keep(path, { text, version }); return version; }
+  async create(path, text){ const version = await this.src.create(path, text); this.keep(path, { text, version }); return version; }
+  async remove(path, expected){ await this.src.remove(path, expected); this.drop(path); }
+  async changes(){                                     // the background check
+    if (!this.ready) return [{ resync:true }];         // never checked yet (e.g. opened offline)
+    if (this.token && this.src.changesSince){
+      let r; try { r = await this.src.changesSince(this.token); } catch (e){ if (e instanceof TokenExpired) return [{ resync:true }]; throw e; }
+      const last = new Map(); for (const c of r.changes) last.set(c.path.toLowerCase(), c);
+      const puts = [], dels = [];
+      await pool([...last.values()], 6, async c => {
+        if (c.deleted){ const old = this.mem.get(c.path.toLowerCase()); this.mem.delete(c.path.toLowerCase()); this.known.delete(c.path); dels.push(old ? old.path : c.path); return; }
+        this.known.set(c.path, c.version);
+        if (this.mem.get(c.path.toLowerCase())?.version === c.version) return;      // e.g. our own save
+        try { const f = await this.src.read(c.path, { cached:true }); const rec = this.rec(c.path, f);
+          this.mem.set(c.path.toLowerCase(), rec); this.known.set(c.path, f.version); puts.push(rec); this.stats.fetched++; }
+        catch (e){ if (!(e instanceof NotFoundError)) throw e; }
+      });
+      this.token = r.token; await this.save(puts, dels, r.token);
+      return r.changes;
+    }
+    const prev = new Map(this.known); const entries = await this.list();        // no change feed: compare listings
+    const out = []; for (const e of entries) if (prev.get(e.path) !== e.version) out.push({ path:e.path, version:e.version });
+    for (const path of prev.keys()) if (!this.known.has(path)) out.push({ path, deleted:true });
+    return out;
+  }
+  info(){ return { scope:this.scope, files:this.mem.size, bookmark:!!this.token, usable:this.usable, fromCopyAtStart:this.stats.warm, downloaded:this.stats.fetched }; }
+}
+function deviceCopyScope(store){
+  return store.kind === 'onedrive' ? `onedrive|${S.auth?.user?.() || ''}|${store.folder.toLowerCase()}` : `${store.kind}|${store.name}`;
 }
 
 /* ---------------- sign-in (storage-spec S-5) ---------------- */
@@ -686,22 +830,28 @@ async function pool(items, n, fn){ const out = new Array(items.length); let i = 
 async function loadAll(){
   busy(1);
   try {
-    try { await S.store.changes(); } catch {}        // baseline the change feed before reading (S-4)
-    const entries = await S.store.list();
-    const map = new Map(); S.cfgVersion = null; S.cfgExtra = {}; let cfg = null;
+    if (!S.store.cachedLayer){ try { await S.store.changes(); } catch {} }   // baseline the change feed before reading (S-4)
+    const entries = await S.store.list();             // with the device copy: checks the copy, downloads only what changed
+    const recs = [];
     await pool(entries, 6, async e => {               // S-8 C: parallel reads, ~6 at a time
-      try {
-        const { text, version } = await S.store.read(e.path, { cached:true });
-        if (e.path === CONFIG_FILE){ try { cfg = JSON.parse(text); } catch {} S.cfgVersion = version; return; }
-        addParsed(map, parseTask(e.path, text, version));
-      } catch (err){ console.warn('read failed', e.path, err); }
+      try { const { text, version } = await S.store.read(e.path, { cached:true }); recs.push({ path:e.path, text, version }); }
+      catch (err){ console.warn('read failed', e.path, err); }
     });
-    S.tasks = map;
-    if (cfg && typeof cfg === 'object'){ const { lists, ...rest } = cfg; S.cfgExtra = rest; S.lists = Array.isArray(lists) ? lists.map(String) : []; }
-    else S.lists = [];
+    buildFrom(recs);
     S.offline = false;
     syncLists(); render();
   } finally { busy(-1); }
+}
+function buildFrom(recs){                           // task map + lists from file records (a full load or the device copy)
+  const map = new Map(); S.cfgVersion = null; S.cfgExtra = {}; let cfg = null;
+  for (const r of recs){
+    if (r.path === CONFIG_FILE){ try { cfg = JSON.parse(r.text); } catch {} S.cfgVersion = r.version; continue; }
+    if (!isTaskPath(r.path)) continue;
+    addParsed(map, parseTask(r.path, r.text, r.version));
+  }
+  S.tasks = map;
+  if (cfg && typeof cfg === 'object'){ const { lists, ...rest } = cfg; S.cfgExtra = rest; S.lists = Array.isArray(lists) ? lists.map(String) : []; }
+  else S.lists = [];
 }
 function addParsed(map, t){
   if (map.has(t.id) && map.get(t.id).file !== t.file){ t.dupOf = t.id; t.id = t.id + '~' + t.file; }
@@ -1906,11 +2056,13 @@ function searchDialog(){
 }
 function diagnosticsDialog(){
   let log = []; try { log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); } catch {}
-  const text = JSON.stringify(deviceReport(), null, 1) + '\n\nRecent loads / returns (newest last):\n' + log.join('\n');
+  const text = JSON.stringify({ ...deviceReport(), deviceCopy: S.store?.info?.() ?? null }, null, 1) + '\n\nRecent loads / returns (newest last):\n' + log.join('\n');
   modal(`<h3>Diagnostics</h3><p style="font-size:12px;color:var(--muted)">What this browser reports about the device, and what the app decided. Tap Copy and paste it to Claude.</p>
     <textarea id="diag-text" readonly style="width:100%;height:50vh;font:12px/1.35 monospace;white-space:pre">${esc(text)}</textarea>
-    <div class="btns"><button data-a="cancel">Close</button><button class="primary" data-a="copy">Copy</button></div>`,
-    async a => { if (a !== 'copy') return closeModal(); const ta = $('#diag-text'); ta.select();
+    <div class="btns"><button data-a="clearcopy">Clear device copy</button><button data-a="cancel">Close</button><button class="primary" data-a="copy">Copy</button></div>`,
+    async a => {
+      if (a === 'clearcopy'){ try { await devCache.clear(); } catch {} toast('Device copy cleared — reloading'); setTimeout(() => location.reload(), 600); return; }
+      if (a !== 'copy') return closeModal(); const ta = $('#diag-text'); ta.select();
       try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { document.execCommand?.('copy'); toast('Selected — copy it from the box'); } }, { sheet:true });
 }
 function settingsDialog(){
@@ -1954,9 +2106,18 @@ function settingsDialog(){
 /* ---------------- start-up / storage choice ---------------- */
 async function useStore(store){
   if (S.editing) closeDrawer(true);
+  if (store.snapshot && ls.get('todo.deviceCopy', true) && window.indexedDB){      // R2-7 A: keep a copy on this device
+    store = new CachedStore(store, deviceCopyScope(store));
+    navigator.storage?.persist?.().catch(() => {});
+  }
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
+  let fromCopy = false;
+  if (store.warm){ const recs = await store.warm(); if (recs.length){ buildFrom(recs); syncLists(); render(); fromCopy = true; } }
   try { await loadAll(); }
   catch (e){
+    if (fromCopy && e instanceof OfflineError){            // no connection: keep showing this device's copy, keep retrying
+      S.offline = true; setStat(); toast("Offline — showing this device's saved copy"); schedulePoll(); return;
+    }
     S.store = null; render();
     if (e instanceof AuthError){                  // remembered account, but Microsoft wants a fresh sign-in (e.g. 24 h limit)
       if (!sessionStorage.getItem('todo.autoTried')){ sessionStorage.setItem('todo.autoTried', '1'); S.signedOut = true; signIn(); }
@@ -2131,7 +2292,7 @@ function sampleFiles(){
 }
 
 /* ---------------- boot ---------------- */
-window.__todo = { deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
+window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
