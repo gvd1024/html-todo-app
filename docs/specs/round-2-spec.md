@@ -22,6 +22,7 @@ Same as round 1:
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Step 1 built** (diagnostics) | Read what Chrome reports, then fix the phone check from real values |
+| R2-7 | Scale: support many more tasks | Discussing | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -384,6 +385,73 @@ Same as round 1:
 
 ---
 
+## R2-7 — Scale: support many more tasks
+
+**Reported** (Geoff, 2026-10-23):
+- Feedback list → *List view*: "Stress test performance with 10k tasks"
+- After the results: "any ideas on how to support more tasks? I'm willing to explore other methods for data storage like sqlite or other ideas, but still using ms onedrive as the cloud storage for the tasks and allowing the basic html app to work on phone and pc like it does now. Just consider alternative free sources of data storage in the cloud"
+- Then: "i am leaning towards starting with a, b, or c"
+
+**Problem (restated):** the stress test (`docs/stress-test-results.md`, harness `tests/stress.py`) found HTA becomes unacceptably slow at:
+- **~200–400 task files on OneDrive** (startup over 4 s): every file is downloaded on every start, 6 at a time.
+- **~3,000 on the phone and ~10,000 on the PC once loaded** (actions over 0.5 s): every change redraws the whole list.
+- **~1,000 open tasks in a single list** on the phone.
+- **~4,000–5,000 in a PC local folder:** slow startup, plus the background check re-reads every file every 5 s.
+
+**Constraints (Geoff):** OneDrive stays the cloud store; the plain HTML app keeps working on phone and PC; free; low lock-in (rule 9); ideally Claude can still edit tasks as `.md` files.
+
+### Options
+- **A — A copy on each device + change-only sync.**
+    - The app keeps every file, plus OneDrive's change bookmark (delta link), in browser storage (IndexedDB).
+    - **Startup:** draw from the copy at once, then ask OneDrive what changed since the bookmark (usually 1–2 requests) and download only those files.
+    - **A new device** downloads everything once, in the background.
+    - Local folders get the same copy, plus a cheaper background check.
+- **B — Redraw only what changed:**
+    - a subtask index (by parent) instead of scanning every task per row
+    - update only the rows an action touches
+    - a virtual list (only the rows on screen) for very long lists
+- **C — A snapshot index file in OneDrive** (`_index.json.gz`): every task plus its file version. Any device downloads one file instead of thousands, then fetches only files whose version differs. The `.md` files stay the truth.
+- **D — Archive old done tasks** (e.g. `archive/2026/` or a monthly done journal) to keep the live folder small.
+- **E — SQLite:** fine as the device copy in A (SQLite in the browser). **Not** as the OneDrive format: whole-file sync, no merging between phone and PC, and Claude can't edit it.
+- **F — A free Azure database** (Cosmos DB lifetime free tier, or the Azure SQL free offer) **plus a small backend** for keys and sign-in. Scales far, but it's a second system and a separate Azure subscription; at work it needs IT and can't run with the network lock; tasks leave plain files. **Not recommended.**
+- **G — Microsoft 365 / Graph data services:** none works on **both** work and personal accounts.
+    - SharePoint / Microsoft Lists and the Excel workbook API: work only.
+    - Dataverse: business licences.
+    - To Do: works on both, but has a fixed task model and lock-in.
+    - **Ruled out.**
+- **H — Stopgaps:** more parallel downloads, Graph `$batch` (20 per call). 2–4× faster, still proportional to the file count.
+
+### A vs. B vs. C
+They fix **different bottlenecks**, so they're not true alternatives: A and C attack **startup**, B attacks **actions once loaded**.
+
+| | **A — device copy + change-only sync** | **B — partial redraws** | **C — snapshot index in OneDrive** |
+|---|---|---|---|
+| **Fixes** | Startup on every launch (the ~200–400 limit) | Action speed once loaded (the ~3k phone / ~10k PC limit) | Startup, mainly the first load on a new or cleared device |
+| **Startup at 10k tasks** | ~1 s, from the device copy, + 1–2 requests | Unchanged (still downloads everything) | One index download (~1–2 MB at 10k) + checks, every launch |
+| **Data format change** | None | None | A new shared file in OneDrive |
+| **Works offline** | Yes, opens from the copy | No change | No |
+| **Writes** | Unchanged (one file per save) | Unchanged | Every save also updates the index: double the writes, and index conflicts between phone and PC |
+| **When Claude or Explorer edits a file** | Picked up by the change feed (as now) | n/a | The index goes stale for that file until fixed up (version check) |
+| **Risk** | Sync bugs: stale copy, an expired bookmark (must fall back to a full re-read), browser storage evicted on the phone (ask for persistent storage; rebuild if lost) | Regressions in the list UI (badges, expand, move, Today, demote) | Index drift and write contention; one more thing that can corrupt |
+| **Effort** | Medium: store layer, plus tests against the fake OneDrive | Medium–large: rework of the list rendering | Medium, plus ongoing upkeep |
+| **Builds toward** | B (indexes) and C (C is basically A's copy published to OneDrive) | — | — |
+
+**Recommendation: A first, then B; C only if needed.**
+1. **A fixes the limit you'd hit first, and by far:** ~200–400 files today → effectively unlimited for startup. It also makes every daily launch instant and offline-capable.
+2. **A changes nothing about the data:** no new files, no extra writes, no new conflict cases between devices. C adds a shared index that every save must update, which is exactly the kind of contention the files-plus-conditional-writes design avoids.
+3. **A is groundwork:** B's indexes live on the same in-memory/device model, and C is A's copy uploaded. C only adds value when **new devices** are common; you have two.
+4. **B matters later:** it only bites past ~3k tasks on the phone (or ~1k open in one list). It's still worth doing after A, together with D (archive) to keep lists short.
+
+**Verification for any option:** re-run `tests/stress.py` before and after (the Feedback item "Stress test chosen option" tracks this), plus new sync tests against `fake_graph.py`:
+- stale copy
+- an expired bookmark (410 → full re-read)
+- edits from another device while offline
+- a cleared browser storage
+
+**Status:** Discussing. Geoff is leaning toward A, B or C; Claude recommends A first. Not approved for build.
+
+---
+
 ## Decision log
 
 | Date | Item | Decision | Notes |
@@ -401,6 +469,7 @@ Same as round 1:
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-23 — v12: R2-7 (scale) added, with options A–H and an A/B/C comparison.
 - 2026-10-21 — v11: R2-6 added (from the Feedback review); step 1 built.
 - 2026-10-21 — v10: R2-5 (a folder per list, file-explorer model) captured for exploration.
 - 2026-10-21 — v9: R2-4 approved (B, folder `data`) and built.
