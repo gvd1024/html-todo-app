@@ -315,7 +315,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-24b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-24c';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -329,9 +329,11 @@ const SCOPES = ['Files.ReadWrite', 'User.Read'];
 const REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
 /* Phone or PC? (R1-15) The browser's label says "phone" normally, but Chrome's "Desktop site" mode sends a PC label.
    So also check the hardware: touch-only (no mouse/trackpad) + a phone-sized screen = phone. Touch laptops have a
-   trackpad or mouse, so they stay PCs. */
+   trackpad or mouse, so they stay PCs. R2-6: some Android phones report a fine pointer too (any-pointer: fine), but
+   nothing on them can hover, while a laptop's trackpad or mouse always can — so "touch + nothing hovers" also counts. */
 const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || navigator.userAgentData?.mobile === true;
-const TOUCH_ONLY = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+const TOUCH_ONLY = matchMedia('(pointer: coarse)').matches &&
+  (!matchMedia('(any-pointer: fine)').matches || (navigator.maxTouchPoints > 0 && !matchMedia('(any-hover: hover)').matches));
 const PHONE_SCREEN = Math.min(screen.width, screen.height) <= 600;   // phones are ~360–480 px on the short side
 const IS_PHONE = MOBILE_UA || (TOUCH_ONLY && PHONE_SCREEN);
 /* Phone in Chrome's "Desktop site" mode: Chrome lays the page out ~980 px wide, so everything looks tiny.

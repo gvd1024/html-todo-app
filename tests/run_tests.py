@@ -722,6 +722,39 @@ def test_desktop_site_phone(browser):
     check("touch laptop: still a PC, not scaled", not info["phone"] and info["zoom"] == 1, info)
     ctx.close()
 
+    # R2-6: replay Geoff's phone diagnostics. This phone reports a fine pointer even in phone mode, but nothing hovers.
+    def media(**m):
+        js = ", ".join(f"[{q!r}, {str(v).lower()}]" for q, v in m.items())
+        return r"""(() => { const real = window.matchMedia.bind(window), fake = new Map([%s]);
+          window.matchMedia = q => { const k = q.replace(/[()\s]/g, ''); return fake.has(k) ? { matches:fake.get(k), media:q, addEventListener(){}, removeEventListener(){} } : real(q); }; })();""" % js
+    phone_media = media(**{"pointer:coarse": True, "pointer:fine": False, "any-pointer:fine": True, "any-pointer:coarse": True,
+                           "hover:hover": False, "any-hover:hover": False})
+    def device(viewport, screen, ua, stub, touch=True):
+        c = browser.new_context(viewport=viewport, screen=screen, has_touch=touch, user_agent=ua)
+        p = c.new_page(); errs = []; p.on("pageerror", lambda e: errs.append(str(e)))
+        p.add_init_script(stub + ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+        p.goto(APP); p.wait_for_selector(".row")
+        return c, p, errs, p.evaluate("() => ({ phone: __todo.IS_PHONE, zoom: __todo.PAGE_ZOOM, w: document.body.offsetWidth })")
+    desk_ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+    ctx, page, errs, info = device({"width": 979, "height": 1972}, {"width": 339, "height": 727}, desk_ua, phone_media)
+    check("R2-6: phone that reports a fine pointer, started in desktop-site mode → phone", info["phone"], info)
+    check("…scaled back to the real screen (979 / 339), lays out 339 wide", abs(info["zoom"] - 979 / 339) < 0.01 and abs(info["w"] - 339) < 3, info)
+    check("…phone header (no version label)", not page.locator("#ver").is_visible())
+    check("…no page errors", not errs, errs[:3])
+    ctx.close()
+    ctx, page, errs, info = device({"width": 338, "height": 682}, {"width": 339, "height": 727},
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", phone_media)
+    check("R2-6: the same phone in a normal start → phone, not scaled", info["phone"] and info["zoom"] == 1, info)
+    ctx.close()
+    laptop_media = media(**{"pointer:coarse": True, "pointer:fine": False, "any-pointer:fine": True, "any-pointer:coarse": True,
+                            "hover:hover": False, "any-hover:hover": True})
+    ctx, page, errs, info = device({"width": 1280, "height": 800}, {"width": 1280, "height": 800}, desk_ua, laptop_media)
+    check("R2-6: touch laptop used by touch (trackpad can hover) → still a PC", not info["phone"] and info["zoom"] == 1, info)
+    ctx.close()
+    ctx, page, errs, info = device({"width": 1024, "height": 600}, {"width": 1024, "height": 600}, desk_ua, laptop_media)
+    check("R2-6: small touch laptop with a trackpad → still a PC", not info["phone"] and info["zoom"] == 1, info)
+    ctx.close()
+
 
 def test_phase5(browser):
     print("\n[11] Phase 5: long-press move (R1-12 #13)")

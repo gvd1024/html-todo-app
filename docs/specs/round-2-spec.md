@@ -21,7 +21,7 @@ Same as round 1:
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
-| R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Step 1 built** (diagnostics) | Read what Chrome reports, then fix the phone check from real values |
+| R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A, build 2026-10-24c) | Phone check also accepts "touch + nothing hovers"; awaiting Geoff's phone check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -381,7 +381,28 @@ Same as round 1:
 2. **Geoff:** paste the Diagnostics from a Chrome tab with Desktop site on, and one from phone mode.
 3. **The fix:** a phone check based on those values, re-run whenever the app comes back to the screen, plus a test that copies the phone's exact values.
 
-**Status:** Step 1 built (awaiting Geoff's diagnostics paste).
+**Diagnostics (Geoff, 2026-10-24, installed app on Android, build 2026-10-24b):**
+- **Bad start:** the browser label is a Linux desktop (`X11; Linux x86_64`, no "Mobile"), and the page is laid out 979×1972 on a 339×727 screen. That's Chrome's Desktop-site mode. The app decided PC.
+- **Good start:** label `Android … Mobile`, 338×682. The app decided phone.
+- **Both starts** report `pointer: coarse`, **`any-pointer: fine` = true**, `any-hover` = false and 5 touch points.
+- R1-15's touch-only test required "no fine pointer anywhere". This phone always reports one, so the fallback never fired.
+- **Log pattern:** each bad load comes in the same minute as a good one (a second window that Chrome opens in desktop mode). The cause is in Chrome's launch handling.
+- **Chrome settings checked by Geoff:** Desktop site off, no exception for the site.
+
+**Options for the fix (step 3):**
+- **A:** count "touch + nothing can hover" as touch-only as well. A laptop's trackpad or mouse always hovers, so touch laptops stay PCs.
+- **B:** A plus a hidden "force phone mode" setting.
+- **C:** look for Chrome's cause in its settings (done: nothing found).
+
+**Decision (Geoff, 2026-10-24): "implement A".**
+- **Built** (build 2026-10-24c): `TOUCH_ONLY` = coarse pointer and (no fine pointer, **or** touch points > 0 with no hover anywhere). The existing desktop-site zoom then scales the page back to the real screen width (979 / 339 ≈ 2.9).
+- **The plan's "re-run when the app returns to the screen"** isn't needed for this case: the bad window is a fresh load, which the check already covers.
+- **Tests** (`desktopsite` group, +7 checks):
+    - Geoff's exact desktop-mode values → phone, laid out 339 wide.
+    - The same phone in a normal start → phone, not scaled.
+    - A touch laptop (touch + hovering trackpad), at 1280 and at 1024 wide → still a PC.
+
+**Status:** Built (build 2026-10-24c). Awaiting Geoff's check on the phone.
 
 ---
 
@@ -531,6 +552,8 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-24 | R2-6 | **A approved and built** (build 2026-10-24c): "touch + nothing hovers" counts as touch-only | From Geoff's diagnostics: his phone reports a fine pointer; Chrome site settings clean |
+| 2026-10-24 | Agent rounds | **Merged to main** at Geoff's request; Geoff's PC checks (device copy, banner/conflict dialog, Check all + Undo, sign-out, Clear device copy, keyboard) all passed | Phone pass pending |
 | 2026-10-23 | R2-7 | **A approved and built** (build 2026-10-23a): device copy + change-only sync, source-swappable | OneDrive limit ~25–40× (PC), ~7–10× (phone) |
 | 2026-10-21 | R2-6 | **Step 1 approved and built** (build 2026-10-21c): diagnostics in Settings | Fix follows Geoff's diagnostics paste |
 | 2026-10-21 | R2-4 | **Approved (B) and built** (build 2026-10-21b): next to the build folder, default name `data`; OneDrive default stays `HTML-ToDo-App` | Awaiting Geoff's check |
@@ -545,6 +568,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-24 — v17: R2-6 diagnostics analysed, A approved and built (build 2026-10-24c); Geoff's PC checks of the agent-round build recorded.
 - 2026-10-24 — v16: Agent rounds, round 3 (T3-1, T3-2 fixed; T3-3 for Geoff) and a consolidated list of decisions waiting for Geoff (build 2026-10-24b).
 - 2026-10-24 — v15: Agent rounds, round 2 (T2-1 … T2-5) fixed or listed for Geoff (build 2026-10-24a).
 - 2026-10-23 — v14: Agent rounds section; round 1 (T1-1 … T1-15) fixed or listed for Geoff (build 2026-10-23b).
