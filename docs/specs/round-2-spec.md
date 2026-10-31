@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided**; Moving tasks in next | One category at a time; due-dated tasks matter most |
+| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided · Moving tasks in: deferred**; Long-term next | One category at a time; due-dated tasks matter most |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -662,6 +662,48 @@ Status: **Decided**, not yet approved for build.
 Status: **Decided**, not yet approved for build.
 
 ### 5. Moving tasks in (from Super Productivity and Microsoft To Do)
+**Deferred (Geoff, 2026-10-31): "lets put this discusson off for now, but remind me to discuss this when we begin to talk about importing the existing tasks from spa and ms todo".** What was pitched is kept here for that discussion.
+
+**Risks:**
+- **A due date shifts by a day:** To Do stores due dates as midnight in a time zone.
+- **Fields with no HTA place:** due times, reminders, importance ★, My Day, SP time estimates and time spent, attachments.
+- **Repeats that don't translate:** "2nd Tuesday" and similar become ⚠ and stop rolling forward.
+- **Statuses that don't match:** in progress, waiting, deferred.
+- **Structure:** SP subtasks; To Do steps → `- [ ]` lines; projects, tags, categories.
+- **Invisible files** from a conversion bug (Hidden #3–#5).
+- **Duplicates** on a re-run.
+- **Tasks added to the old apps after the import.**
+- **Too much done history.**
+
+**Proposed plan:** nothing touches the real folder until step 5.
+1. **Read-only inventory** into a private report in `private/`.
+2. **Agree the mapping** with Geoff.
+3. **Convert into a staging folder**, e.g. OneDrive `HTML-ToDo-App-Import`.
+4. **Automatic check:**
+    - one file per source task
+    - every due date matches the source
+    - counts per list match
+    - every repeat phrase parses
+    - Needs attention (Hidden A) is empty
+
+   Then Geoff reviews it in the app.
+5. **Move into the real folder**, after showing the list. Re-runs are safe, because each file keeps its source id.
+6. **Run both side by side** for 1–2 weeks with the old apps read-only, then a final catch-up pass.
+
+**Open questions (recommendations):**
+- **Q1, what to import:** open tasks only.
+- **Q2, how to read the data:**
+    - SP: its backup JSON export.
+    - To Do: Microsoft Graph's To Do API, which needs a read-tasks permission on the Azure registration plus Geoff's consent.
+- **Q3, due times and reminders:** keep them as an "Imported: …" line in the notes. The alternative is new fields (format 4).
+- **Q4, the source link:** a new known optional field `source:`.
+- **Q5, untranslatable repeats:** convert them by hand from the report, or add "Nth weekday" support.
+- **Q6, lists:** map 1:1 with a rename/merge table. Importance, My Day and tags become `collections`.
+- **Q7, before importing:** build Hidden A (Needs attention) and Deleted A (trash) first, and remove the 500 bulk test tasks.
+
+Status: **Deferred**. Raise it again when the import is discussed.
+
+### 6. Long-term
 Under review.
 
 ---
@@ -732,6 +774,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | **Moving tasks in: deferred** until the import from SP and To Do is discussed (plan and Q1–Q7 kept in the spec) | |
 | 2026-10-31 | R2-8 | **Hidden: A (Needs attention), C (search banner), D (overdue count badge; Overdue stays collapsed) decided**; B, E, F not chosen | |
 | 2026-10-31 | R2-8 | **Checked off by mistake: D decided** (Check all needs a second tap when there are subtasks or checklist lines); A–C, E–G not chosen | |
 | 2026-10-31 | R2-8 | **Overwritten: A, B, C decided** (diff in conflict dialog, losing version to trash, auto-saved drafts); D, E, F not chosen | |
@@ -753,6 +796,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v23: R2-8 category 5 Moving tasks in deferred (plan and questions kept).
 - 2026-10-31 — v22: R2-8 category 4 Hidden decided (A, C, D badge only).
 - 2026-10-31 — v21: R2-8 category 3 Checked off by mistake decided (D, second tap).
 - 2026-10-31 — v20: R2-8 category 2 Overwritten decided (A–C).
