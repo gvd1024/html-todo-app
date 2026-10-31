@@ -28,6 +28,8 @@
 - **Permissions (delegated, granted by the user at sign-in):** `Files.ReadWrite` and `User.Read`. See F4.
 - **Token storage:** MSAL's cache in `localStorage`, encrypted by MSAL with a key held in a session cookie.
 - **App settings in `localStorage`:** folder name, text size, last list, and an unsaved draft during a sign-in redirect.
+- **Auto-saved drafts (R2-8 Overwritten C, build 2026-11-01a):** while a task has unsaved edits, its title, fields and notes are kept in `localStorage` (`todo.autodraft|<scope>|<task id>`) until saved or discarded. Task text therefore sits in the browser's storage on that device (as it already does in the device copy, R2-7 A). Drafts are only shown back after escaping.
+- **Trash (R2-8 Deleted A, build 2026-11-01a):** before deleting or replacing a task file, the app writes its exact text plus a small JSON sidecar (original path, id, title, due date, time, reason, Phone/PC) into the hidden `.trash/` folder **inside the same task folder** (OneDrive or local). No new place or destination: the same folder, the same Graph calls (conditional create, If-Match delete). The trash is never emptied automatically, so deleted task text stays in the folder until someone removes it. In **Recently deleted**, every title, path and due date is escaped with `esc()`, and the tests include a hostile title.
 - **Writes:** every update and delete is conditional (`If-Match` with the file's eTag). Creates use `conflictBehavior=fail`. Deletes go to the OneDrive recycle bin.
 - **Service worker (`app/sw.js`, 8 lines):** passes page loads to the network and **caches nothing**.
 - **Tests (`tests/`):** run only on a developer PC; never loaded by the app.
