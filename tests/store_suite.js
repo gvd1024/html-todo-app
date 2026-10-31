@@ -48,6 +48,19 @@ window.storeSuite = async function (label, s, ext) {
     await ext.del('beta.md');
     const ch2 = await s.changes();
     check('an outside delete is reported by changes()', ch2.some(c => c.path === 'beta.md' && c.deleted), JSON.stringify(ch2));
+
+    // R2-8 Deleted A: files in the hidden .trash folder are never tasks — not in list(), not in changes()
+    const tp = '.trash/20261101-120000-abc123-alpha.md';
+    const tv = await s.create(tp, '---\nid: t-a\ntitle: Alpha (trashed)\nstatus: open\nlist: Inbox\norder: 1\n---\n');
+    await s.create(tp.replace(/\.md$/, '.json'), '{"format":1,"path":"alpha.md"}\n');
+    check('a file created in .trash is never listed as a task', !(await s.list()).some(e => e.path.includes('.trash')), JSON.stringify(await s.list()));
+    const tl = await s.trashList();
+    check('trashList() lists the trash entry (text + sidecar)', tl.some(e => e.path === tp && e.version === tv) && tl.some(e => e.path === tp.replace(/\.md$/, '.json')), JSON.stringify(tl));
+    const ch3 = await s.changes();
+    check('changes() never reports a .trash file', !ch3.some(c => String(c.path).includes('.trash') || c.path === 'alpha.md' && c.deleted), JSON.stringify(ch3));
+    check('a trash entry reads back exactly', (await s.read(tp)).text.includes('Alpha (trashed)'));
+    await s.remove(tp, tv);
+    check('a trash entry can be removed', !(await s.trashList()).some(e => e.path === tp));
   } catch (e) {
     check('suite crashed', false, e.stack || e.message);
   }
