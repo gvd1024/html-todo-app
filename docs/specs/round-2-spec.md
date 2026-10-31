@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Review done.** Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided · Moving tasks in: deferred · Long-term: git-history note only | Not approved for build |
+| R2-8 | Don't lose anything (data-safety review) | **Phase 1 approved for build** (Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -805,6 +805,29 @@ Status: **Decided**, not yet approved for build.
 
 Status: **Deferred**. Raise it again when the import is discussed.
 
+### Build order with R2-5 folders (Geoff, 2026-10-31)
+**Question (Geoff):** "would the R2-8 safeguards need to be changed after we switch from lists to folders? If so, then we should change the order and switch to folders first...?"
+
+**Effect of folders on each safeguard:**
+- **Large:** Deleted B and Hidden A.
+    - **Deleted B:** a move in Explorer looks like delete + new, so it needs move detection by `id`, plus a "folder deleted" notice.
+    - **Hidden A:** the checks change. Files in subfolders become normal; new checks: a subtask in the wrong folder, duplicate ids from an interrupted move, a folder/`list:` mismatch.
+- **Small, if designed for folders from the start:** Deleted A and Overwritten B (the trash records full paths, and Restore re-creates folders), and Overwritten A ("folder" in the comparison).
+- **None:** Deleted C, D; Overwritten C (if keyed by task id); Checked off D; Hidden C, D.
+
+**Options:**
+1. **All safeguards first:** Deleted B and Hidden A get built twice.
+2. **Folders first:** the riskiest change, including migrating the real files, happens without a safety net.
+3. **Split.**
+
+**Decision (Geoff, 2026-10-31): "record option 3 and approve phase 1".**
+- **Phase 1: Approved for build.**
+    - **Covers:** Deleted A, C, D · Overwritten A, B, C · Checked off D · Hidden C, D.
+    - **Designed for folders from day one:** the trash keeps each file's full relative path, and Restore re-creates missing folders. Auto-saved edits are keyed by task `id`.
+- **Phase 2** (after the R2-5 implementation discussion): R2-5 folders, built together with **Deleted B** and **Hidden A (Needs attention)**, which share the "match tasks by `id` across paths" machinery.
+- **Then:** a prototype on the test folder → migrate the real folder → the SP/To Do import.
+- **Until Phase 2:** deletions made outside the app are covered only by OneDrive's recycle bin, version history and Files Restore.
+
 ### 6. Long-term
 Reviewed 2026-10-31. Geoff chose not to add these options to the spec.
 
@@ -880,6 +903,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | **Order: option 3 (split). Phase 1 approved for build**; Phase 2 = folders + Deleted B + Hidden A | Folders change Deleted B and Hidden A a lot; the rest not, or little |
 | 2026-10-31 | R2-5 | **B decided** (the folder is the list). Additions: rename List → Folder; subtasks must share the parent's folder (recommended); consider dropping `list:` from the frontmatter (leaning remove); a Move-to-folder UI. Gate: full implementation discussion first | Storage: files stay the source of truth (no database) |
 | 2026-10-31 | R2-8 | **Long-term reviewed:** nothing added except a note to revisit a local git history when AI management starts | |
 | 2026-10-31 | R2-8 | **Moving tasks in: deferred** until the import from SP and To Do is discussed (plan and Q1–Q7 kept in the spec) | |
@@ -904,6 +928,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v25: R2-8 build order (option 3) recorded; Phase 1 approved for build.
 - 2026-10-31 — v24: R2-5 B decided, with cons, AI reasoning, Geoff's additions and an implementation gate; storage discussion recorded; R2-8 Long-term note (git history).
 - 2026-10-31 — v23: R2-8 category 5 Moving tasks in deferred (plan and questions kept).
 - 2026-10-31 — v22: R2-8 category 4 Hidden decided (A, C, D badge only).
