@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D (second tap) decided**; Hidden next | One category at a time; due-dated tasks matter most |
+| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided**; Moving tasks in next | One category at a time; due-dated tasks matter most |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -619,7 +619,49 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 
 Status: **Decided**, not yet approved for build.
 
-### 4. Hidden but still there
+### 4. Hidden but still there (reviewed 2026-10-31, from the code)
+| # | How | Visible where | Gap |
+|---|---|---|---|
+| 1 | Done | Show done | By design |
+| 2 | Archived (demoted, kept) | Show archived | Its due date is now text inside another task; not in Today |
+| 3 | Broken header (YAML can't be read) | Read-only in **Inbox** with ⚠, title from the file name | List and due date unreadable → not in its list, **not in Today** |
+| 4 | Unreadable due date | Its list, with ⚠ | **Not in Today** (YYYY-MM-DD only) |
+| 5 | Ignored names: `_`/`.` prefix, `README.md`, not `.md`, **in a subfolder** (both stores read the top folder only) | Nowhere | Invisible with no warning. Higher risk during an import |
+| 6 | Open subtask under a done parent ("Check only this") | Today (if due); hidden in the list view unless Show done | Only a toast at check-off |
+| 7 | Wrong list (moved, `list:` typo, demote) | That list; Today if due | A typo makes a new list; no counts in the list picker (T1-13) |
+| 8 | Search left on | Filters both the lists and Today | **Only a toast says it's active** |
+| 9 | Today sections | Today open; Overdue and Upcoming collapsed with counts; "+ N later" | By design (R2-2) |
+| 10 | Duplicates (conflict copies, Keep both, imports) | Both shown | Confusing, not hidden |
+| 11 | Unknown status | Shown with ⚠ | — |
+| 12 | Orphan subtask | Top level | — |
+| 13 | Not uploaded yet by OneDrive | Not on other devices yet | See Long-term |
+| 14 | Due-dated subtasks | Today and under the parent | — |
+
+**Options pitched:**
+- **A:** a "Needs attention" check.
+- **B:** due dates still findable when the header is broken.
+- **C:** a search banner.
+- **D:** open Overdue by default (or an overdue badge).
+- **E:** list-picker counts.
+- **F:** open subtasks of a done parent stay visible.
+
+**Decision (Geoff, 2026-10-31): "add A, C and D (but for D just show the overdue count as badge, keep overdue collapsed)".**
+- **A, Needs attention:** one place lists everything the app can't place properly:
+    - a broken header
+    - an unreadable due date
+    - non-`.md` files and anything in a subfolder of the task folder
+    - duplicate ids
+    - open subtasks under done parents
+    - a list that isn't in `_todo.json` (a likely typo)
+
+  Due-related items come first. It shows as a badge on ⋯ and as a section at the top of the Today view when it isn't empty.
+- **C, search banner:** while a search is active, a bar under the header ("Filtering: *…* — ✕ Clear") in the lists and in Today.
+- **D, overdue badge:** the overdue count shows as a badge where the Today view is opened (and in its header). **Overdue stays collapsed.**
+- B, E and F are not chosen. E stays in the agent-rounds decision list as T1-13.
+
+Status: **Decided**, not yet approved for build.
+
+### 5. Moving tasks in (from Super Productivity and Microsoft To Do)
 Under review.
 
 ---
@@ -690,6 +732,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | **Hidden: A (Needs attention), C (search banner), D (overdue count badge; Overdue stays collapsed) decided**; B, E, F not chosen | |
 | 2026-10-31 | R2-8 | **Checked off by mistake: D decided** (Check all needs a second tap when there are subtasks or checklist lines); A–C, E–G not chosen | |
 | 2026-10-31 | R2-8 | **Overwritten: A, B, C decided** (diff in conflict dialog, losing version to trash, auto-saved drafts); D, E, F not chosen | |
 | 2026-10-31 | R2-8 | Added (data-safety review). **Deleted: A, B, C, D decided**; E (soft delete) not chosen | Geoff has Microsoft 365 Family (Files Restore) |
@@ -710,6 +753,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v22: R2-8 category 4 Hidden decided (A, C, D badge only).
 - 2026-10-31 — v21: R2-8 category 3 Checked off by mistake decided (D, second tap).
 - 2026-10-31 — v20: R2-8 category 2 Overwritten decided (A–C).
 - 2026-10-31 — v19: R2-8 (data-safety review) added; category 1 Deleted decided (A–D).
