@@ -23,8 +23,8 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided · Moving tasks in: deferred**; Long-term next | One category at a time; due-dated tasks matter most |
-| R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
+| R2-8 | Don't lose anything (data-safety review) | **Review done.** Deleted: A–D · Overwritten: A–C · Checked off: D · Hidden: A, C, D decided · Moving tasks in: deferred · Long-term: git-history note only | Not approved for build |
+| R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -357,7 +357,109 @@ Same as round 1:
 - **Data format 4:** older builds must refuse the folder layout, not misread it.
 - **Migration:** a one-time move of the existing files (OneDrive `HTML-ToDo-App`, work `data\`), done by hand with Geoff's approval (rule 10).
 
-**Status:** Discussing (Geoff wants to explore the file-explorer model). Not decided.
+### Storage discussion (2026-10-31)
+- **Asked** (Geoff): "Is there any DB focused approach (instead of individual files) that fits my requirements? I want to discuss the idea of organizing the files into folders (replacing lists with folders)".
+- **Database options considered:**
+    - **One SQLite or JSON file in OneDrive:** whole-file sync conflicts between devices; loses OneDrive's per-task versions and recycle bin.
+    - **Free cloud databases** (Firestore, Supabase, D1, Turso, PocketBase): a second system, lock-in, and not usable on the work PC.
+    - **Microsoft services:** ruled out in R2-7 G.
+    - **Per-device change logs:** complex, and Claude can't edit them.
+- **Conclusion:** files stay the source of truth. Each device already has a database copy (R2-7 A), and more speed comes from R2-7 B, D and C.
+
+### Cons of B (reviewed 2026-10-31)
+**Data safety:**
+1. **One delete removes a whole list:** an accidental delete of a folder in Explorer or the OneDrive app takes a whole list, due-dated tasks included. The app must notice "a folder disappeared" (an extension of R2-8 Deleted B).
+2. **A move looks like delete + new:**
+    - **OneDrive:** a moved item keeps its id, so the change feed shows a clean move.
+    - **Local folder:** no item ids, so the app must match by task `id`. An interrupted move can leave a duplicate.
+3. **Subtasks can be left behind** when the parent is dragged in Explorer.
+4. **Folder vs. `list:` disagreement:** an edit to `list:` without a move means the app rewrites the file on its own.
+5. **Demote/promote links (`[↗](file.md)`) are paths:** a move breaks them. Links must resolve by `id` or be rewritten.
+6. **Sharing a folder lets others delete tasks.** Folders shared *with* Geoff come through a different Graph path (remote items); how the change feed handles them is unverified.
+
+**Effort:**
+
+7. **The biggest change since the MVP:**
+    - all three stores
+    - sync, and the device copy (keyed by path)
+    - the move UI and Needs attention
+    - the links
+    - tests
+8. **Renaming a list on a local folder** is copy + delete, since Chrome can't rename a folder.
+9. **The work PC's background check** has to scan every folder.
+
+**Constraints:**
+
+10. **Folder-name rules:** Windows-safe names, case-insensitive. Display names mapped via `_todo.json`.
+11. **Which subfolders are lists?** Archive folders (R2-7 D) and task folders (S-11) also nest.
+12. **Claude, scripts and imports move files** instead of editing a line.
+
+**Compatibility:**
+
+13. **Data format 4:** older builds must refuse the layout; the work pack and the work PC migrate separately.
+14. **One-time migration** of the real folder (rule 10).
+
+### Why B, and the benefit for AI management (Geoff, 2026-10-31)
+- **Geoff's reasons:**
+    - "I do expect to occasionally manage the files directly using windows file explorer and other apps (vs code, notepad++, etc)".
+    - More importantly, "I will have you (Claude) manage these tasks for me".
+- **The benefit for AI, assessed honestly:**
+    - **Claude Code (which can search):** small. `list: Home` is as easy to find as `Home\`.
+    - **AIs and tools that only see paths** (OneDrive connectors, Copilot in OneDrive, editor file trees): real. The structure is visible without opening files.
+    - **The biggest gain is least privilege:** one folder can be given to an AI, tool or person without exposing the rest.
+- **Cost for AI:** more steps per move (subtasks, `list:`, links), so more chances to leave something half done. Needs attention and repairs in the app mitigate this.
+- **What matters more than folders for safe AI management:**
+    - the file contract and CLAUDE.md rules
+    - Needs attention (R2-8 Hidden A)
+    - trash and deleted-elsewhere notices (R2-8 Deleted A/B)
+    - a change history: see the git-history note in R2-8 Long-term
+
+### Decision (Geoff, 2026-10-31): "yes record B as decided"
+**B: the folder is the list.** Geoff's additions follow, with Claude's notes. All of them are to be settled in the implementation discussion.
+1. **Rename "List" to "Folder"** everywhere people read it, "to literally match what it is":
+    - UI: the folder picker, "Add a task to *Home*…", the editor field, Needs attention messages.
+    - Docs, CLAUDE.md and the task-file contract.
+    - Internal code names can follow gradually.
+    - **Open:** what the top-level folder (today's Inbox) is called.
+2. **Subtasks must be in the same folder as their parent** ("seriously consider a rule"). **Claude: recommended, yes.**
+    - It is already today's contract ("a subtask's `list` always matches its parent's"); folders just make it physical.
+    - **Moving a parent** in the app moves its whole subtree.
+    - **Moving a subtask alone** to another folder un-nests it (it becomes a top-level task there), after asking.
+    - **A parent dragged in Explorer without its subtasks:** Needs attention flags it, with one tap to "Move N subtasks to *Folder*". Whether the app may do this automatically is to be decided.
+    - Subtasks are **not** nested as subfolders of their parent. `parent:` stays the truth for nesting (S-11 A).
+3. **Consider removing `list:` (or a `folder:` key) from the frontmatter.** **Claude: leaning remove.**
+    - **Pro:** one source of truth. No mismatch case (con 4), no rewrites by the app, and moves are a pure file move (con 12 shrinks).
+    - **Cost:**
+        - A file read on its own (or sitting in the trash) doesn't say which folder it came from. So the trash index and Needs attention record the original folder.
+        - Tools that read a single file without its path lose that information.
+        - The import writes the path, not a field.
+    - **Alternative:** keep the line as a read-only hint the app keeps in step. That still brings back con 4.
+4. **A UI for moving a task to another folder:**
+    - ⋯ → **Move to folder…** opens a picker with counts, plus "New folder…".
+    - Long-press drag onto a folder in the picker.
+    - Undo; subtasks travel with the parent; the open editor follows the file.
+5. **Open questions for the implementation discussion:**
+    - **Nested folders:** one level of folders, or a tree (e.g. `Home\Garden`)? And how they coexist with archive and task folders (con 11).
+    - **Display names vs. folder names**, and their order (`_todo.json`).
+    - **Links by `id`:** demote/promote (con 5).
+    - **Detecting a deleted folder** and offering Restore (con 1).
+    - **Shared folders** (con 6).
+    - **The work PC:** speed (con 9), and its own migration (con 13).
+    - **Format 4 refusal** in older builds and the work pack.
+    - **Migrating the real folder**, after removing the 500 bulk-test tasks.
+
+**Order:**
+1. The R2-8 safeguards (Deleted A/B, Hidden A).
+2. A prototype on the `HTML-ToDo-App-Test` copy folder.
+3. Migrate the real folder.
+4. Then the SP / To Do import, straight into folders.
+
+**Gate (Geoff): "make sure that when I am ready to implement this change, we fully discuss how to make it happen but not break anything and still comply with other requirements."** Before any build:
+- a full implementation discussion covering every item above, the cons list and the R2-8 decisions
+- a compatibility check against the task-file contract, R2-7 A (device copy), R2-6, the work-PC setup and the network lock
+- a migration plan Geoff approves
+
+**Status:** **Decided (B)**, not approved for build. The implementation discussion comes first.
 
 ---
 
@@ -704,7 +806,11 @@ Status: **Decided**, not yet approved for build.
 Status: **Deferred**. Raise it again when the import is discussed.
 
 ### 6. Long-term
-Under review.
+Reviewed 2026-10-31. Geoff chose not to add these options to the spec.
+
+**Note (Geoff, 2026-10-31: "note the git history"):** revisit a **local-only git history of the task folder** when Claude (or another AI) starts managing tasks regularly.
+- **How:** a scheduled job commits the folder daily, kept on the home PC only.
+- **Why:** any change, including an AI's bulk change, can be found and undone precisely, which goes beyond OneDrive's 30-day safety nets.
 
 ---
 
@@ -774,6 +880,8 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-5 | **B decided** (the folder is the list). Additions: rename List → Folder; subtasks must share the parent's folder (recommended); consider dropping `list:` from the frontmatter (leaning remove); a Move-to-folder UI. Gate: full implementation discussion first | Storage: files stay the source of truth (no database) |
+| 2026-10-31 | R2-8 | **Long-term reviewed:** nothing added except a note to revisit a local git history when AI management starts | |
 | 2026-10-31 | R2-8 | **Moving tasks in: deferred** until the import from SP and To Do is discussed (plan and Q1–Q7 kept in the spec) | |
 | 2026-10-31 | R2-8 | **Hidden: A (Needs attention), C (search banner), D (overdue count badge; Overdue stays collapsed) decided**; B, E, F not chosen | |
 | 2026-10-31 | R2-8 | **Checked off by mistake: D decided** (Check all needs a second tap when there are subtasks or checklist lines); A–C, E–G not chosen | |
@@ -796,6 +904,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v24: R2-5 B decided, with cons, AI reasoning, Geoff's additions and an implementation gate; storage discussion recorded; R2-8 Long-term note (git history).
 - 2026-10-31 — v23: R2-8 category 5 Moving tasks in deferred (plan and questions kept).
 - 2026-10-31 — v22: R2-8 category 4 Hidden decided (A, C, D badge only).
 - 2026-10-31 — v21: R2-8 category 3 Checked off by mistake decided (D, second tap).
