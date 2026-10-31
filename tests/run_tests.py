@@ -12,6 +12,7 @@ Real Microsoft sign-in and real phones are Geoff's to test.
 """
 import datetime
 import json
+import os
 import pathlib
 import sys
 import threading
@@ -27,7 +28,7 @@ from fake_graph import FakeGraph  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "tests" / "screenshots"
-PORT = 8765
+PORT = int(os.environ.get("HTA_TEST_PORT", "8765"))   # override when another checkout runs its tests at the same time
 APP = f"http://localhost:{PORT}/app/"
 FOLDER = "HTML-ToDo-App"
 RESULTS = []
@@ -106,8 +107,9 @@ def test_store_suite(browser):
       out.push(...await storeSuite('FsStore', fs, {
         edit: async (p, t) => { await new Promise(r => setTimeout(r, 5)); const h = await dir.getFileHandle(p, { create: true }); const w = await h.createWritable(); await w.write(t); await w.close(); },
         del: async p => dir.removeEntry(p) }));
+      // R2-8: FsStore.remove no longer copies to .trash itself — the app's trash (trashPut) does it for every store
       const trashed = []; try { const tr = await dir.getDirectoryHandle('.trash'); for await (const [n] of tr.entries()) trashed.push(n); } catch {}
-      out.push({ name: 'FsStore: a deleted file is kept in the hidden .trash folder', ok: trashed.some(n => n.endsWith(' gamma.md')), detail: trashed.join(',') });
+      out.push({ name: 'FsStore: remove() makes no copy of its own (the app trashes first, R2-8)', ok: !trashed.some(n => n.endsWith('gamma.md')), detail: trashed.join(',') });
       out.push({ name: 'FsStore: .trash is never listed as tasks', ok: !(await fs.list()).some(e => e.path.includes('.trash')), detail: '' });
       // GraphStore against the fake Graph
       const gs = new T.GraphStore(window.__TEST_AUTH__, 'HTML-ToDo-App');
@@ -125,6 +127,13 @@ def test_store_suite(browser):
 # ---------------------------------------------------------------- 2. phone list view on demo data
 def row(page, title):
     return page.locator(".row", has=page.locator(".ttl", has_text=title)).first
+
+
+def check_all(page):
+    """R2-8 Checked off D: "Check all" needs a second, deliberate tap (at least ~300 ms after the first)."""
+    page.click("#modal [data-a=all]")
+    page.wait_for_timeout(350)
+    page.click("#modal [data-a=all]")
 
 
 def test_phone_demo(browser):
@@ -614,7 +623,7 @@ def test_phase4(browser):
     page.wait_for_selector("#modal-bg.on")
     check("open checklist lines → asks 'Check all / Check only this / Cancel'", "unchecked checklist item" in page.inner_text("#modal") and page.locator("#modal .btns button").count() == 3)
     page.screenshot(path=str(SHOTS / "17-phone-check-all-dialog.png"))
-    page.click("#modal button:has-text('Check all')")
+    check_all(page)
     page.wait_for_timeout(300)
     txt = f("try-the-list.md")
     check("Check all ticks every - [ ] line in the notes and checks the task", "- [ ]" not in txt and txt.count("- [x]") == 3 and "status: done" in txt, txt[-200:])
@@ -637,7 +646,7 @@ def test_phase4(browser):
     page.click("#undo-btn")
     page.wait_for_timeout(300)
     row(page, "Solar panel cleaning").locator(".ck").click()
-    page.click("#modal button:has-text('Check all')")
+    check_all(page)
     page.wait_for_timeout(300)
     check("Check all: parent and open subtasks are all done with completed dates",
           all("status: done" in f(n) and "completed:" in f(n) for n in ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md"]))
@@ -1597,7 +1606,7 @@ def test_agent_round2(browser):
     # T2-1: Check all from the row while the task is open in the drawer
     page.evaluate("() => __todo.openDrawer('t-ca')"); page.wait_for_selector("#drawer.open")
     page.locator(".row[data-id=t-ca] [data-act=toggle]").click(); page.wait_for_selector("#modal [data-a=all]")
-    page.click("#modal [data-a=all]"); page.wait_for_timeout(500)
+    check_all(page); page.wait_for_timeout(500)
     check("T2-1: after Check all, the open drawer shows the checked notes", "[ ]" not in md() and page.input_value("#f-status") == "done", md())
     add_text("EXTRA WORD"); page.click("#d-save"); page.wait_for_timeout(400)
     f = fg.files()["check-all.md"]
@@ -1679,7 +1688,7 @@ def test_agent_round3(browser):
     page.route("https://graph.microsoft.com/**", hold_put)
     page.evaluate("() => __todo.openDrawer('t-ck')"); page.wait_for_selector("#drawer.open")
     page.locator(".row[data-id=t-ck] [data-act=toggle]").click(); page.wait_for_selector("#modal [data-a=all]")
-    page.click("#modal [data-a=all]"); page.wait_for_timeout(300)
+    check_all(page); page.wait_for_timeout(300)
     page.evaluate("() => __todo.S.editor.setMarkdown(__todo.S.editor.getMarkdown() + ' TYPED DURING SAVE')")
     page.unroute("https://graph.microsoft.com/**", hold_put)
     for r, req in held: fg._handle(r, req)
@@ -1885,6 +1894,389 @@ def test_r26_signin_editor(browser):
     ctx.close()
 
 
+# ---------------------------------------------------------------- R2-8 Phase 1: data-safety safeguards
+def test_r28_phase1(browser):
+    print("\n[22] R2-8 Phase 1: trash + Recently deleted, demote/delete care, conflict diff, drafts, Check all, search banner, overdue badge")
+    D = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
+    fm = lambda i, title, extra="", lst="Inbox": f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: {lst}\norder: 1\n{extra}---\n"
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    files_of = lambda page: page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))")
+    trash_of = lambda page: {k: v for k, v in files_of(page).items() if k.startswith(".trash/")}
+    no_trash_tasks = lambda page: page.evaluate("() => !__todo.all().some(t => String(t.file).includes('.trash'))")
+
+    def open_menu(page, label):
+        page.click("#app-menu"); page.locator("#pop button", has_text=label).click()
+
+    def delete_row(page, title):
+        row(page, title).locator(".row-more").click(); page.locator("#pop button", has_text="Delete").click()
+        page.wait_for_selector("#modal [data-a=ok]")
+
+    def recently_deleted(page):
+        open_menu(page, "Recently deleted"); page.wait_for_function("() => !document.querySelector('#rd-list')?.textContent.includes('Loading')")
+
+    # ---------- A1. demo store (MemStore), phone: delete dialog (D), trash (A), 15 s Undo, Recently deleted + Restore ----------
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    solar = ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md", "export-readings-csv.md"]
+    before = {n: files_of(page)[n] for n in solar}
+    delete_row(page, "Solar panel cleaning")
+    txt = page.inner_text("#modal")
+    check("Deleted D: the delete dialog shows the task's due date", "This task is due" in txt and page.locator("#modal .dl-due").count() == 1, txt[:200])
+    check("Deleted D: it names every subtask, not just a count", all(s in txt for s in ["Get three cleaning quotes", "Compare inverter readings", "Export last 90 days to CSV"]) and "Also delete its 3 subtasks" in txt, txt)
+    check("Deleted D: …and says a copy goes to Recently deleted", "Recently deleted" in txt)
+    page.click("#modal [data-a=ok]"); page.wait_for_timeout(400)
+    tr = trash_of(page)
+    check("Deleted A: deleting saves each file's exact text in .trash (MemStore)", sum(1 for k in tr if k.endswith(".md")) == 4 and set(before.values()) <= set(tr.values()), list(tr))
+    metas = [json.loads(v) for k, v in tr.items() if k.endswith(".json")]
+    check("Deleted A: each entry has a sidecar with path, id, title, due, deletedAt, reason, by, device",
+          len(metas) == 4 and all({"path", "id", "title", "due", "deletedAt", "reason", "by", "device"} <= set(m) for m in metas)
+          and {m["path"] for m in metas} == set(solar) and all(m["reason"] == "deleted" and m["by"] == "this device" and m["device"] == "Phone" for m in metas)
+          and any(m["due"] == D(10) for m in metas), metas[:1])
+    check("Deleted A: trash names never collide (timestamp + random + slug)", len({k.rsplit("-", 1)[0] for k in tr}) >= 4 and all(".trash/" in k and "-" in k for k in tr), list(tr))
+    check("Deleted A: trashed files never show as tasks (demo)", no_trash_tasks(page) and row(page, "Solar panel cleaning").count() == 0)
+    page.wait_for_timeout(6000)
+    check("Deleted D: the delete Undo is still offered after 6 s (lasts 15 s)", page.locator("#undo.on").count() == 1, page.inner_text("#undo-msg"))
+    page.click("#undo-btn"); page.wait_for_timeout(500)
+    check("Undo restores all four files byte for byte", all(files_of(page).get(n) == before[n] for n in solar))
+    check("Deleted A: Undo removes the matching trash entries", not trash_of(page), list(trash_of(page)))
+    delete_row(page, "Solar panel cleaning"); page.click("#modal [data-a=ok]")
+    page.wait_for_timeout(15600)
+    check("Deleted D: the delete Undo goes away after 15 s", page.locator("#undo.on").count() == 0)
+    delete_row(page, "A deliberately long task title"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(300)
+    recently_deleted(page)
+    items = page.locator("#modal .rd-item")
+    check("Recently deleted lists every entry (4 + 1)", items.count() == 5, items.count())
+    check("Recently deleted: due-dated tasks first and highlighted", "rd-due" in items.first.get_attribute("class") and "Solar panel cleaning" in items.first.inner_text()
+          and f"Due" in items.first.inner_text(), items.first.inner_text())
+    check("Recently deleted: shows the original path, when and why", "solar-panel-cleaning.md" in items.first.inner_text() and "Deleted on Phone" in items.first.inner_text(), items.first.inner_text())
+    check("Recently deleted: full screen on a phone", page.evaluate("() => document.querySelector('#modal-bg').classList.contains('full') && document.querySelector('#modal').getBoundingClientRect().height > innerHeight * 0.95"))
+    page.screenshot(path=str(SHOTS / "40-phone-recently-deleted.png"))
+    items.first.locator("button", has_text="Restore").click(); page.wait_for_timeout(600)
+    check("Restore re-creates the file at its original path, exact text", files_of(page).get("solar-panel-cleaning.md") == before["solar-panel-cleaning.md"])
+    check("…removes that trash entry", page.locator("#modal .rd-item").count() == 4 and not any("solar-panel-cleaning" in k for k in trash_of(page)), list(trash_of(page)))
+    page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
+    check("…and the task is back in its list", row(page, "Solar panel cleaning").count() == 1)
+    page.evaluate("() => __todo.S.store.create('long-title-example.md', '---\\nid: t-other\\ntitle: Someone else took the name\\nstatus: open\\nlist: Home\\norder: 9\\n---\\n')")
+    recently_deleted(page)
+    page.locator("#modal .rd-item", has_text="A deliberately long").locator("button").click(); page.wait_for_timeout(600)
+    check("Restore when the name is taken: a unique name, like Undo", "long-title-example-2.md" in files_of(page) and "Someone else" in files_of(page)["long-title-example.md"], [k for k in files_of(page) if "long" in k])
+    page.click("#modal [data-a=close]")
+    res = page.evaluate("""async () => { const T = __todo;
+        const e = await T.trashPut('Sub/deep/folder-task.md', '---\\nid: t-ft\\ntitle: In a folder\\nstatus: open\\nlist: Home\\norder: 1\\n---\\n', { id:'t-ft', title:'In a folder' });
+        const all = await T.trashEntries(); const it = all.find(x => x.meta.path === 'Sub/deep/folder-task.md');
+        const to = await T.trashRestore(it); return { to, has: T.S.store.files.has('Sub/deep/folder-task.md'), left: (await T.trashEntries()).some(x => x.meta.path === 'Sub/deep/folder-task.md') }; }""")
+    check("Restore into a folder path (R2-5 ready): back at Sub/deep/folder-task.md, entry gone", res["to"] == "Sub/deep/folder-task.md" and res["has"] and not res["left"], res)
+    check("…and a file in a folder isn't shown as a task in Phase 1 (top folder only)", not page.evaluate("() => __todo.all().some(t => t.file.includes('/'))"))
+    evil = "<img src=x onerror=\"window.__xss=1\">"
+    page.evaluate("t => __todo.trashPut('evil.md', 'x', { title: t, due: t })", evil)
+    recently_deleted(page)
+    check("Recently deleted escapes task text (no markup runs)", page.locator("#modal img").count() == 0 and "<img" in page.inner_text("#modal") and not page.evaluate("window.__xss"))
+    page.click("#modal [data-a=close]")
+    check("A1 (demo): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- A2. local folder (FsStore on OPFS, with the device copy), PC ----------
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "local", "todo.pollMs": 86400000}))
+    page.goto(APP)
+    page.evaluate("""async () => {
+        const root = await navigator.storage.getDirectory(); try { await root.removeEntry('r28', { recursive:true }); } catch {}
+        const d = await root.getDirectoryHandle('r28', { create:true });
+        const put = async (n, s) => { const w = await (await d.getFileHandle(n, { create:true })).createWritable(); await w.write(s); await w.close(); };
+        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\ndue: """ + D(2) + """\\n---\\nbody one\\n');
+        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n');
+        await __todo.useStore(new __todo.FsStore(d));
+        const db = await new Promise(r => { const q = indexedDB.open('task-board', 1); q.onupgradeneeded = () => q.result.createObjectStore('kv'); q.onsuccess = () => r(q.result); });
+        await new Promise(r => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(d, 'dir'); tx.oncomplete = r; }); }""")
+    page.wait_for_selector(".row")
+    opfs = lambda: page.evaluate("""async () => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('r28'); const out = {};
+        const walk = async (h, pre) => { for await (const [n, x] of h.entries()){ if (x.kind === 'file') out[pre + n] = await (await x.getFile()).text(); else await walk(x, pre + n + '/'); } };
+        await walk(d, ''); return out; }""")
+    one_text = opfs()["one.md"]
+    delete_row(page, "One"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(500)
+    fs = opfs()
+    tmd = [k for k in fs if k.startswith(".trash/") and k.endswith(".md")]; tjs = [k for k in fs if k.startswith(".trash/") and k.endswith(".json")]
+    check("Deleted A (local folder): the exact text + sidecar in .trash; the file is gone", "one.md" not in fs and len(tmd) == 1 and fs[tmd[0]] == one_text and len(tjs) == 1, list(fs))
+    meta = json.loads(fs[tjs[0]]) if tjs else {}
+    check("…sidecar: path, due, reason, device PC", meta.get("path") == "one.md" and meta.get("due") == D(2) and meta.get("reason") == "deleted" and meta.get("device") == "PC", meta)
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(400)
+    check("…a background check shows no trash file as a task", no_trash_tasks(page) and page.evaluate("__todo.all().length") == 1)
+    page.reload(); page.wait_for_selector(".row"); page.wait_for_function(ready); page.wait_for_timeout(200)
+    check("…nor after a restart from the device copy", no_trash_tasks(page) and page.evaluate("__todo.all().length") == 1 and page.evaluate("__todo.S.store.cachedLayer === true"))
+    page.evaluate("""async () => { const d = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('r28')).getDirectoryHandle('.trash');
+        const w = await (await d.getFileHandle('2026-10-19-12-00-00 old.md', { create:true })).createWritable();
+        await w.write('---\\nid: t-old\\ntitle: Old legacy copy\\nstatus: open\\nlist: Inbox\\norder: 3\\n---\\n'); await w.close(); }""")
+    recently_deleted(page)
+    txt = page.inner_text("#modal")
+    check("Recently deleted (PC): lists the new entry and an older build's .trash copy", "One" in txt and "Old legacy copy" in txt and page.locator("#modal .rd-item").count() == 2, txt[:300])
+    check("…a centred dialog on a PC (not full screen)", not page.evaluate("document.querySelector('#modal-bg').classList.contains('full')"))
+    page.screenshot(path=str(SHOTS / "41-pc-recently-deleted.png"))
+    page.locator("#modal .rd-item", has_text="Old legacy copy").locator("button").click(); page.wait_for_timeout(600)
+    check("…an older copy restores to its old name", "old.md" in opfs() and not any("old.md" in k for k in opfs() if k.startswith(".trash/")))
+    page.locator("#modal .rd-item", has_text="One").locator("button").click(); page.wait_for_timeout(600)
+    fs = opfs()
+    check("Restore (local folder): one.md back with its exact text; .trash empty", fs.get("one.md") == one_text and not [k for k in fs if k.startswith(".trash/")], list(fs))
+    page.click("#modal [data-a=close]")
+    page.evaluate("""async () => { const T = __todo; await T.trashPut('Gone/sub/y.md', '---\\nid: t-y\\ntitle: Y\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n', { title:'Y' });
+        const e = (await T.trashEntries()).find(x => x.meta.path === 'Gone/sub/y.md'); await T.trashRestore(e); }""")
+    check("Restore re-creates missing folders (local folder: Gone/sub/y.md)", "Gone/sub/y.md" in opfs(), list(opfs()))
+    check("A2 (local folder): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- A3. OneDrive (fake Graph: subfolders, delta without paths), phone ----------
+    gfiles = {"one.md": fm("t-1", "One", f"due: {D(1)}\n"), "two.md": fm("t-2", "Two"), "three.md": fm("t-3", "Three"),
+              "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'}
+    fg = FakeGraph(FOLDER, dict(gfiles))
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    delete_row(page, "One"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(600)
+    tr = fg.trash()
+    check("Deleted A (OneDrive): text + sidecar created in .trash with conditional creates; the file goes", "one.md" not in fg.files() and len(tr) == 2
+          and gfiles["one.md"] in tr.values() and not fg.violations, (list(tr), fg.violations))
+    check("…the fake's change feed reports the .trash items (by parent id, no path)", any(it["parent"] == ".trash" and it["seq"] > 0 for it in fg.items.values()))
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(400); page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(400)
+    check("…after delta polls no trash file is a task", no_trash_tasks(page) and page.evaluate("__todo.all().length") == 2, page.evaluate("__todo.all().map(t => t.file)"))
+    fg.ext_edit(".trash/sneaky.md", fm("t-sn", "Sneaky from elsewhere"))
+    it = fg.by_name("three.md"); fg._folder_id("Archive", create=True); it["parent"] = "Archive"; fg._touch(it, "Other device")
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(600)
+    check("…a file put in .trash elsewhere never shows (delta)", row(page, "Sneaky").count() == 0 and no_trash_tasks(page))
+    check("…a task moved into a subfolder elsewhere leaves the list (it isn't top-level any more)", row(page, "Three").count() == 0, page.evaluate("__todo.all().map(t => t.file)"))
+    page.reload(); page.wait_for_selector(".row"); page.wait_for_function(ready); page.wait_for_timeout(200)
+    check("…and none after a restart from the device copy", no_trash_tasks(page) and row(page, "Sneaky").count() == 0 and page.evaluate("__todo.all().map(t => t.file)") == ["two.md"],
+          page.evaluate("__todo.all().map(t => t.file)"))
+    recently_deleted(page)
+    page.locator("#modal .rd-item", has_text="One").locator("button").click(); page.wait_for_timeout(700)
+    check("Restore (OneDrive): one.md back with its exact text; its trash entry removed", fg.files().get("one.md") == gfiles["one.md"]
+          and not any(v == gfiles["one.md"] for v in fg.trash().values()) and row(page, "One").count() == 1, list(fg.files()))
+    page.click("#modal [data-a=close]")
+    page.evaluate("""async () => { const T = __todo; await T.trashPut('Old/z.md', 'zzz', { title:'Z' });
+        const e = (await T.trashEntries()).find(x => x.meta.path === 'Old/z.md'); await T.trashRestore(e); }""")
+    check("Restore re-creates missing folders (OneDrive: Old/z.md)", fg.files().get("Old/z.md") == "zzz" and fg.by_path("Old", folder=True) is not None)
+    check("A3 (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("A3 (OneDrive): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- B. Deleted C: demote protects due dates; Check off D; search banner; overdue badge (demo, phone) ----------
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    check("Hidden D: the overdue count shows as a badge where Today is opened (header)", page.locator("#od-head").is_visible() and page.inner_text("#od-head") == "1", page.inner_text("#od-head"))
+    page.click("#list-name")
+    check("…and on the Today entry in the list picker", page.locator("#modal .pick .go", has_text="Today").locator(".od-badge").inner_text() == "1")
+    page.locator("#modal .pick .go", has_text="Today").click(); page.wait_for_timeout(200)
+    over = page.locator(".tday-head[data-tday=over]")
+    check("…and on the Overdue header, which stays collapsed", over.locator(".od-badge").inner_text() == "1" and over.get_attribute("aria-expanded") == "false")
+    page.screenshot(path=str(SHOTS / "42-phone-overdue-badge.png"))
+    # search banner (Hidden C), in Today and in a list
+    open_menu(page, "Search"); page.fill("#m-q", "gate"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(200)
+    check("Hidden C: while searching, a bar under the header says what's filtered (Today view)", page.locator("#srch-bar").is_visible() and page.inner_text("#srch-text") == "Filtering: “gate”", page.inner_text("#srch-text"))
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Home").click(); page.wait_for_timeout(200)
+    check("…and in a list view", page.locator("#srch-bar").is_visible() and page.locator(".row").count() == 1)
+    page.screenshot(path=str(SHOTS / "43-phone-search-banner.png"))
+    page.click("#srch-clear"); page.wait_for_timeout(200)
+    check("…✕ Clear resets the search and redraws", not page.locator("#srch-bar").is_visible() and page.evaluate("__todo.S.q") == "" and page.locator(".row").count() > 1)
+    page.evaluate("q => { __todo.S.q = q; __todo.render(); }", evil)
+    check("…the search text is shown as text (escaped)", page.locator("#srch-bar img").count() == 0 and "<img" in page.inner_text("#srch-text"))
+    page.click("#srch-clear")
+    # Deleted C: demote
+    row(page, "Fix gate latch").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.click("#d-demote"); page.wait_for_selector("#m-keep")
+    check("Deleted C: demoting a due-dated task forces 'Keep it, archived' on", page.is_checked("#m-keep") and page.is_disabled("#m-keep"))
+    check("…with the warning 'This task is due … — it will leave the Today view.'", "This task is due" in page.inner_text("#m-duewarn") and "it will leave the Today view." in page.inner_text("#m-duewarn"), page.inner_text("#m-duewarn"))
+    page.click("#modal [data-a=cancel]"); page.click("#d-close"); page.wait_for_timeout(200)
+    page.evaluate("""async () => { const T = __todo, S = T.S;
+        const mk = (id, title, extra) => ({ file:'', version:null, id, title, status:'open', prefix:'', list:'Home', collections:[], parent:'', order:50, due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true, ...extra });
+        const p = mk('t-np', 'No-date parent'); S.tasks.set(p.id, p); await T.saveTask(p);
+        const c = mk('t-dc', 'Due child', { parent:'t-np', due:'""" + D(4) + """' }); S.tasks.set(c.id, c); await T.saveTask(c); T.render(); }""")
+    row(page, "No-date parent").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.click("#d-demote"); page.wait_for_selector("#m-keep")
+    check("…a task without a due date (subtasks moved, not demoted): Keep stays optional", page.is_enabled("#m-keep") and page.inner_text("#m-duewarn").strip() == "")
+    page.check("#modal input[name=kids][value=demote]")
+    check("…but demoting its due-dated subtask with it forces Keep and names it", page.is_disabled("#m-keep") and page.is_checked("#m-keep") and "“Due child” is due" in page.inner_text("#m-duewarn"), page.inner_text("#m-duewarn"))
+    page.click("#modal [data-a=cancel]"); page.click("#d-close"); page.wait_for_timeout(200)
+    page.evaluate("() => __todo.doDemote(__todo.get('t-s03'), __todo.get('t-s05'), { target:'t-s05', level:1, keep:false, kids:'move' })"); page.wait_for_timeout(400)
+    gate = files_of(page).get("fix-gate-latch.md") or ""
+    check("…and doDemote itself never deletes a due-dated task (kept, archived)", "status: archived" in gate and "demoted_into: t-s05" in gate, gate[:200])
+    check("Hidden D: the badge hides when nothing is overdue", not page.locator("#od-head").is_visible())
+    # Checked off D: second tap
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Inbox").click(); page.wait_for_timeout(200)
+    before = files_of(page)["try-the-list.md"]
+    row(page, "Tap a title").locator(".ck").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
+    btn = page.locator("#modal [data-a=all]")
+    check("Checked off D: the first tap on Check all only arms it, with the counts", btn.inner_text() == "Tap again to check all 2 items" and files_of(page)["try-the-list.md"] == before, btn.inner_text())
+    check("…Check only this and Cancel unchanged; Check all still the highlighted button", page.locator("#modal [data-a=one]").inner_text() == "Check only this"
+          and page.locator("#modal [data-a=cancel]").inner_text() == "Cancel" and "primary" in btn.get_attribute("class"))
+    page.screenshot(path=str(SHOTS / "44-phone-check-all-armed.png"))
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
+    check("…a bounce under 300 ms doesn't count", files_of(page)["try-the-list.md"] == before and page.locator("#modal-bg.on").count() == 1)
+    page.wait_for_timeout(4300)
+    check("…not tapped again within ~4 s: it reverts to 'Check all'", btn.inner_text() == "Check all" and files_of(page)["try-the-list.md"] == before)
+    check_all(page); page.wait_for_timeout(400)
+    after = files_of(page)["try-the-list.md"]
+    check("…a deliberate second tap checks everything", "- [ ]" not in after and "status: done" in after, after[-160:])
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Home").click(); page.wait_for_timeout(200)
+    row(page, "Solar panel cleaning").locator(".ck").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
+    check("…subtasks and lines both counted (the demote above added a line): 'Tap again to check all 2 subtasks and 1 item'", page.inner_text("#modal [data-a=all]") == "Tap again to check all 2 subtasks and 1 item", page.inner_text("#modal [data-a=all]"))
+    page.click("#modal [data-a=cancel]"); page.wait_for_timeout(200)
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="School").click(); page.wait_for_timeout(200)
+    row(page, "Weekly review").locator(".ck").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
+    armed = page.inner_text("#modal [data-a=all]")
+    page.wait_for_timeout(300); page.click("#modal [data-a=all]"); page.wait_for_timeout(500)
+    copies = [k for k in files_of(page) if k.startswith("weekly-review-")]
+    check("…the recurring keep-copies path uses the same second tap", armed == "Tap again to check all 2 items" and len(copies) == 1 and "status: done" in files_of(page)["weekly-review.md"], (armed, copies))
+    check("B (demo): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- B2. search banner + Recently deleted + delete list cap on a PC ----------
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Rental"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    open_menu(page, "Search"); page.fill("#m-q", "rent"); page.press("#m-q", "Enter"); page.wait_for_timeout(200)
+    check("Hidden C (PC): the search bar shows", page.locator("#srch-bar").is_visible() and "rent" in page.inner_text("#srch-text"))
+    page.click("#srch-clear"); page.wait_for_timeout(100)
+    page.evaluate("""async () => { const T = __todo, S = T.S;
+        const mk = (id, title, extra) => ({ file:'', version:null, id, title, status:'open', prefix:'', list:'Rental', collections:[], parent:'', order:60, due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true, ...extra });
+        const p = mk('t-big', 'Big parent'); S.tasks.set(p.id, p); await T.saveTask(p);
+        for (let i = 1; i <= 12; i++){ const c = mk('t-k' + i, 'Kid ' + i, { parent:'t-big', order:i, due: i === 2 ? '""" + D(3) + """' : '' }); S.tasks.set(c.id, c); await T.saveTask(c); } T.render(); }""")
+    delete_row(page, "Big parent")
+    lis = page.locator("#modal .dl-subs li")
+    check("Deleted D: the subtask list is capped at 10 + 'and N more', with due dates", lis.count() == 11 and lis.nth(10).inner_text() == "and 2 more" and "due" in lis.nth(1).inner_text()
+          and "Kid 1" in lis.nth(0).inner_text(), [lis.nth(i).inner_text() for i in range(min(lis.count(), 12))])
+    page.click("#modal [data-a=cancel]")
+    check("B2 (PC): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- C. Overwritten A + B: conflict diff (due first) at 338 px, replaced versions in the trash ----------
+    cfiles = {"cf.md": fm("t-cf", "Conflict me", f"due: {D(3)}\n") + "\nline one\nline two\n", "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'}
+    fg = FakeGraph(FOLDER, dict(cfiles))
+    ctx = browser.new_context(viewport={"width": 338, "height": 720}, is_mobile=True, has_touch=True,
+                              user_agent="Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0 Mobile Safari/537.36")
+    page = ctx.new_page(); errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
+    page.add_init_script(od_init(**{"todo.list": "Inbox", "todo.pollMs": 300}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    row(page, "Conflict me").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Mine title"); page.fill("#f-due", D(5))
+    fg.ext_edit("cf.md", fm("t-cf", "Conflict me", f"due: {D(7)}\n") + "\nline one\nline TWO from elsewhere\n")
+    page.wait_for_selector("#d-banner.on", timeout=4000)
+    page.click("#d-save"); page.wait_for_selector("#modal .cf-diff")
+    rows_ = page.locator("#modal .cf-row")
+    check("Overwritten A: the conflict dialog shows what differs, due date first", rows_.count() == 3 and "cf-due" in rows_.first.get_attribute("class")
+          and D(5) in rows_.first.inner_text() and D(7) in rows_.first.inner_text(), [rows_.nth(i).inner_text() for i in range(rows_.count())])
+    check("…then the title, then the notes ('changed' + line counts + preview)", "Title" in rows_.nth(1).inner_text() and "Mine title" in rows_.nth(1).inner_text()
+          and "Notes" in rows_.nth(2).inner_text() and "changed" in rows_.nth(2).inner_text() and "line TWO from elsewhere" in rows_.nth(2).inner_text(), rows_.nth(2).inner_text())
+    src = page.inner_text("#modal .cf-src")
+    check("…which is newer, when theirs was saved and by whom", "Theirs:" in src and "by Other device" in src and "Yours:" in src and "newer" in src, src)
+    fits = page.evaluate("() => { const m = document.querySelector('#modal'), r = m.getBoundingClientRect(); return r.right <= innerWidth + 1 && m.scrollWidth <= m.clientWidth + 1; }")
+    check("…usable on a 338 px phone (no sideways overflow)", fits)
+    check("…the three choices are unchanged", page.locator("#modal .btns button").count() == 3)
+    page.screenshot(path=str(SHOTS / "45-phone-338-conflict-diff.png"))
+    page.click("#modal [data-a=reload]"); page.wait_for_timeout(700)
+    tr = fg.trash(); mds = [v for k, v in tr.items() if k.endswith(".md")]; js = [json.loads(v) for k, v in tr.items() if k.endswith(".json")]
+    check("Overwritten B: 'Use their version' keeps YOUR version in the trash (replaced, this device)", len(mds) == 1 and "Mine title" in mds[0] and js[0]["reason"] == "replaced" and js[0]["by"] == "this device"
+          and "line TWO from elsewhere" in fg.files()["cf.md"], (list(tr), js))
+    page.fill("#f-title", "Mine again")
+    fg.ext_edit("cf.md", fm("t-cf", "Theirs three", f"due: {D(7)}\n") + "\nline one\n")
+    page.wait_for_selector("#d-banner.on", timeout=4000)
+    theirs = fg.files()["cf.md"]
+    page.click("#d-save"); page.wait_for_selector("#modal [data-a=over]"); page.click("#modal [data-a=over]"); page.wait_for_timeout(800)
+    tr = fg.trash(); mds = [v for k, v in tr.items() if k.endswith(".md")]; js = [json.loads(v) for k, v in tr.items() if k.endswith(".json")]
+    check("Overwritten B: 'Overwrite with mine' keeps THEIR text in the trash first (replaced, elsewhere)", theirs in mds and any(j["by"] == "elsewhere" and j["reason"] == "replaced" for j in js)
+          and "Mine again" in fg.files()["cf.md"], (len(mds), [j["by"] for j in js]))
+    page.click("#d-close"); page.wait_for_timeout(200)
+    recently_deleted(page)
+    txt = page.inner_text("#modal")
+    check("…both replaced versions are in Recently deleted, labelled and restorable", page.locator("#modal .rd-item").count() == 2 and "Replaced: your version" in txt and "Replaced: the other version" in txt
+          and page.locator("#modal .rd-item button", has_text="Restore").count() == 2, txt[:300])
+    page.click("#modal [data-a=close]")
+    row(page, "Mine again").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Edit of a file deleted elsewhere")
+    fg.ext_delete("cf.md")
+    page.wait_for_selector("#d-banner.on", timeout=4000)
+    page.click("#d-save"); page.wait_for_selector("#modal .cf-diff")
+    check("Overwritten A: if theirs was deleted, the dialog says so", "the file was deleted" in page.inner_text("#modal .cf-diff"))
+    page.click("#modal [data-a=reload]"); page.wait_for_timeout(700)
+    check("…'Use their version' accepts the delete but keeps your edit in the trash", "cf.md" not in fg.files() and any("Edit of a file deleted elsewhere" in v for v in fg.trash().values())
+          and not page.locator("#drawer.open").count())
+    check("C (conflicts): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("C (conflicts): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- E. Overwritten C: drafts saved on the device, offered after a restart ----------
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Inbox"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    key = "todo.autodraft|demo|t-s01"
+    draft = lambda: page.evaluate("k => localStorage.getItem(k)", key)
+    row(page, "Call insurance agent").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Draft title X")
+    page.wait_for_timeout(600)
+    check("Overwritten C: no draft before the ~2 s pause", draft() is None)
+    page.wait_for_timeout(1900)
+    d = json.loads(draft() or "{}")
+    check("…then the unsaved edit is saved on the device, keyed by scope and task id", d.get("id") == "t-s01" and d.get("fields", {}).get("title") == "Draft title X"
+          and d.get("due") == D(1) and d.get("version") and d.get("file") == "call-insurance-agent.md" and "body" in d and d.get("savedAt"), d)
+    page.evaluate("() => { __todo.S.redirecting = true; }")       # skip the browser's leave-page prompt for the test
+    page.reload(); page.wait_for_selector("#modal [data-a=restore]")
+    txt = page.inner_text("#modal")
+    check("…on the next start: 'You had unsaved changes to <title> (due <date>)' — Restore / Discard", "You had unsaved changes to Draft title X" in txt and "(due " in txt
+          and page.locator("#modal [data-a=discard]").count() == 1, txt)
+    page.screenshot(path=str(SHOTS / "46-phone-draft-offer.png"))
+    page.click("#modal [data-a=restore]"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("…Restore opens the editor with the draft applied and dirty (same version: no banner)", page.input_value("#f-title") == "Draft title X"
+          and "on" in page.get_attribute("#d-dirty", "class") and page.locator("#d-banner.on").count() == 0)
+    page.click("#d-save"); page.wait_for_timeout(400)
+    check("…a successful save clears the draft", draft() is None and "title: Draft title X" in files_of(page)["call-insurance-agent.md"])
+    page.fill("#f-title", "Will discard"); page.wait_for_timeout(2300)
+    check("…(draft saved again while editing)", draft() is not None)
+    page.click("#d-close"); page.click("#modal [data-a=discard]"); page.wait_for_timeout(200)
+    check("…Discard clears it", draft() is None)
+    row(page, "Draft title X").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(2300)
+    page.click("#d-close"); page.wait_for_timeout(200)
+    check("…opening and closing with no changes leaves no draft", draft() is None and not page.evaluate("() => Object.keys(localStorage).some(k => k.startsWith('todo.autodraft|'))"))
+    page.click("#d-close") if page.locator("#drawer.open").count() else None
+    page.fill("#qa", ""); page.evaluate("() => { const T = __todo; T.S.tasks.get('t-s02') && T.openDrawer('t-s02'); }"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Discard at start"); page.wait_for_timeout(2300)
+    page.evaluate("() => { __todo.S.redirecting = true; }"); page.reload(); page.wait_for_selector("#modal [data-a=discard]")
+    page.click("#modal [data-a=discard]"); page.wait_for_timeout(200)
+    check("…Discard at start removes the draft and leaves the task alone", not page.evaluate("() => Object.keys(localStorage).some(k => k.startsWith('todo.autodraft|'))")
+          and page.locator("#drawer.open").count() == 0)
+    check("E1 (drafts, demo): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    dfiles = {"dr1.md": fm("t-d1", "Draft one", f"due: {D(2)}\n"), "dr2.md": fm("t-d2", "Draft two"), "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'}
+    fg = FakeGraph(FOLDER, dict(dfiles))
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    row(page, "Draft one").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Draft one — my phone edit"); page.wait_for_timeout(2300)
+    fg.ext_edit("dr1.md", fm("t-d1", "Draft one changed on the PC", f"due: {D(2)}\n"))
+    page.evaluate("() => { __todo.S.redirecting = true; }"); page.reload(); page.wait_for_selector("#modal [data-a=restore]"); page.wait_for_function(ready)
+    page.click("#modal [data-a=restore]"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("Overwritten C: a draft for a file changed since opens with the 'changed elsewhere' banner", page.locator("#d-banner.on").count() == 1 and page.input_value("#f-title") == "Draft one — my phone edit")
+    page.click("#d-save"); page.wait_for_selector("#modal .cf-diff")
+    check("…and Save asks (conflict dialog with the diff), never overwrites silently", "Changed elsewhere" in page.inner_text("#modal") and "changed on the PC" in fg.files()["dr1.md"])
+    page.click("#modal [data-a=over]"); page.wait_for_timeout(700)
+    check("…Overwrite with mine then saves the draft (their version kept in the trash)", "my phone edit" in fg.files()["dr1.md"] and any("changed on the PC" in v for v in fg.trash().values()))
+    page.click("#d-close"); page.wait_for_timeout(200)
+    row(page, "Draft two").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Draft two survives a delete"); page.wait_for_timeout(2300)
+    fg.ext_delete("dr2.md")
+    page.evaluate("() => { __todo.S.redirecting = true; }"); page.reload(); page.wait_for_selector("#modal [data-a=restore]"); page.wait_for_function(ready)
+    check("Overwritten C: a draft whose task no longer exists offers 'Restore as new task'", page.inner_text("#modal [data-a=restore]") == "Restore as new task" and "no longer exists" in page.inner_text("#modal"))
+    page.click("#modal [data-a=restore]"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.click("#d-saveclose"); page.wait_for_timeout(700)
+    check("…which saves it as a new task file", "draft-two-survives-a-delete.md" in fg.files() and "Draft two survives a delete" in fg.files()["draft-two-survives-a-delete.md"], list(fg.top_files()))
+    check("…and leaves no drafts behind", not page.evaluate("() => Object.keys(localStorage).some(k => k.startsWith('todo.autodraft|'))"))
+    check("E2 (drafts, OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("E2 (drafts, OneDrive): no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1894,7 +2286,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1)]
         for name, fn in tests:
             if not only or name in only:
                 try:

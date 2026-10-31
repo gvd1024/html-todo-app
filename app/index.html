@@ -239,6 +239,32 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 #toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#e6edf3;color:#0f1318;padding:8px 14px;border-radius:8px;font-size:calc(13px*var(--z));opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:92vw}
 #toast.on{opacity:.95}
 .chip{white-space:nowrap;font-size:calc(11px*var(--z));padding:1px 6px;border-radius:999px;background:var(--chip);color:var(--chip-ink)}
+/* R2-8 Phase 1 (class names unique to the app: none of these exist in Toast UI) */
+.od-badge{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;font-size:calc(11px*var(--z));font-weight:700;line-height:1;padding:3px 6px;margin-left:6px;vertical-align:middle;font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+.od-badge[hidden]{display:none}
+.srch-bar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:2px 4px 2px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);color:var(--accent);font-size:calc(14px*var(--z))}
+.srch-bar[hidden]{display:none}
+.srch-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srch-bar button{border:0;background:none;color:var(--accent);min-height:calc(40px*var(--z));white-space:nowrap}
+.dl-subs{margin:4px 0 8px;padding-left:20px;font-size:calc(13px*var(--z))} .dl-subs li{margin:2px 0;overflow-wrap:anywhere}
+.dl-sdue,.dl-due{color:var(--warn)} .dl-more{color:var(--muted);list-style:none}
+.dm-warn p{margin:6px 0 2px;color:var(--warn);font-size:calc(13px*var(--z))} .dm-warn p.dm-kept{color:var(--muted)}
+#modal button.ck-armed{background:var(--danger);border-color:var(--danger);color:#fff;white-space:normal}
+.cf-diff{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:8px 0;font-size:calc(13px*var(--z));overflow-wrap:anywhere}
+.cf-diff p{margin:4px 0}
+#modal .cf-btns{position:sticky;bottom:-16px;background:var(--panel);margin-bottom:-16px;padding:8px 0 16px}   /* the choices stay on screen on a small phone */
+.cf-src{color:var(--muted)} .cf-gone{color:var(--danger)} .cf-same{color:var(--muted)}
+.cf-row{border-top:1px solid var(--line);padding:5px 0}
+.cf-row.cf-due{border-left:3px solid var(--warn);padding-left:7px;margin-left:-10px}
+.cf-k{font-weight:700} .cf-row.cf-due .cf-k{color:var(--warn)}
+.cf-v{display:flex;gap:6px;align-items:baseline} .cf-lbl{flex:0 0 auto;min-width:3.6em;color:var(--muted);font-size:calc(11px*var(--z))}
+#modal-bg.full #modal{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;padding-top:calc(12px + env(safe-area-inset-top))}
+.rd-item{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:8px 0}
+.rd-item.rd-due{border-left:3px solid var(--warn);padding-left:8px}
+.rd-body{flex:1;min-width:0;overflow-wrap:anywhere} .rd-ttl{font-weight:600} .rd-meta{color:var(--muted);font-size:calc(12px*var(--z))}
+.rd-item .rd-duev{color:var(--warn);font-size:calc(13px*var(--z))}
+.rd-item button{flex:0 0 auto;min-height:calc(40px*var(--z))}
+.rd-note{color:var(--muted);font-size:calc(12px*var(--z))}
 /* Toast UI editor: match the app palette */
 .toastui-editor-defaultUI{border-color:var(--line)!important}
 .toastui-editor-dark .toastui-editor-md-container,.toastui-editor-dark .toastui-editor-ww-container,
@@ -269,12 +295,13 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
 </head>
 <body>
 <header>
-  <button id="list-name" class="list-name" title="Switch list"><span id="list-label">…</span><span class="caret">▾</span></button>
+  <button id="list-name" class="list-name" title="Switch list"><span id="list-label">…</span><span class="caret">▾</span><span id="od-head" class="od-badge" hidden></span></button>
   <span class="spacer"></span>
   <span class="ver" id="ver"></span>
   <button id="stat" class="stat off" title="">○</button>
   <button id="app-menu" class="icon" title="Menu">⋯</button>
 </header>
+<div id="srch-bar" class="srch-bar" hidden><span id="srch-text"></span><button id="srch-clear" title="Clear the search">✕ Clear</button></div>
 
 <main>
   <div id="ptr"><span id="ptr-text">Pull to refresh</span></div>
@@ -343,7 +370,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-31a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-01a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -431,7 +458,11 @@ class FolderError extends Error {}
    changes() → [{path, version?, deleted?}] since the previous call (first call = baseline).
    `path` is relative to the location's folder; `version` is opaque (compare for equality only). */
 function baseName(p){ return String(p).split('/').pop(); }
-function isTaskPath(p){ const n = baseName(p); return /\.md$/i.test(n) && !/^[_.]/.test(n) && !/^readme\.md$/i.test(n); }
+const TRASH = '.trash';                       // R2-8 Deleted A: the hidden trash folder inside the task folder (every store)
+/* A task file: .md, not _/. named, not README — and never inside a hidden folder such as .trash (R2-8: checked per
+   path segment, so it stays right when R2-5 folders put tasks in subfolders) */
+function isTaskPath(p){ const segs = String(p).split('/'), n = segs.pop();
+  return /\.md$/i.test(n) && !/^[_.]/.test(n) && !/^readme\.md$/i.test(n) && !segs.some(s => /^\./.test(s)); }
 function isStorePath(p){ return p === CONFIG_FILE || isTaskPath(p); }
 async function listDiff(store){             // changes() for stores without a native change feed
   const now = new Map((await store.list()).map(e => [e.path, e.version]));
@@ -444,9 +475,11 @@ async function listDiff(store){             // changes() for stores without a na
 
 class MemStore {
   constructor(files){ this.name = 'Demo data'; this.kind = 'demo'; this.demo = true; this.tick = 1; this.files = new Map();
-    this.caps = { trueConditionalWrite:true, recoverableDelete:false, watch:'list' };
+    this.caps = { trueConditionalWrite:true, recoverableDelete:true, trash:TRASH, watch:'list' };
     for (const [n, t] of Object.entries(files)) this.files.set(n, { text:t, version:'m' + this.tick++ }); }
-  async list(){ return [...this.files].filter(([p]) => isStorePath(p)).map(([path, f]) => ({ path, version:f.version })); }
+  // the top folder only, like the other stores (R2-5 folders come in R2-8 Phase 2)
+  async list(){ return [...this.files].filter(([p]) => !p.includes('/') && isStorePath(p)).map(([path, f]) => ({ path, version:f.version })); }
+  async trashList(){ return [...this.files].filter(([p]) => p.startsWith(TRASH + '/') && !p.slice(TRASH.length + 1).includes('/')).map(([path, f]) => ({ path, version:f.version })); }
   async read(path){ const f = this.files.get(path); if (!f) throw new NotFoundError(path); return { text:f.text, version:f.version }; }
   async write(path, text, expected){ const f = this.files.get(path);
     if (!f || f.version !== expected) throw new ConflictError(path);
@@ -471,7 +504,11 @@ class FsStore {                               // a local folder (desktop Chrome/
       try { out.push({ path:name, version:FsStore.ver(await h.getFile()) }); } catch {}
     } return out; }
   async read(path){ const h = await this._handle(path); if (!h) throw new NotFoundError(path);
-    const f = await h.getFile(); return { text: await f.text(), version: FsStore.ver(f) }; }
+    const f = await h.getFile(); return { text: await f.text(), version: FsStore.ver(f), modified: f.lastModified }; }   // modified: R2-8 Overwritten A
+  async trashList(){ let d; try { d = await this.dir.getDirectoryHandle(TRASH); } catch { return []; }
+    const out = []; for await (const [name, h] of d.entries()){ if (h.kind !== 'file') continue;
+      try { out.push({ path:TRASH + '/' + name, version:FsStore.ver(await h.getFile()) }); } catch {} }
+    return out; }
   async _put(h, text){ const w = await h.createWritable(); await w.write(text); await w.close(); return FsStore.ver(await h.getFile()); }
   async write(path, text, expected){ const h = await this._handle(path); if (!h) throw new ConflictError(path);
     if (FsStore.ver(await h.getFile()) !== expected) throw new ConflictError(path);   // check, then write (small race window)
@@ -481,11 +518,8 @@ class FsStore {                               // a local folder (desktop Chrome/
   async remove(path, expected){ const h = await this._handle(path); if (!h) return;
     const f = await h.getFile();
     if (expected != null && FsStore.ver(f) !== expected) throw new ConflictError(path);
-    // recoverable delete: keep a copy in the folder's hidden .trash (names starting with "." are never tasks)
-    const trash = await this.dir.getDirectoryHandle('.trash', { create:true });
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    const th = await trash.getFileHandle(`${stamp} ${baseName(path)}`, { create:true });
-    await this._put(th, await f.text());
+    // R2-8 Deleted A: the app now saves the copy in .trash itself, for every store, before it deletes (trashPut).
+    // Copies made by older builds ("<UTC stamp> name.md", no sidecar) still show in Recently deleted.
     await (await this._dir(path, false)).removeEntry(baseName(path)); }
   changes(){ return listDiff(this); }
   async snapshot(){ return { entries: await this.list(), token: null }; }    // R2-7: a folder has no change feed
@@ -508,12 +542,24 @@ class GraphStore {                            // OneDrive through Microsoft Grap
       const err = new Error(`${res.status} ${detail}`.trim()); err.status = res.status; throw err; }
     return res.status === 204 ? null : res.json();
   }
-  remember(it){ const key = it.name.toLowerCase();
+  /* R2-8: items are keyed by their path relative to the task folder (".trash/x.md" for a trash entry), never by the
+     bare name — a file in a subfolder must not be taken for a top-level task of the same name. */
+  relOf(it){ const p = it.parentReference?.path; if (!p) return it.name;
+    let d; try { d = decodeURIComponent(p).replace(/^\/drive\/root:\/?/, '').replace(/\/+$/, ''); } catch { return null; }
+    const f = this.folder.toLowerCase(), dl = d.toLowerCase();
+    if (dl === f) return it.name;
+    return dl.startsWith(f + '/') ? d.slice(this.folder.length + 1) + '/' + it.name : null; }
+  remember(it, rel = this.relOf(it)){ if (!rel) return; const key = rel.toLowerCase();
     const prevKey = this.byId.get(it.id); if (prevKey && prevKey !== key) this.items.delete(prevKey);
-    this.items.set(key, { id:it.id, path:it.name, eTag:it.eTag, dl:it['@microsoft.graph.downloadUrl'] || null }); this.byId.set(it.id, key); }
+    this.items.set(key, { id:it.id, path:rel, eTag:it.eTag, dl:it['@microsoft.graph.downloadUrl'] || null,
+      modified:it.lastModifiedDateTime || null, by:it.lastModifiedBy?.user?.displayName || null }); this.byId.set(it.id, key); }   // modified/by: R2-8 Overwritten A
   forget(key){ const e = this.items.get(key); if (e){ this.byId.delete(e.id); this.items.delete(key); } }
   inFolder(it){ const p = it.parentReference?.path; if (!p) return true;
     try { return decodeURIComponent(p).replace(/^\/drive\/root:\/?/, '').replace(/\/+$/, '').toLowerCase() === this.folder.toLowerCase(); } catch { return true; } }
+  /* R2-8: the change feed covers subfolders (e.g. .trash) and, per Graph's docs, leaves parentReference.path out — so a
+     file is in the task folder itself only when its parent is the folder's own id. Without an id, fall back to the path. */
+  async rootId(){ if (!this._rootId) this._rootId = (await this.req('GET', `/me/drive/root:/${this.fp()}`)).id; return this._rootId; }
+  isTop(it, root){ const pid = it.parentReference?.id; return root && pid ? pid === root : this.inFolder(it); }
   async list(){
     let url = `/me/drive/root:/${this.fp()}:/children?$top=200`; const out = [];
     this.items.clear(); this.byId.clear();
@@ -525,17 +571,28 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     return out;
   }
   async item(path){                           // fresh metadata (eTag + download URL) for one file
-    try { const it = await this.req('GET', `/me/drive/root:/${this.fp()}/${this.pp(path)}`); this.remember(it); return this.items.get(it.name.toLowerCase()); }
+    try { const it = await this.req('GET', `/me/drive/root:/${this.fp()}/${this.pp(path)}`); const rel = this.relOf(it) || path;
+      this.remember(it, rel); return this.items.get(rel.toLowerCase()); }
     catch (e){ if (e.status === 404){ this.forget(path.toLowerCase()); throw new NotFoundError(path); } throw e; }
   }
   async read(path, { cached = false } = {}){
     let e = this.items.get(path.toLowerCase());
     if (!cached || !e || !e.dl) e = await this.item(path);
-    if (e.dl){ try { const r = await fetch(e.dl); if (r.ok) return { text: await r.text(), version: e.eTag }; } catch (err){ if (!navigator.onLine) throw new OfflineError(err.message); } }
+    const out = text => ({ text, version: e.eTag, modified: e.modified ? Date.parse(e.modified) : null, by: e.by });
+    if (e.dl){ try { const r = await fetch(e.dl); if (r.ok) return out(await r.text()); } catch (err){ if (!navigator.onLine) throw new OfflineError(err.message); } }
     const r = await this.req('GET', `/me/drive/items/${e.id}/content`, { raw:true });
     if (r.status === 404) throw new NotFoundError(path);
     if (!r.ok) throw new Error('read ' + r.status);
-    return { text: await r.text(), version: e.eTag };
+    return out(await r.text());
+  }
+  async trashList(){                          // R2-8 Deleted A: the files in .trash (not tasks; never in the task listing or the change feed)
+    let url = `/me/drive/root:/${this.fp()}/${TRASH}:/children?$top=200`; const out = [];
+    try {
+      while (url){ const r = await this.req('GET', url);
+        for (const it of r.value){ if (!it.file) continue; const rel = TRASH + '/' + it.name; this.remember(it, rel); out.push({ path:rel, version:it.eTag }); }
+        url = r['@odata.nextLink'] || null; }
+    } catch (e){ if (e.status === 404) return []; throw e; }
+    return out;
   }
   async idOf(path){ const e = this.items.get(path.toLowerCase()); return e ? e.id : (await this.item(path)).id; }
   async write(path, text, expected){
@@ -584,14 +641,19 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     let url = this.deltaLink || `/me/drive/root:/${this.fp()}:/delta`; const first = !this.deltaLink; const out = [];
     const resync = first && this.baselined;          // the feed was reset (e.g. token expired while asleep) → reload everything
     try {
+      const root = await this.rootId();
       while (url){
         const r = await this.req('GET', url);
         for (const it of r.value){
-          if (it.deleted){ const key = this.byId.get(it.id); if (key){ const p = this.items.get(key).path; this.forget(key); if (!first) out.push({ path:p, deleted:true }); } continue; }
-          if (!it.file || !this.inFolder(it)) continue;
+          if (it.deleted){ const key = this.byId.get(it.id); if (key){ const p = this.items.get(key).path; this.forget(key); if (!first && isStorePath(p)) out.push({ path:p, deleted:true }); } continue; }
+          if (!it.file) continue;
           const oldKey = this.byId.get(it.id); const old = oldKey && this.items.get(oldKey);
-          if (old && old.path !== it.name && !first) out.push({ path:old.path, deleted:true });   // renamed elsewhere
-          this.remember(it);
+          if (!this.isTop(it, root)){                // in a subfolder (.trash; R2-5 folders are Phase 2) — never a task here
+            if (old){ this.forget(oldKey); if (!first && isStorePath(old.path)) out.push({ path:old.path, deleted:true }); }   // a task moved out of the folder
+            continue;
+          }
+          if (old && old.path !== it.name && !first && isStorePath(old.path)) out.push({ path:old.path, deleted:true });   // renamed elsewhere
+          this.remember(it, it.name);
           if (!first && isStorePath(it.name)) out.push({ path:it.name, version:it.eTag });
         }
         if (r['@odata.nextLink']) url = r['@odata.nextLink']; else { this.deltaLink = r['@odata.deltaLink']; url = null; }
@@ -1004,11 +1066,83 @@ async function saveTask(t, { force = false } = {}){
   } finally { busy(-1); }
 }
 async function saveMany(list){ let ok = true; for (const t of list) ok = (await saveTask(t)) && ok; return ok; }
-async function removeTask(t){
-  busy(1);
-  try { if (!t.isNew) await S.store.remove(t.file, t.version); S.tasks.delete(t.id); return true; }
+/* Delete a task file. R2-8 Deleted A: its exact text goes to the trash first; if that fails, nothing is deleted.
+   trash:false only for undoing the app's own just-created recurring copy. → false, or { trash: entry | null } */
+async function removeTask(t, { trash = true } = {}){
+  busy(1); let entry = null;
+  try {
+    if (!t.isNew){
+      if (trash) entry = await trashPut(t.file, t.raw ?? serializeTask(t), { id:t.id, title:t.title, due:t.due });
+      try { await S.store.remove(t.file, t.version); }
+      catch (e){ if (entry) await trashDrop(entry).catch(() => {}); throw e; }     // not deleted → no trash entry either
+    }
+    S.tasks.delete(t.id); return { trash: entry };
+  }
   catch(e){ if (e instanceof ConflictError){ toast(`"${t.title}" changed elsewhere — not deleted. Reload and try again.`); return false; } storeError(e, 'delete'); return false; }
   finally { busy(-1); }
+}
+
+/* ---------------- trash (R2-8 Deleted A, Overwritten B) ----------------
+   Before the app deletes a task file, or a conflict choice replaces one version with the other, the losing text is
+   saved in the task folder's hidden .trash folder — on every store, so it's shared by all devices and Claude can read it.
+   No shared index file (two devices would conflict): each entry is two files with one unique name,
+     .trash/<YYYYMMDD-HHMMSS>-<random>-<slug>.md    the file's exact text
+     .trash/<same>.json                             { format, path, id, title, due, deletedAt, reason, by, device }
+   path = the full relative path it came from (R2-5 folders restore into the right folder); reason = deleted | replaced;
+   by = "this device" | "elsewhere" (whose version it is); device = Phone | PC (where it was trashed). Never emptied
+   automatically. Trash files go to the source store directly (not the device copy) and are never tasks (isTaskPath). */
+const rawStore = () => S.store?.src || S.store;
+function trashBase(path){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `${TRASH}/${stamp}-${Math.random().toString(36).slice(2, 8)}-${slug(baseName(path).replace(/\.md$/i, ''))}`;
+}
+async function trashPut(path, text, { reason = 'deleted', by = 'this device', id = '', title = '', due = '' } = {}){
+  const st = rawStore();
+  const meta = { format:1, path, id, title, due, deletedAt:new Date().toISOString(), reason, by, device:DEVICE };
+  for (let i = 0; ; i++){
+    const base = trashBase(path); let mdV;
+    try { mdV = await st.create(base + '.md', text); } catch (e){ if (e instanceof ExistsError && i < 3) continue; throw e; }
+    try { const jsV = await st.create(base + '.json', JSON.stringify(meta, null, 2) + '\n');
+      return { base, meta, md:{ path:base + '.md', version:mdV }, json:{ path:base + '.json', version:jsV } }; }
+    catch (e){ try { await st.remove(base + '.md', mdV); } catch {} throw e; }
+  }
+}
+async function trashDrop(e){ const st = rawStore(); for (const f of [e.json, e.md]) if (f) await st.remove(f.path, f.version); }
+/* Every trash entry, newest first. Copies from older builds (FsStore: "<UTC stamp> name.md", no sidecar) are read for
+   their fields. */
+async function trashEntries(){
+  const st = rawStore(); if (!st?.trashList) return [];
+  const by = new Map();
+  for (const f of await st.trashList()){ const m = f.path.match(/^(.*)\.(md|json)$/i); if (!m) continue;
+    const e = by.get(m[1].toLowerCase()) || { base:m[1] }; e[m[2].toLowerCase()] = f; by.set(m[1].toLowerCase(), e); }
+  const out = [];
+  await pool([...by.values()].filter(e => e.md), 6, async e => {
+    try {
+      if (e.json){ try { e.meta = JSON.parse((await st.read(e.json.path)).text); } catch {} }
+      if (!e.meta || typeof e.meta !== 'object'){
+        const t = parseTask(e.md.path, (await st.read(e.md.path)).text, e.md.version);
+        const m = baseName(e.md.path).match(/^(\d{4})-(\d\d)-(\d\d)-(\d\d)-(\d\d)-(\d\d) (.+)$/);
+        e.meta = { path: m ? m[7] : baseName(e.md.path), id:t.noId ? '' : t.id, title:t.title, due:t.due, reason:'deleted', by:'this device', device:'',
+          deletedAt: m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : '' };
+      }
+      out.push(e);
+    } catch (err){ if (!(err instanceof NotFoundError)) throw err; }
+  });
+  return out.sort((a, b) => String(b.meta.deletedAt || '').localeCompare(String(a.meta.deletedAt || '')));
+}
+/* Restore: re-create the file at its original path (missing folders are created by the store); if the name is taken,
+   the same unique-name rule as Undo. Then the trash entry is removed. → the path it was restored to. */
+async function trashRestore(e){
+  const { text } = await rawStore().read(e.md.path);
+  const orig = String(e.meta.path || baseName(e.md.path)); const dir = orig.includes('/') ? orig.slice(0, orig.lastIndexOf('/') + 1) : '';
+  let file = orig;
+  for (let i = 0; ; i++){
+    try { const v = await S.store.create(file, text); if (!file.includes('/') && isTaskPath(file)) addParsed(S.tasks, parseTask(file, text, v)); break; }
+    catch (err){ if (err instanceof ExistsError && i < 5){ file = uniqueFile(baseName(orig).replace(/\.md$/i, ''), dir, [file]); continue; } throw err; }
+  }
+  await trashDrop(e);
+  return file;
 }
 async function reloadOne(t){
   const { text, version } = await S.store.read(t.file);
@@ -1020,16 +1154,55 @@ function conflictCopyName(t){
   while (used.has(f.toLowerCase())) f = `${stem}-${++n}.md`;
   return f;
 }
-function conflictDialog(t){
+/* R2-8 Overwritten A: what differs between my version and theirs — due date first, then the other fields, then notes */
+const DIFF_FIELDS = [['due', 'Due date'], ['title', 'Title'], ['status', 'Status'], ['list', 'List'], ['prefix', 'Prefix'], ['repeat', 'Repeat'], ['collections', 'Collections']];
+function diffVal(t, k){ return k === 'collections' ? t.collections.join(', ') : k === 'prefix' ? prefixOf(t) : k === 'due' ? (t.due ? dueText(t.due) + (isYmd(t.due) ? ` (${t.due})` : '') : '') : String(t[k] || ''); }
+function taskDiff(mine, theirs){
+  const rows = DIFF_FIELDS.filter(([k]) => diffVal(mine, k) !== diffVal(theirs, k)).map(([k, name]) => ({ k, name, a:diffVal(mine, k), b:diffVal(theirs, k) }));
+  const trim = s => (s || '').replace(/\s+$/, '').replace(/^\n/, ''), ma = trim(mine.body), tb = trim(theirs.body);
+  if (ma !== tb){
+    const la = ma ? ma.split('\n') : [], lb = tb ? tb.split('\n') : []; let i = 0; while (i < la.length && i < lb.length && la[i] === lb[i]) i++;
+    const cut = s => s == null ? '(nothing)' : s.length > 60 ? s.slice(0, 60) + '…' : s || '(blank line)';
+    rows.push({ k:'notes', name:'Notes', a:`changed — ${la.length} line${la.length === 1 ? '' : 's'}; first difference: ${cut(la[i])}`, b:`${lb.length} line${lb.length === 1 ? '' : 's'}; there: ${cut(lb[i])}` });
+  }
+  return rows;
+}
+const whenText = ms => { if (!ms) return ''; const d = new Date(ms); return isNaN(d) ? '' : d.toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); };
+function diffHTML(t, theirs, gone){
+  if (gone) return `<div class="cf-diff"><p class="cf-gone"><b>Their side: the file was deleted</b> (on another device, by Claude, or in the folder). <b>Use their version</b> accepts the delete; your version is kept in Recently deleted.</p></div>`;
+  if (!theirs) return '';
+  const rows = taskDiff(t, theirs.task), mineAt = t.editedAt || Date.now();
+  const newer = theirs.modified ? (theirs.modified > mineAt ? 'theirs' : 'yours') : '';
+  const src = `<p class="cf-src"><b>Theirs:</b> ${theirs.modified ? `saved ${esc(whenText(theirs.modified))}` : 'the version in the folder now'}${theirs.by ? ` by ${esc(theirs.by)}` : ''}${newer === 'theirs' ? ' · <b>newer</b>' : ''}<br>
+    <b>Yours:</b> edited on this ${esc(DEVICE.toLowerCase())} ${esc(whenText(mineAt))}${newer === 'yours' ? ' · <b>newer</b>' : ''}</p>`;
+  return `<div class="cf-diff">${src}${rows.length ? rows.map(r => `<div class="cf-row${r.k === 'due' ? ' cf-due' : ''}"><div class="cf-k">${esc(r.name)}</div>
+      <div class="cf-v"><span class="cf-lbl">Yours</span>${esc(r.a) || '<i>none</i>'}</div><div class="cf-v"><span class="cf-lbl">Theirs</span>${esc(r.b) || '<i>none</i>'}</div></div>`).join('')
+    : '<p class="cf-same">No difference in the fields or notes.</p>'}</div>`;
+}
+async function conflictDialog(t){
   S.conflict = true; setStat();
+  let theirs = null, gone = false;                     // read their current version for the comparison (R2-8 Overwritten A)
+  try { const r = await S.store.read(t.file); theirs = { ...r, task:parseTask(t.file, r.text, r.version) }; }
+  catch (e){ if (e instanceof NotFoundError) gone = true; else console.warn('conflict: their version unreadable', e); }
   return new Promise(resolve => {
     const done = v => { S.conflict = false; setStat(); resolve(v); };
+    const keepMine = async () => { try { await trashPut(t.file, serializeTask(t), { reason:'replaced', by:'this device', id:t.id, title:t.title, due:t.due }); return true; }
+      catch (e){ storeError(e, 'keeping a copy of your version'); return false; } };
     modal(`<h3>Changed elsewhere</h3><p><b>${esc(t.title)}</b> (<code>${esc(t.file)}</code>) was changed or removed by something else — Claude, another device, or a sync — since this page loaded it.</p>
-      <p style="font-size:13px;color:var(--muted)"><b>Keep both</b> saves your version as a separate copy, so nothing is lost.</p>
-      <div class="btns"><button data-a="reload">Use their version</button><button data-a="over">Overwrite with mine</button><button class="primary" data-a="both">Keep both</button></div>`,
+      ${diffHTML(t, theirs, gone)}
+      <p style="font-size:13px;color:var(--muted)"><b>Keep both</b> saves your version as a separate copy, so nothing is lost. The other two keep the version they replace in <b>Recently deleted</b>.</p>
+      <div class="btns cf-btns"><button data-a="reload">Use their version</button><button data-a="over">Overwrite with mine</button><button class="primary" data-a="both">Keep both</button></div>`,
       async a => {
         closeModal();
-        if (a === 'over'){ done(await saveTask(t, { force:true })); }
+        if (a === 'over'){                              // R2-8 Overwritten B: their current text goes to the trash first
+          let cur = null;
+          try { cur = await S.store.read(t.file); } catch (e){ if (!(e instanceof NotFoundError)){ storeError(e, 'overwrite'); return done(false); } }
+          if (!cur) return done(await saveTask(t, { force:true }));          // gone elsewhere: re-create mine
+          const p = parseTask(t.file, cur.text, cur.version);
+          try { await trashPut(t.file, cur.text, { reason:'replaced', by:'elsewhere', id:p.id, title:p.title, due:p.due }); }
+          catch (e){ storeError(e, 'keeping a copy of their version'); return done(false); }
+          t.version = cur.version; done(await saveTask(t));
+        }
         else if (a === 'both'){
           busy(1);
           try {
@@ -1042,6 +1215,7 @@ function conflictDialog(t){
           finally { busy(-1); render(); done(false); }
         }
         else if (a === 'reload'){
+          if (!(await keepMine())) return done(false);   // R2-8 Overwritten B: my version goes to the trash first
           try { const f = await reloadOne(t); if (S.editing === t.id) fillDrawer(f); }
           catch (e){ if (e instanceof NotFoundError){ S.tasks.delete(t.id); if (S.editing === t.id) closeDrawer(true); toast('It was deleted elsewhere.'); } else storeError(e, 'reload'); }
           render(); done(false);
@@ -1149,6 +1323,9 @@ function render(){
   qaChips();
   $('#qa').disabled = !S.store || !!S.firstFill;
   setStat();
+  const sb = $('#srch-bar'); sb.hidden = !(S.store && S.q); $('#srch-text').textContent = S.q ? `Filtering: “${S.q}”` : '';   // R2-8 Hidden C
+  const od = S.store && !S.firstFill ? overdueCount() : 0, oh = $('#od-head');                                             // R2-8 Hidden D
+  oh.hidden = !od; oh.textContent = od ? String(od) : ''; oh.title = od ? `${od} overdue — open Today` : '';
   const rows = $('#rows');
   if (!S.store){ return; }
   if (S.firstFill){ const f = S.firstFill;
@@ -1170,6 +1347,10 @@ function syncListsQuiet(){ if (S.list && !S.lists.includes(S.list) && S.lists.le
 /* R2-2 Today view: time runs upward. Upcoming (collapsed; furthest first, "+ N later" on top) · Today (always open) ·
    Overdue (collapsed; most recent first). Collapse state lasts for this app session only. */
 const TODAY_OPEN = { up:false, over:false, later:false };
+/* R2-8 Hidden D: open tasks (not done, not archived) with a real YYYY-MM-DD due before today — the Today view's Overdue,
+   whatever Show done or the search say */
+function overdueCount(){ const now = today(); return all().filter(t => t.due && /^\d{4}-\d{2}-\d{2}$/.test(t.due) && t.due < now && t.status !== 'done' && t.status !== 'archived' && !t.isNew).length; }
+const odBadge = n => n ? ` <span class="od-badge" title="${n} overdue">${n}</span>` : '';
 function renderToday(rows){
   const now = today(), wk = addDays(7);
   const pool = all().filter(t => t.due && /^\d{4}-\d{2}-\d{2}$/.test(t.due) && visibleSelf(t) && matches(t));
@@ -1177,7 +1358,7 @@ function renderToday(rows){
   const soon = pool.filter(t => t.due > now && t.due <= wk).sort(desc), later = pool.filter(t => t.due > wk).sort(desc);
   const tod = pool.filter(t => t.due === now).sort(byOrder), over = pool.filter(t => t.due < now).sort(desc);
   const rowsOf = (list, quick) => list.map(t => rowHTML(t, 0, { flat:true, quick })).join('');
-  const head = (key, name, n) => `<div class="group-head tday-group"><button class="tday-head" data-tday="${key}" aria-expanded="${TODAY_OPEN[key]}">${TODAY_OPEN[key] ? '▾' : '▸'} ${name} · ${n}</button></div>`;
+  const head = (key, name, n, extra = '') => `<div class="group-head tday-group"><button class="tday-head" data-tday="${key}" aria-expanded="${TODAY_OPEN[key]}">${TODAY_OPEN[key] ? '▾' : '▸'} ${name} · ${n}${extra}</button></div>`;
   let html = head('up', 'Upcoming', soon.length + later.length);
   if (TODAY_OPEN.up){
     if (later.length) html += TODAY_OPEN.later ? rowsOf(later, ['today'])
@@ -1186,7 +1367,7 @@ function renderToday(rows){
   }
   html += `<div class="group-head tday-group" id="tday-today"><span class="tday-head tday-fixed">Today · ${tod.length}</span></div>`;
   html += rowsOf(tod, ['tomorrow']) || '<div class="empty-hint">Nothing due today.</div>';
-  html += head('over', 'Overdue', over.length);
+  html += head('over', 'Overdue', over.length, odBadge(overdueCount()));          // stays collapsed (R2-8 Hidden D)
   if (TODAY_OPEN.over) html += rowsOf(over, ['today', 'tomorrow']);
   rows.innerHTML = html;
   updateSnapBtn();
@@ -1529,7 +1710,7 @@ async function copyTask(t, r, { checkAll = false } = {}){
   render(); syncEditorStatus([t]);
   if (!ok) return;
   showUndo(`Done — copy for ${niceDate(next)} created`, async () => {
-    for (const c of [...copies].reverse()) { const x = get(c.id); if (x) await removeTask(x); }
+    for (const c of [...copies].reverse()) { const x = get(c.id); if (x) await removeTask(x, { trash:false }); }   // its own just-made copy: no trash
     const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, repeat:s.repeat, series:s.series }); return x; }).filter(Boolean);
     render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
   });
@@ -1549,9 +1730,19 @@ async function toggleDone(t){
   if (rule && rule.keep && !openSubs.length && !openLines) return copyTask(t, rule);
   if (!openSubs.length && !openLines) return setDone([t], true, { label:`Checked “${t.title}”` });
   const what = [openSubs.length ? `${openSubs.length} open subtask${openSubs.length>1?'s':''}` : '', openLines ? `${openLines} unchecked checklist item${openLines>1?'s':''} in its notes` : ''].filter(Boolean).join(' and ');
+  /* R2-8 Checked off D: "Check all" needs a second, deliberate tap (≥ 300 ms later, within 4 s); the button says what it will tick */
+  const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+  const armText = 'Tap again to check all ' + [openSubs.length ? plural(openSubs.length, 'subtask') : '', openLines ? plural(openLines, 'item') : ''].filter(Boolean).join(' and ');
+  let armedAt = 0, armTimer = null;
   modal(`<h3>Check off “${esc(t.title)}”?</h3><p>It still has ${esc(what)}.</p>
     <div class="btns"><button data-a="cancel">Cancel</button><button data-a="one">Check only this</button><button class="primary" data-a="all">Check all</button></div>`,
-    async a => { closeModal();
+    async a => {
+      if (a === 'all'){ const b = $('#modal [data-a=all]');
+        if (!armedAt){ armedAt = Date.now(); b.textContent = armText; b.classList.add('ck-armed');
+          armTimer = setTimeout(() => { armedAt = 0; if (b.isConnected){ b.textContent = 'Check all'; b.classList.remove('ck-armed'); } }, 4000); return; }
+        if (Date.now() - armedAt < 300) return;        // a double-tap bounce doesn't count
+      }
+      clearTimeout(armTimer); closeModal();
       if (rule && rule.keep){ if (a === 'all' || a === 'one') await copyTask(t, rule, { checkAll: a === 'all' }); return; }   // R2-1 Copy: original handled like a regular task
       if (a === 'all') await setDone([t, ...openSubs], true, { lines:[t, ...openSubs], label:`Checked “${t.title}” and everything under it` });
       else if (a === 'one') await setDone([t], true, { label:`Checked “${t.title}”` + (openSubs.length && !S.showDone ? ` — its ${openSubs.length} open subtask${openSubs.length>1?'s are':' is'} hidden with it` : '') });
@@ -1581,12 +1772,12 @@ function syncEditorStatus(tasks){ const t = tasks.find(x => x.id === S.editing);
   fillStatusSelect(t.status); $('#f-status').value = t.status; updateSnapshotField('status', t.status);
   if ((t.body || '') !== S.snapshot.body){ t.diskChanged = true; $('#d-banner').classList.add('on'); } }
 
-/* Undo bar: 5 s, one at a time (a new action replaces the previous offer) */
+/* Undo bar: 5 s (deletes 15 s, R2-8 Deleted D), one at a time (a new action replaces the previous offer) */
 let undoTimer = null, undoFn = null;
-function showUndo(msg, fn){
+function showUndo(msg, fn, ms = 5000){
   clearTimeout(undoTimer); undoFn = fn;
   $('#undo-msg').textContent = msg; $('#undo').classList.add('on');
-  undoTimer = setTimeout(hideUndo, 5000);
+  undoTimer = setTimeout(hideUndo, ms);
 }
 function hideUndo(){ clearTimeout(undoTimer); undoFn = null; $('#undo').classList.remove('on'); }
 $('#undo-btn').onclick = async () => { if (S.editing && isDirty()) return toast('Save or close the open editor first.');   // T2-1: Undo rewrites notes too
@@ -1632,19 +1823,24 @@ function prefixDialog(t){
     async a => { closeModal(); if (!a.startsWith('p:')) return; const v = a.slice(2); if (v === cur) return;
       t.prefix = v; if (!t.isNew) await saveTask(t); render(); }, { sheet:true });
 }
+const dueText = d => isYmd(d) ? niceDate(d) : String(d);
 function deleteDialog(t){
   const subs = descendants(t.id);
-  const where = !S.store ? '' : S.store.kind === 'onedrive' ? ' It goes to the OneDrive recycle bin, so it can be restored there.'
-    : S.store.kind === 'local' ? ' A copy is kept in the folder\'s hidden <code>.trash</code> folder.' : '';
+  const where = !S.store ? '' : ' A copy is kept in <b>Recently deleted</b> (⋯ menu), so it can be restored.' +
+    (S.store.kind === 'onedrive' ? ' OneDrive\'s recycle bin has it too.' : '');
+  const MAX = 10;                                 // R2-8 Deleted D: name the subtasks (with due dates), not just a count
+  const subList = subs.length ? `<ul class="dl-subs">${subs.slice(0, MAX).map(s => `<li>${esc(s.title)}${s.due ? ` <span class="dl-sdue">· due ${esc(dueText(s.due))}</span>` : ''}</li>`).join('')}${subs.length > MAX ? `<li class="dl-more">and ${subs.length - MAX} more</li>` : ''}</ul>` : '';
   modal(`<h3>Delete task?</h3><p><b>${esc(t.title)}</b> — <code>${esc(t.file || '(unsaved)')}</code> will be deleted.${where}</p>
-    ${subs.length ? `<p><b>Also delete its ${subs.length} subtask${subs.length>1?'s':''}?</b></p>` : ''}
+    ${t.due ? `<p class="dl-due">This task is due <b>${esc(dueText(t.due))}</b>.</p>` : ''}
+    ${subs.length ? `<p><b>Also delete its ${subs.length} subtask${subs.length>1?'s':''}?</b></p>${subList}` : ''}
     <div class="btns"><button data-a="cancel">Cancel</button><button class="primary danger" data-a="ok">${subs.length ? 'Delete all' : 'Delete'}</button></div>`,
     async a => { closeModal(); if (a !== 'ok') return;
       if (S.editing && [t, ...subs].some(x => x.id === S.editing)) closeDrawer(true);
       const gone = [];
       for (const x of [...subs].reverse().concat(t)){          // subtasks first, the parent last
-        const text = x.isNew ? null : serializeTask(x);
-        if (await removeTask(x)) { if (text) gone.push({ file:x.file, text }); } else break;
+        const text = x.isNew ? null : (x.raw ?? serializeTask(x));      // the exact file, so Undo rebuilds it byte for byte
+        const r = await removeTask(x);
+        if (r){ if (text) gone.push({ file:x.file, text, trash:r.trash }); } else break;
       }
       render();
       if (!gone.length) return;
@@ -1657,9 +1853,10 @@ function deleteDialog(t){
               try { const v = await S.store.create(file, g.text); addParsed(S.tasks, parseTask(file, g.text, v)); break; }
               catch (e){ if (e instanceof ExistsError && i < 5){ file = uniqueFile(baseName(g.file).replace(/\.md$/i, ''), '', [file]); continue; } throw e; }
             }
+            if (g.trash) try { await trashDrop(g.trash); } catch (e){ console.warn('trash entry not removed', e); }   // restored → no longer "deleted"
           }
         } catch (e){ storeError(e, 'undo'); } finally { busy(-1); syncLists(); render(); }
-      });
+      }, 15000);
     });
 }
 
@@ -1671,7 +1868,7 @@ function listPicker(){
   if (S.firstFill) return toast('Still downloading your tasks — one moment.');
   modal(`<h3>Lists</h3>${S.lists.map(l => `<div class="pick ${l===S.list && S.view==='list'?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button>
       <span class="cnt">${openCount(l)}</span><button class="ren" data-a="r:${esc(l)}" title="Rename or remove">✎</button></div>`).join('')}
-    <div class="pick ${S.view==='due'?'on':''}"><button class="go" data-a="due">📅 Today (all lists)</button></div>
+    <div class="pick ${S.view==='due'?'on':''}"><button class="go" data-a="due">📅 Today (all lists)${odBadge(overdueCount())}</button></div>
     <div class="btns"><button data-a="new">＋ New list</button><button data-a="cancel">Close</button></div>`,
     a => {
       if (a.startsWith('l:')){ closeModal(); S.list = a.slice(2); S.view = 'list'; ls.set('todo.list', S.list); ls.set('todo.view2', 'list'); snapBack(false); render(); $('#scroller').scrollTop = 0; }
@@ -1862,7 +2059,9 @@ function fieldState(){ return JSON.stringify({ rep: repControlsKey(), title:$('#
   due:$('#f-due').value, coll:$('#f-coll').value }); }
 function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing); if (t?.isNew) return true;
   return fieldState() !== S.snapshot.fields || S.editor.getMarkdown() !== S.snapshot.md; }
-function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d; }
+function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d;
+  if (d){ const t = get(S.editing); if (t) t.editedAt = Date.now(); }      // R2-8 Overwritten A: "yours, edited …"
+  if (S.editing) scheduleAutoDraft(); }
 function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
 ['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
 ['#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-due'].forEach(s => $(s).addEventListener('input', repUI));
@@ -1971,7 +2170,7 @@ async function saveDrawer(){
     ok = await conflictDialog(t);
     if (ok) ok = await saveMany(changed.filter(x => x !== t));
   } else ok = await saveMany(changed);
-  if (ok && get(S.editing) === t){ takeSnapshot(t); $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
+  if (ok && get(S.editing) === t){ takeSnapshot(t); dropAutoDraft(t.id); $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
     $('#d-unknown').textContent = t.unknown?.length ? '⚠ Unrecognized frontmatter (kept as is): ' + t.unknown.join(' · ') : ''; toast('Saved'); }
   onDirtyCheck(); syncLists(); render(); return ok;
 }
@@ -1981,6 +2180,7 @@ $('#d-close').onclick = () => closeDrawer();
 function discardNew(){ const t = S.editing && get(S.editing); if (t?.isNew) S.tasks.delete(t.id); }
 function closeDrawer(force){
   if (!force && isDirty()) return confirmDiscard(() => closeDrawer(true));
+  if (S.editing) dropAutoDraft(S.editing);           // saved, discarded or closed unchanged → no draft (R2-8 Overwritten C)
   discardNew(); S.editing = null; S.snapshot = null; $('#drawer').classList.remove('open'); snapBack(false); render();
 }
 function confirmDiscard(onDiscard){
@@ -2014,11 +2214,67 @@ function restoreDraft(){
       order:d.order, due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true }; S.tasks.set(t.id, t); }
   else t.version = d.version;                         // keep the version the edit started from → a changed file still conflicts
   openDrawer(t.id);
-  const f = d.fields; $('#f-title').value = f.title; fillStatusSelect(f.status); $('#f-prefix').value = f.prefix; $('#f-due').value = f.due; $('#f-coll').value = f.coll;
-  if (!$('#f-list').disabled) $('#f-list').value = f.list;
-  if (f.rep){ try { const [a, b, c, e] = JSON.parse(f.rep); $('#f-rep').value = a; $('#f-rep-custom').value = b; $('#f-rep-mode').value = c; $('#f-rep-next').value = e; repUI(); } catch {} }
-  S.editor.setMarkdown(d.md, false); onDirtyCheck();
+  fillFromDraft(d.fields, d.md);
   toast('Restored your unsaved edit from before sign-in');
+}
+function fillFromDraft(f, md){                        // put a saved draft's fields and notes into the open editor (dirty)
+  $('#f-title').value = f.title; fillStatusSelect(f.status); $('#f-prefix').value = f.prefix; $('#f-due').value = f.due; $('#f-coll').value = f.coll;
+  if (!$('#f-list').disabled && S.lists.includes(f.list)) $('#f-list').value = f.list;
+  if (f.due !== S.snapshot?.due) S.dueTouched = true;
+  if (f.rep){ try { const [a, b, c, e] = JSON.parse(f.rep); $('#f-rep').value = a; $('#f-rep-custom').value = b; $('#f-rep-mode').value = c; $('#f-rep-next').value = e; repUI(); } catch {} }
+  S.editor.setMarkdown(md, false); onDirtyCheck();
+}
+
+/* R2-8 Overwritten C: unsaved editor changes are saved on this device (~2 s after typing stops, and at once when the
+   app goes to the background), so a closed app, a dead battery or Android ending the app loses nothing.
+   localStorage key: todo.autodraft|<store scope>|<task id> — the scope is the device copy's (OneDrive account + folder,
+   local folder id) or "demo" — value { id, file, version, isNew, list, parent, order, fields, body, title, due, savedAt }.
+   Cleared on a successful save, Discard, or closing with no changes. The sign-in stash (todo.draft) is separate. */
+const DRAFT_PFX = 'todo.autodraft|';
+let draftTimer = null;
+const draftKey = id => DRAFT_PFX + S.draftScope + '|' + id;
+function scheduleAutoDraft(){ clearTimeout(draftTimer); draftTimer = setTimeout(autoDraft, 2000); }
+function dropAutoDraft(id){ if (S.draftScope) ls.del(draftKey(id)); }
+function autoDraft(){
+  clearTimeout(draftTimer);
+  if (!S.editing || !S.snapshot || !S.editor || !S.draftScope) return;
+  const t = get(S.editing); if (!t) return;
+  if (!isDirty()) return dropAutoDraft(t.id);
+  const fields = JSON.parse(fieldState()), body = S.editor.getMarkdown();
+  if (t.isNew && !fields.title.trim() && !body.trim()) return;           // an untouched new task isn't worth keeping
+  ls.set(draftKey(t.id), { id:t.id, file:t.file, version:t.version, isNew:!!t.isNew, list:t.list, parent:t.parent, order:t.order,
+    fields, body, title:fields.title.trim() || t.title, due:fields.due, savedAt:new Date().toISOString() });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) autoDraft(); });
+window.addEventListener('pagehide', () => autoDraft());
+function pendingDrafts(){
+  const pre = DRAFT_PFX + S.draftScope + '|', out = [];
+  try { for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i);
+    if (k && k.startsWith(pre)){ const d = ls.get(k, null); if (d && d.id && d.fields) out.push({ k, d }); else ls.del(k); } } } catch {}
+  return out.sort((a, b) => String(b.d.savedAt).localeCompare(String(a.d.savedAt)));
+}
+/* On start (after the tasks load): offer each draft, newest first. Restore opens the editor with the draft applied;
+   if the file changed since, the "changed elsewhere" banner is up, so Save asks (never overwrites silently). */
+function offerDrafts(){
+  if (!S.store || !S.draftScope || S.editing || $('#modal-bg').classList.contains('on')) return;
+  const next = pendingDrafts()[0]; if (!next) return;
+  const { k, d } = next, t = get(d.id) || (d.file && !d.isNew ? byFile(d.file) : null);
+  const exists = !!t && !t.isNew;
+  modal(`<h3>Unsaved changes</h3><p>You had unsaved changes to <b>${esc(d.title || 'Untitled')}</b>${d.due ? ` (due ${esc(dueText(d.due))})` : ''}${d.savedAt ? `, from ${esc(whenText(Date.parse(d.savedAt)))}` : ''}.</p>
+    ${exists ? '' : `<p class="dl-due">${d.isNew ? 'It was a new task that was never saved.' : 'That task no longer exists here (deleted or renamed elsewhere).'}</p>`}
+    <div class="btns"><button class="danger" data-a="discard">Discard</button><button class="primary" data-a="restore">${exists ? 'Restore' : 'Restore as new task'}</button></div>`,
+    a => { closeModal(); ls.del(k);
+      if (a === 'discard'){ offerDrafts(); return; }
+      let x = exists ? t : null;
+      if (!x){ const list = S.lists.includes(d.fields.list) ? d.fields.list : (S.list || S.lists[0] || 'Inbox'), parent = d.parent && get(d.parent) ? d.parent : '';
+        x = { file:'', version:null, id:newId(), title:'', status:'open', prefix:'', list, collections:[], parent, order: nextOrder(parent ? kids(parent) : all().filter(y => y.list === list && !hasParent(y))),
+          due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
+        S.tasks.set(x.id, x); render(); }
+      openDrawer(x.id); fillFromDraft(d.fields, d.body);
+      if (exists && x.version !== d.version){ x.diskChanged = true; $('#d-banner').classList.add('on'); }   // changed since → Save asks
+      autoDraft();
+      toast(exists ? 'Restored your unsaved changes — Save to keep them' : 'Restored as a new task — Save to keep it');
+    }, { noDismiss:true });
 }
 
 /* ---------------- checklist items: parse / promote ---------------- */
@@ -2116,6 +2372,7 @@ function demoteDialog(t){
     </fieldset>
     <fieldset class="opts"><legend>The original file</legend>
       <label><input type="checkbox" id="m-keep" checked> <span><b>Keep it, archived</b> — status becomes <code>archived</code>, <code>demoted_into</code> points at the target, and the checkbox links to it. “Promote” later restores every field. Uncheck to delete the file.</span></label>
+      <div class="dm-warn" id="m-duewarn"></div>
     </fieldset>
     ${nk ? `<fieldset class="opts"><legend>Its ${nk} subtask(s)</legend>
       <label><input type="radio" name="kids" value="move" checked> <span>Move them under the target as real tasks</span></label>
@@ -2125,11 +2382,18 @@ function demoteDialog(t){
     async a => { if (a !== 'ok') return closeModal(); const o = opts(); closeModal(); await doDemote(t, get(o.target), o); });
   const opts = () => ({ target: $('#m-target').value, level: +document.querySelector('input[name=lvl]:checked').value,
     keep: $('#m-keep').checked, kids: document.querySelector('input[name=kids]:checked')?.value || 'move' });
-  const prev = () => { $('#m-preview').textContent = demoteLines(t, opts(), '').join('\n'); };
+  /* R2-8 Deleted C: a due-dated task (or a due-dated subtask demoted with it) is always kept, archived and restorable */
+  const guard = () => { const due = demoteDue(t, opts().kids), k = $('#m-keep');
+    if (due.length){ k.checked = true; k.disabled = true; } else k.disabled = false;
+    $('#m-duewarn').innerHTML = due.slice(0, 5).map(x => `<p>${x === t ? 'This task is' : `“${esc(x.title)}” is`} due <b>${esc(dueText(x.due))}</b> — it will leave the Today view.</p>`).join('') +
+      (due.length > 5 ? `<p>…and ${due.length - 5} more due-dated subtasks.</p>` : '') + (due.length ? '<p class="dm-kept">So the file is kept (archived), and Promote brings it back.</p>' : ''); };
+  const prev = () => { guard(); $('#m-preview').textContent = demoteLines(t, opts(), '').join('\n'); };
   $('#modal').addEventListener('input', prev); prev();
 }
+function demoteDue(t, kids){ return [t, ...(kids === 'demote' ? descendants(t.id) : [])].filter(x => x.due); }
 async function doDemote(t, target, o){
   if (!target) return;
+  if (demoteDue(t, o.kids).length) o.keep = true;              // R2-8 Deleted C: never delete a due-dated task by demoting it
   const tree = o.kids === 'demote' ? descendants(t.id) : [];
   const lines = demoteLines(t, o, '');
   const changed = [];
@@ -2153,10 +2417,10 @@ async function doDemote(t, target, o){
 }
 
 /* ---------------- modal / toast ---------------- */
-function modal(html, onAction, { sheet = false, noDismiss = false } = {}){
+function modal(html, onAction, { sheet = false, noDismiss = false, full = false } = {}){
   const ae = document.activeElement, typing = ae && (ae.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName));
   if (!$('#modal-bg').classList.contains('on')) S.modalReturn = typing ? null : ae;      // T1-11: focus goes back here on close
-  $('#modal').innerHTML = html; $('#modal-bg').classList.add('on'); $('#modal-bg').classList.toggle('sheet', sheet);
+  $('#modal').innerHTML = html; $('#modal-bg').classList.add('on'); $('#modal-bg').classList.toggle('sheet', sheet); $('#modal-bg').classList.toggle('full', full);
   const h = $('#modal h3'); if (h){ h.id = 'modal-title'; $('#modal').setAttribute('aria-labelledby', 'modal-title'); } else $('#modal').removeAttribute('aria-labelledby');
   if (!typing && !$('#modal').contains(document.activeElement)) $('#modal').focus({ preventScroll:true });   // (never while typing: no keyboard jumps on phones)
   S.modalNoDismiss = noDismiss;
@@ -2176,6 +2440,7 @@ $('#app-menu').onclick = () => {
     { label: (S.showArchived ? '✓ ' : '') + 'Show archived', fn:() => { S.showArchived = !S.showArchived; render(); } },
     { label: 'Search…', fn: searchDialog },
     { label: 'Refresh', fn: () => refreshAll() },
+    { label: 'Recently deleted', fn: () => recentlyDeleted() },
     { sep:true },
     { label: 'Settings…', fn: settingsDialog },
   ];
@@ -2188,6 +2453,45 @@ function searchDialog(){
     a => { S.q = a === 'ok' ? $('#m-q').value.trim() : ''; closeModal(); render(); toast(S.q ? `Filtering: “${S.q}”` : 'Search cleared'); });
   setTimeout(() => $('#m-q')?.focus(), 0);
   $('#m-q').addEventListener('keydown', e => { if (e.key === 'Enter'){ S.q = $('#m-q').value.trim(); closeModal(); render(); } });
+}
+$('#srch-clear').onclick = () => { S.q = ''; render(); toast('Search cleared'); };          // R2-8 Hidden C
+
+/* R2-8 Deleted A: ⋯ → Recently deleted. Every trash entry, due-dated ones first (they matter most), each newest first;
+   Restore puts the file back where it was. Full screen on a phone. */
+async function recentlyDeleted(){
+  if (!S.store) return;
+  const opts = { sheet:true, full:IS_PHONE };
+  const shell = body => `<h3>Recently deleted</h3><p class="rd-note">Deleted tasks and replaced versions, kept in the task folder's hidden <code>${TRASH}</code> folder (on every device). Nothing is emptied automatically.</p>
+    <div id="rd-list">${body}</div><div class="btns"><button data-a="close">Close</button></div>`;
+  let entries = [];
+  const draw = () => {
+    if (!$('#rd-list')) return;
+    const due = entries.filter(e => e.meta.due), rest = entries.filter(e => !e.meta.due);
+    const item = (e, i) => { const m = e.meta, by = m.by === 'elsewhere';
+      const what = m.reason === 'replaced' ? (by ? 'Replaced: the other version, overwritten' : 'Replaced: your version, not used') : 'Deleted';
+      return `<div class="rd-item${m.due ? ' rd-due' : ''}"><div class="rd-body"><div class="rd-ttl">${esc(m.title || baseName(m.path || e.md.path))}</div>
+        ${m.due ? `<div class="rd-duev">Due ${esc(dueText(m.due))}</div>` : ''}
+        <div class="rd-meta">${esc(what)}${m.device ? ` on ${esc(m.device)}` : ''}${m.deletedAt ? ` · ${esc(whenText(Date.parse(m.deletedAt)))}` : ''} · <code>${esc(m.path || '')}</code></div></div>
+        <button data-a="r:${i}">Restore</button></div>`; };
+    const idx = e => entries.indexOf(e);
+    $('#rd-list').innerHTML = !entries.length ? '<p class="rd-note">Nothing here.</p>' :
+      (due.length ? `<div class="group-head" style="width:auto;padding-left:0">With a due date · ${due.length}</div>` + due.map(e => item(e, idx(e))).join('') : '') +
+      (rest.length ? `<div class="group-head" style="width:auto;padding-left:0">${due.length ? 'Others' : 'All'} · ${rest.length}</div>` + rest.map(e => item(e, idx(e))).join('') : '');
+  };
+  const load = async () => { try { entries = await trashEntries(); draw(); }
+    catch (e){ if ($('#rd-list')) $('#rd-list').innerHTML = `<p class="rd-note">Couldn't read the trash: ${esc(e.message)}</p>`; storeError(e, 'reading the trash'); } };
+  modal(shell('<p class="rd-note">Loading…</p>'), async a => {
+    if (a === 'close') return closeModal();
+    if (!a.startsWith('r:')) return;
+    const e = entries[+a.slice(2)]; if (!e || e.busy) return; e.busy = true;
+    busy(1);
+    try { const file = await trashRestore(e); syncLists(); render();
+      toast(file === e.meta.path ? `Restored “${e.meta.title || file}”` : `Restored as ${file} (the name was taken)`); }
+    catch (err){ storeError(err, 'restore'); }
+    finally { busy(-1); e.busy = false; }
+    await load();
+  }, opts);
+  await load();
 }
 function diagnosticsDialog(){
   let log = []; try { log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); } catch {}
@@ -2247,6 +2551,7 @@ async function useStore(store){
     navigator.storage?.persist?.().catch(() => {});
   }
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
+  S.draftScope = scope || (store.kind === 'demo' ? 'demo' : store.kind === 'onedrive' ? `onedrive|${S.auth?.user?.() || ''}|${store.folder.toLowerCase()}` : `local|${store.name}`);   // R2-8 Overwritten C
   let fromCopy = false;
   if (store.warm){ const recs = await store.warm(); if (recs.length){ buildFrom(recs); syncLists(); render(); fromCopy = true; } }
   if (store.cachedLayer && !fromCopy){                // T2-4: nothing on this device yet — say what's happening while every file downloads once
@@ -2270,6 +2575,7 @@ async function useStore(store){
   if (store.cachedLayer) store.onProgress = null;
   if (store.kind !== 'demo' && S.tasks.size === 0 && !S.cfgVersion) offerSeed();
   restoreDraft();
+  offerDrafts();                                      // R2-8 Overwritten C
   schedulePoll();
 }
 function showStart(msg){
@@ -2468,6 +2774,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
+  trashPut, trashEntries, trashRestore, trashDrop, recentlyDeleted, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
