@@ -15,6 +15,22 @@
     window.__NETLOCK__ = true;
   }
 } catch (e) {} })();
+/* R2-6: sign-in bridge. A popup or background sign-in comes back to this page in its own small window or hidden
+   frame, carrying Microsoft's answer in the address. MSAL 5 needs that window to hand the answer to the app window
+   (msal-redirect-bridge) and close — it must not start a second copy of the app. A normal redirect sign-in is left
+   to the app (MsalAuth.init). Everything after this script is swallowed (<plaintext>), so nothing else loads. */
+(function(){ try {
+  var h = location.hash.replace(/^#/, ''), q = location.search.replace(/^\?/, '');
+  var p = new URLSearchParams(/(^|&)state=/.test(h) ? h : q), st = p.get('state');
+  if (!st || !(p.has('code') || p.has('error'))) return;
+  var b = st.split('|')[0].replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '=';
+  var kind = (JSON.parse(atob(b)).meta || {}).interactionType;
+  if (kind !== 'popup' && kind !== 'silent') return;
+  window.__AUTH_BRIDGE__ = kind;
+  document.write('<title>Signing in…</title><script src="vendor/msal-redirect-bridge.min.js"><\/script>' +
+    '<script>msalRedirectBridge.broadcastResponseToMainFrame().catch(function(e){ document.body.textContent = "Sign-in window: " + (e && (e.errorCode || e.message)); });<\/script>' +
+    '<body style="background:#161b22;color:#c9d1d9;font:16px system-ui;padding:24px">Signing in… this window closes by itself.</body><plaintext style="display:none">');
+} catch (e) {} })();
 </script>
 <title>HTML-ToDo-App</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -147,6 +163,14 @@ footer{flex:0 0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));bor
 /* drawer (full screen on phones) */
 #drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.25);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .18s ease;z-index:20}
 #drawer.open{transform:none}
+/* R2-6: on a phone the editor is exactly the screen's width (100vw is Chrome's 980 px in Desktop-site mode, which the
+   page zoom then blew up past the screen), and it scrolls if the fields and notes don't fit */
+html.phone #drawer{left:0;width:auto;border-left:0;overflow-y:auto}
+/* ⤢ on the notes toolbar: the notes take the whole editor (fields, checklist and footer hidden; the changed-elsewhere
+   banner stays); on a PC the editor also widens to the full window. ⤡ or opening another task puts it back. */
+#drawer.notes-big .d-fields,#drawer.notes-big .d-note,#drawer.notes-big .d-checklist,#drawer.notes-big .d-foot{display:none}
+html:not(.phone) #drawer.notes-big{width:100vw}
+#drawer.notes-big #editor-wrap{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
 .d-head{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
 .d-head .dirty{color:var(--warn);font-size:calc(12px*var(--z));visibility:hidden}
 @media (max-width:600px){ .d-head .d-title{display:none} .d-head .dirty{flex:1} }   /* phones: room for Save + Save & close */
@@ -232,6 +256,9 @@ html.phone .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group > but
 html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
 .toastui-editor-md-tab-container{display:none!important}   /* Raw mode's Write/Preview tabs squeeze the toolbar; the Raw/Formatted button covers it */
 .toastui-editor-toolbar-icons.app-more{background-image:none!important;position:relative}
+.toastui-editor-toolbar-icons.app-expand{background-image:none!important;position:relative}
+.toastui-editor-toolbar-icons.app-expand::before{content:"⤢";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;color:var(--text)}
+#drawer.notes-big .toastui-editor-toolbar-icons.app-expand::before{content:"⤡";color:var(--accent)}
 .toastui-editor-toolbar-icons.app-more::before{content:"⋯";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;color:var(--text)}
 /* the ⋯ overflow pop-up: keep it inside the screen and wrap onto extra rows so every hidden option shows */
 .toastui-editor-dropdown-toolbar{left:0!important;right:auto!important;max-width:calc(100vw - 24px);flex-wrap:wrap;height:auto!important;row-gap:4px;padding:4px!important}
@@ -284,6 +311,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
   </div>
   <div class="d-note" id="d-parent"></div>
   <div class="d-note warn" id="d-unknown"></div>
+  <div class="d-banner" id="d-auth">Your sign-in expired — your edit is still here. <button id="d-signin">Sign in</button> then save.</div>
   <div class="d-banner" id="d-banner">This file changed elsewhere while you were editing (Claude or another device?). <button id="d-loaddisk">Load that version</button> — or keep editing; Save will ask before overwriting.</div>
   <div id="editor-wrap"><div id="editor"></div></div>
   <div class="d-checklist" id="d-checklist"></div>
@@ -315,7 +343,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-10-24c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-10-31a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -362,9 +390,11 @@ function deviceReport(){
 function logDevice(why){
   try { const r = deviceReport(); const line = `${r.time.slice(5, 16).replace('T', ' ')} ${why}: ${r.decided.phone ? 'PHONE' : 'PC'} zoom ${r.decided.zoom}` +
       ` · label ${r.now.mobileLabel ? 'mobile' : 'desktop'} · coarse ${r.now.pointerCoarse} fine ${r.now.anyPointerFine} · screen ${r.sizes.screen} inner ${r.sizes.inner} · ${r.page.installedApp ? 'app' : 'tab'} ${r.page.load}${r.page.wasDiscarded ? ' (discarded)' : ''}`;
-    const log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); log.push(line);
-    localStorage.setItem('todo.deviceLog', JSON.stringify(log.slice(-20))); } catch {}
+    pushLog(line); } catch {}
 }
+function logNote(msg){ try { pushLog(`${new Date().toISOString().slice(5, 16).replace('T', ' ')} ${msg}`); } catch {} }   // sign-in steps (R2-6 C)
+function pushLog(line){ const log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); log.push(line);
+  localStorage.setItem('todo.deviceLog', JSON.stringify(log.slice(-40))); }
 logDevice('load');
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') logDevice('back'); });
 const DEVICE = IS_PHONE ? 'Phone' : 'PC';
@@ -729,15 +759,21 @@ class MsalAuth {
     if (res?.account) this.account = res.account;
     if (!this.account){ const all = this.pca.getAllAccounts(); if (all.length) this.account = all[0]; }
     if (this.account) this.pca.setActiveAccount(this.account);
-    return { account:this.account };
+    return { account:this.account, redirectReturn:!!res };
   }
-  async token(){
+  async token(){                         // cached token → refresh token → hidden-frame renewal (needs the sign-in bridge)
     if (!this.account) throw new AuthError('Not signed in');
     try { return (await this.pca.acquireTokenSilent({ scopes:SCOPES, account:this.account })).accessToken; }
     catch (e){ throw new AuthError(e.errorCode || e.message); }
   }
-  signIn(){ const hint = ls.get('todo.lastUser', '');                 // pre-fill the account so the bounce can skip the picker
-    return this.pca.loginRedirect({ scopes:SCOPES, ...(hint ? { loginHint:hint } : {}) }); }
+  hint(){ const h = ls.get('todo.lastUser', ''); return h ? { loginHint:h } : {}; }   // pre-fill the account so Microsoft can skip the picker
+  /* R2-6 C: renew without leaving the app window — first in the background, then in a popup on a tap. The redirect
+     (the whole window goes to Microsoft and back) is only the last resort: it's what drops the phone into desktop mode. */
+  async silent(){ const h = this.hint(); if (!h.loginHint) return null;
+    const r = await this.pca.ssoSilent({ scopes:SCOPES, ...h }); this.account = r.account; this.pca.setActiveAccount(this.account); return this.account; }
+  async signInPopup(){ const r = await this.pca.loginPopup({ scopes:SCOPES, ...this.hint() });
+    this.account = r.account; this.pca.setActiveAccount(this.account); return this.account; }
+  signIn(){ return this.pca.loginRedirect({ scopes:SCOPES, ...this.hint() }); }
   signOut(){ return this.pca.logoutRedirect({ account:this.account }); }
   user(){ return this.account?.username || ''; }
 }
@@ -845,6 +881,7 @@ function setStat(){
   el.className = 'stat ' + s;
   el.textContent = { ok:'●', local:'●', sync:'⟳', offline:'⚠', signedout:'○', conflict:'!', demo:'◌', off:'○' }[s];
   el.title = tip; el.dataset.state = s;
+  $('#d-auth').classList.toggle('on', !!(S.store && S.signedOut));     // R2-6 C: on a phone the editor covers the status icon
 }
 function busy(d){ S.busy = Math.max(0, S.busy + d); setStat(); }
 function storeError(e, what){
@@ -1735,6 +1772,16 @@ function phoneMoreButton(){
   b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); editorMoreMenu(b); });
   return b;
 }
+function expandButton(){
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'toastui-editor-toolbar-icons app-expand'; b.setAttribute('aria-label', 'Bigger notes');
+  b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); setNotesBig(!$('#drawer').classList.contains('notes-big')); });
+  return b;
+}
+function setNotesBig(on){
+  $('#drawer').classList.toggle('notes-big', on);
+  const b = document.querySelector('#editor .app-expand'); if (b) b.setAttribute('aria-label', on ? 'Show the fields again' : 'Bigger notes');
+  if (on) $('#drawer').scrollTop = 0;
+}
 function edExec(cmd, payload){ const ed = S.editor; if (!ed) return; ed.focus(); ed.exec(cmd, payload); }
 /* Toolbar (R1-12 #17, #18): always Checklist, Bullet, Outdent, Indent, Inline code … More. On a PC, as many of the
    EXTRAS as fit go between them (in this order); whatever doesn't fit is listed under More, grouped by type. */
@@ -1752,7 +1799,8 @@ function editorToolbar(){
   const extras = IS_PHONE ? [] : [...TB_EXTRAS];                      // PC: start with all extras; fitToolbar() trims to what fits
   S.tbShown = new Set(extras);
   const more = { name:'appMore', tooltip:'More', el: phoneMoreButton() };
-  return extras.length ? [TB_PRIMARY, extras, [more]] : [[...TB_PRIMARY, more]];
+  const big = { name:'appExpand', tooltip:'Bigger notes', el: expandButton() };
+  return extras.length ? [TB_PRIMARY, extras, [more, big]] : [[...TB_PRIMARY, more, big]];
 }
 /* PC: if the library starts hiding buttons (its own ⋯ appears), remove extras from the END until everything fits */
 const libOverflow = () => [...document.querySelectorAll('#editor .toastui-editor-toolbar-icons.more')].some(b => b.offsetWidth > 0);
@@ -1869,6 +1917,7 @@ function openDrawer(id){
     return confirmDiscard(() => { discardNew(); openDrawer(id); });
   }
   const t = get(id); if (!t) return;
+  if (S.editing !== id) setNotesBig(false);          // another task opens with its fields showing
   S.editing = id; ensureEditor(); fillDrawer(t);
   $('#drawer').classList.add('open');
 }
@@ -2142,7 +2191,7 @@ function searchDialog(){
 }
 function diagnosticsDialog(){
   let log = []; try { log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); } catch {}
-  const text = JSON.stringify({ ...deviceReport(), deviceCopy: S.store?.info?.() ?? null }, null, 1) + '\n\nRecent loads / returns (newest last):\n' + log.join('\n');
+  const text = JSON.stringify({ ...deviceReport(), deviceCopy: S.store?.info?.() ?? null }, null, 1) + '\n\nRecent loads / returns / sign-ins (newest last):\n' + log.join('\n');
   modal(`<h3>Diagnostics</h3><p style="font-size:12px;color:var(--muted)">What this browser reports about the device, and what the app decided. Tap Copy and paste it to Claude.</p>
     <textarea id="diag-text" readonly style="width:100%;height:50vh;font:12px/1.35 monospace;white-space:pre">${esc(text)}</textarea>
     <div class="btns"><button data-a="clearcopy">Clear device copy</button><button data-a="cancel">Close</button><button class="primary" data-a="copy">Copy</button></div>`,
@@ -2213,8 +2262,8 @@ async function useStore(store){
     }
     S.store = null; render();
     if (e instanceof AuthError){                  // remembered account, but Microsoft wants a fresh sign-in (e.g. 24 h limit)
-      if (!sessionStorage.getItem('todo.autoTried')){ sessionStorage.setItem('todo.autoTried', '1'); S.signedOut = true; signIn(); }
-      else { S.signedOut = true; showStart('Your sign-in expired — sign in again.'); }
+      logNote('sign-in: background renewal failed (' + e.message + ')');       // R2-6 C: no automatic redirect any more
+      S.signedOut = true; showStart('Your sign-in expired — tap Sign in to continue.');
       return;
     }
     showStart(e instanceof FolderError ? e.message : e instanceof OfflineError ? "You're offline — connect and reload." : 'Could not load the task files: ' + e.message); return; }
@@ -2246,11 +2295,29 @@ $('#rows').addEventListener('click', e => {
   else if (a === 'demo'){ ls.set('todo.source', 'demo'); useStore(new MemStore(sampleFiles())); }
   else if (a === 'settings') settingsDialog();
 });
-function signIn(){
-  if (!S.auth) return;
+/* R2-6 C: sign in on a tap. A popup first (the app window stays put, so Chrome can't switch it to desktop mode);
+   if the popup can't open or can't report back, the old redirect. After one failed popup this session, go straight
+   to the redirect, so a phone where popups don't work isn't stuck. */
+async function signIn(){
+  if (!S.auth || S.signingIn) return;
+  if (S.auth.signInPopup && !sessionStorage.getItem('todo.popupFailed')){
+    S.signingIn = true; let account = null, why = '';
+    try { account = await S.auth.signInPopup(); } catch (e){ why = e.errorCode || e.message || 'error'; }
+    S.signingIn = false;
+    if (account){ logNote('sign-in: popup ok'); return afterSignIn(account); }
+    logNote('sign-in: popup failed (' + why + ')'); sessionStorage.setItem('todo.popupFailed', '1');
+    if (/user_cancelled/.test(why)){ toast('Sign-in window closed — tap Sign in again to retry.'); return; }
+  }
+  logNote('sign-in: redirect');
   stashDraft(); S.redirecting = true;
   $('#rows').innerHTML = '<div class="start"><h2>Signing in…</h2><p>Taking you to Microsoft.</p></div>';
   Promise.resolve(S.auth.signIn()).catch(e => { S.redirecting = false; showStart('Sign-in failed: ' + (e.errorCode || e.message)); });
+}
+async function afterSignIn(account){
+  ls.set('todo.everSignedIn', true); if (account?.username) ls.set('todo.lastUser', account.username);
+  S.signedOut = false;
+  if (S.store?.kind === 'onedrive'){ setStat(); toast('Signed in again'); poll(true); }      // mid-session: carry on where you were
+  else await useStore(new GraphStore(S.auth, ls.get('todo.folder', DEFAULT_FOLDER)));
 }
 /* T1-8: signing out also removes this account's task files from the device copy (they'd otherwise stay in the browser) */
 async function signOut(){
@@ -2260,23 +2327,28 @@ async function signOut(){
   try { if (window.indexedDB) await devCache.dropScopes(s => String(s).startsWith(`onedrive|${user}|`)); } catch (e){ console.warn('device copy: not cleared', e); }
   S.redirecting = true; S.auth.signOut();
 }
-function reauth(){                       // session gone mid-use: bounce once automatically, else show the button (S-5)
+$('#d-signin').onclick = () => signIn();
+function reauth(){                       // session gone mid-use (S-5): the tasks stay on screen; a tap signs in again (R2-6 C)
   if (S.signedOut) return;                // already handled — don't repeat on every poll
-  S.signedOut = true; setStat();
-  if (!sessionStorage.getItem('todo.autoTried')){ sessionStorage.setItem('todo.autoTried', '1'); signIn(); }
-  else toast('Signed out — tap the status icon to sign in again.');
+  S.signedOut = true; setStat(); logNote('sign-in: expired mid-session');
+  toast('Sign-in expired — tap the status icon to sign in again.');
 }
 async function startOneDrive(){
   const folder = ls.get('todo.folder', DEFAULT_FOLDER);
   S.auth = window.__TEST_AUTH__ || new MsalAuth(ls.get('todo.clientId', DEFAULT_CLIENT_ID));
-  let account = null;
-  try { ({ account } = await S.auth.init()); }
+  let account = null, redirectReturn = false;
+  try { ({ account, redirectReturn } = await S.auth.init()); }
   catch (e){ showStart('Sign-in problem: ' + (e.errorCode || e.message) + (/redirect_uri|AADSTS50011/i.test(e.message) ? ` — this page's address (${REDIRECT}) must be added to the Azure app registration.` : '')); return; }
+  if (redirectReturn) logDevice('back from Microsoft (redirect)');     // R2-6: does the redirect bring desktop mode with it?
+  if (!account && ls.get('todo.everSignedIn', false) && S.auth.silent){      // R2-6 C: renew in the background first
+    try { account = await S.auth.silent(); logNote('sign-in: background renewal ok'); }
+    catch (e){ logNote('sign-in: background renewal failed (' + (e.errorCode || e.message) + ')'); }
+  }
   if (account){
     ls.set('todo.everSignedIn', true); if (account.username) ls.set('todo.lastUser', account.username);
     await useStore(new GraphStore(S.auth, folder));
-  } else if (ls.get('todo.everSignedIn', false) && !sessionStorage.getItem('todo.autoTried')){
-    sessionStorage.setItem('todo.autoTried', '1'); signIn();          // automatic bounce through Microsoft (S-5 B)
+  } else if (ls.get('todo.everSignedIn', false)){
+    S.signedOut = true; showStart('Your sign-in expired — tap Sign in to continue.');   // no automatic redirect (R2-6 C)
   } else { S.signedOut = true; showStart(); }
 }
 /* R2-4: the default local task folder is <root>\data, next to the build folder (<root>\html-todo-app-<build>\app\index.html).

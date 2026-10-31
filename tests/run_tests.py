@@ -381,7 +381,7 @@ def test_onedrive(browser):
     check("list order merges both devices' changes", cfg.get("lists") == ["Feedback", "Test List", "Inbox", "Remote List", "Local List"], cfg)
     check("_todo.json gets the current data format and keeps unknown keys", cfg.get("format") == page.evaluate("__todo.DATA_FORMAT") and cfg.get("note") == "kept", cfg)
 
-    # sign-in expires mid-session → draft saved → automatic bounce once
+    # sign-in expires mid-session → no automatic redirect (R2-6 C); a tap on the status icon signs in, stashing the draft first
     page.click("#list-name")
     page.locator("#modal .pick .go", has_text="Test List").click()
     row(page, "Sub 1").count()  # subtask hidden; open the parent instead
@@ -391,9 +391,12 @@ def test_onedrive(browser):
     page.fill("#f-title", "Draft kept across sign-in")
     page.evaluate("() => { window.__TEST_AUTH__.token = async () => { throw new __todo.AuthError('expired'); }; return __todo.poll(true); }")
     page.wait_for_timeout(300)
-    check("expired sign-in triggers one automatic redirect", page.evaluate("window.__signInCalls") == 1, page.evaluate("window.__signInCalls"))
+    check("expired sign-in mid-session: no automatic redirect, the edit stays open", not page.evaluate("window.__signInCalls")
+          and page.input_value("#f-title") == "Draft kept across sign-in", page.evaluate("window.__signInCalls"))
+    page.click("#d-signin")
+    page.wait_for_timeout(200)
+    check("tap Sign in in the editor → sign in (redirect when popups aren't available)", page.evaluate("window.__signInCalls") == 1, page.evaluate("window.__signInCalls"))
     check("unsaved edit is stashed before redirecting", "Draft kept across sign-in" in (page.evaluate("localStorage.getItem('todo.draft')") or ""))
-    page.evaluate("() => sessionStorage.setItem('todo.autoTried', '1')")
     page.reload()
     page.wait_for_selector("#drawer.open", timeout=5000)
     page.wait_for_timeout(300)
@@ -436,11 +439,11 @@ def test_signed_out(browser):
     page.evaluate("() => localStorage.setItem('todo.everSignedIn', 'true')")
     page.reload()
     page.wait_for_timeout(500)
-    check("returning user with no session is bounced to Microsoft automatically", page.evaluate("window.__signInCalls") == 1)
-    page.reload()
-    page.wait_for_timeout(500)
-    check("…but only once per session (loop guard), then the button", not page.evaluate("window.__signInCalls")
-          and page.locator("button:has-text('Sign in with Microsoft')").count() == 1)
+    check("returning user with no session: no automatic redirect (R2-6 C), 'expired' + the Sign in button", not page.evaluate("window.__signInCalls")
+          and "expired" in page.inner_text("#rows") and page.locator("button:has-text('Sign in with Microsoft')").count() == 1, page.inner_text("#rows")[:120])
+    page.click("button:has-text('Sign in with Microsoft')")
+    page.wait_for_timeout(200)
+    check("…tapping Sign in goes to Microsoft once", page.evaluate("window.__signInCalls") == 1)
     check("signed out: no page errors", not errors, errors[:3])
     ctx.close()
 
@@ -464,18 +467,15 @@ def test_resilience(browser):
     check("resilience: no page errors", not errors, errors[:3])
     ctx.close()
 
-    # remembered account, but the token can't be refreshed (Microsoft's 24 h limit) → one automatic bounce
+    # remembered account, but the token can't be refreshed (Microsoft's 24 h limit) → 'expired' + Sign in, no redirect (R2-6 C)
     ctx, page, errors = new_page(browser, phone=True, init="""window.__TEST_AUTH__ = { async init(){ return { account:{ username:'test@example.com' } }; },
       async token(){ throw new __todo.AuthError('interaction_required'); },
       signIn(){ window.__signInCalls = (window.__signInCalls||0) + 1; }, signOut(){}, user(){ return 'test@example.com'; } };""" + ls_init(**{
         "todo.source": "onedrive", "todo.folder": FOLDER, "todo.everSignedIn": True}))
     page.goto(APP)
     page.wait_for_timeout(800)
-    check("expired sign-in at start-up bounces to Microsoft once", page.evaluate("window.__signInCalls") == 1, page.evaluate("window.__signInCalls"))
-    page.reload()
-    page.wait_for_timeout(800)
-    check("…and if that didn't help, shows 'sign in again' instead of looping", not page.evaluate("window.__signInCalls")
-          and "expired" in page.inner_text("#rows"), page.inner_text("#rows")[:120])
+    check("expired sign-in at start-up: no automatic redirect, 'expired' + Sign in", not page.evaluate("window.__signInCalls")
+          and "expired" in page.inner_text("#rows") and page.locator("button:has-text('Sign in with Microsoft')").count() == 1, page.inner_text("#rows")[:120])
     check("expired sign-in: no page errors", not errors, errors[:3])
     ctx.close()
 
@@ -908,12 +908,12 @@ def test_indent_saveclose(browser):
     check("phone editor buttons fit on one line at 360 px and 175 % ('Save & close' unwrapped)", r["oneRow"] and r["fits"] and r["label"] == "Save & close", r)
     order = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > div button')].filter(b => b.offsetWidth > 0)
         .map(b => [...b.classList].find(c => !['toastui-editor-toolbar-icons','active'].includes(c)))""")
-    check("phone toolbar is exactly: Checklist, Bullet, Outdent, Indent, Inline code, More (at 360 px, 175 %)",
-          order == ["task-list", "bullet-list", "outdent", "indent", "code", "app-more"], order)
+    check("phone toolbar is exactly: Checklist, Bullet, Outdent, Indent, Inline code, More, Bigger notes (at 360 px, 175 %)",
+          order == ["task-list", "bullet-list", "outdent", "indent", "code", "app-more", "app-expand"], order)
     xs = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > div button')].filter(b => b.offsetWidth > 0)
         .map(b => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.right]; })""")
     gaps = [round(xs[i + 1][0] - xs[i][0], 1) for i in range(len(xs) - 1)]
-    check("the six buttons are evenly spaced and on screen", max(gaps) - min(gaps) < 3 and xs[-1][1] <= 360, gaps)
+    check("the seven buttons are evenly spaced and on screen", max(gaps) - min(gaps) < 3 and xs[-1][1] <= 360, gaps)
     page.screenshot(path=str(SHOTS / "23-phone-editor-toolbar.png"))
     page.locator(".app-more").click()
     page.wait_for_timeout(200)
@@ -958,7 +958,8 @@ def test_indent_saveclose(browser):
 
 def test_pc_toolbar(browser):
     print("\n[13] PC editor toolbar: the phone's order, as many extras as fit, the rest under More")
-    for w, mode, hidden in [(1280, "wysiwyg", ["Code block"]), (1280, "markdown", ["Code block"]), (700, "wysiwyg", ["Table…", "Code block"])]:
+    for w, mode, hidden in [(1280, "wysiwyg", ["Horizontal line", "Table…", "Code block"]), (1280, "markdown", ["Horizontal line", "Table…", "Code block"]),
+                             (700, "wysiwyg", ["Quote", "Horizontal line", "Table…", "Code block"])]:   # R2-6: ⤢ Bigger notes takes the last slot
         ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Home", "todo.mode": mode}))
         page.set_viewport_size({"width": w, "height": 800})
         page.goto(APP)
@@ -969,7 +970,7 @@ def test_pc_toolbar(browser):
         vis = page.evaluate("""() => [...document.querySelectorAll('.toastui-editor-defaultUI-toolbar > .toastui-editor-toolbar-group button')].filter(b => b.offsetWidth > 0)
             .map(b => [...b.classList].find(c => c !== 'toastui-editor-toolbar-icons' && c !== 'active'))""")
         lib_more = page.evaluate("() => [...document.querySelectorAll('#editor .toastui-editor-toolbar-icons.more')].some(b => b.offsetWidth > 0)")
-        check(f"PC {w}px {mode}: starts Checklist, Bullet, Outdent, Indent, Inline code; ends with More", vis[:5] == ["task-list", "bullet-list", "outdent", "indent", "code"] and vis[-1] == "app-more", vis)
+        check(f"PC {w}px {mode}: starts Checklist, Bullet, Outdent, Indent, Inline code; ends with More, Bigger notes", vis[:5] == ["task-list", "bullet-list", "outdent", "indent", "code"] and vis[-2:] == ["app-more", "app-expand"], vis)
         check(f"PC {w}px {mode}: the library never hides buttons on its own", not lib_more)
         page.locator(".app-more").click()
         page.wait_for_timeout(200)
@@ -1722,6 +1723,168 @@ def test_agent_round3(browser):
     ctx.close()
 
 
+def test_r26_signin_editor(browser):
+    print("\n[19] R2-6: sign-in without leaving the app window; editor fits a phone; bigger notes")
+    # a fake MSAL with the new steps; each case sets how silent/popup behave
+    def auth(account=False, silent="fail", popup="ok", redirect_return=False):
+        return ("window.__TEST_AUTH__ = { account: " + ("{ username:'test@example.com' }" if account else "null") +
+                ", redirectReturn: " + ("true" if redirect_return else "false") + """,
+          async init(){ return { account: this.account, redirectReturn: this.redirectReturn }; },
+          async token(){ if (!this.account) throw new __todo.AuthError('no'); return 'fake-token'; },
+          async silent(){ window.__silentCalls = (window.__silentCalls||0) + 1; if (SILENT === 'ok'){ this.account = { username:'test@example.com' }; return this.account; }
+            throw Object.assign(new Error('x'), { errorCode:'login_required' }); },
+          async signInPopup(){ window.__popupCalls = (window.__popupCalls||0) + 1; const how = POPUP;
+            if (how === 'ok'){ this.account = { username:'test@example.com' }; return this.account; }
+            throw Object.assign(new Error(how), { errorCode: how }); },
+          signIn(){ window.__signInCalls = (window.__signInCalls||0) + 1; },
+          signOut(){}, user(){ return this.account ? 'test@example.com' : ''; } };""").replace("SILENT", json.dumps(silent)).replace("POPUP", json.dumps(popup))
+    base = {"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.list": "Feedback", "todo.everSignedIn": True,
+            "todo.lastUser": "test@example.com"}
+    calls = lambda page: page.evaluate("({ silent: window.__silentCalls||0, popup: window.__popupCalls||0, redirect: window.__signInCalls||0 })")
+    log = lambda page: page.evaluate("localStorage.getItem('todo.deviceLog') || ''")
+
+    # 1. the sign-in was dropped overnight, but Microsoft renews it in the background → no screen at all
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=auth(silent="ok") + ls_init(**base)); fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row")
+    c = calls(page)
+    check("background renewal works → tasks load, no popup, no redirect", c == {"silent": 1, "popup": 0, "redirect": 0}, c)
+    check("…logged in Diagnostics", "background renewal ok" in log(page))
+    ctx.close()
+
+    # 2. background renewal fails → 'expired' + Sign in; a tap opens the popup; the app window never leaves
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=auth(silent="fail", popup="ok") + ls_init(**base)); fg.install(page)
+    page.goto(APP); page.wait_for_selector(".start")
+    check("renewal failed: no automatic redirect, 'expired' + Sign in", calls(page)["redirect"] == 0 and "expired" in page.inner_text("#rows"), page.inner_text("#rows")[:100])
+    page.click("button:has-text('Sign in with Microsoft')"); page.wait_for_selector(".row")
+    c = calls(page)
+    check("tap Sign in → popup → tasks load, no redirect", c["popup"] == 1 and c["redirect"] == 0, c)
+    check("…logged: renewal failed, popup ok", "background renewal failed" in log(page) and "popup ok" in log(page), log(page)[-300:])
+    check("…no stale draft left behind by the popup sign-in", page.evaluate("localStorage.getItem('todo.draft')") is None)
+    check("sign-in (popup): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # 3. popups blocked or can't report back → the redirect, in the same tap
+    for how in ["popup_window_error", "redirect_bridge_timeout"]:
+        ctx, page, errors = new_page(browser, phone=True, init=auth(popup=how) + ls_init(**base))
+        page.goto(APP); page.wait_for_selector(".start")
+        page.click("button:has-text('Sign in with Microsoft')"); page.wait_for_timeout(300)
+        c = calls(page)
+        check(f"popup fails ({how}) → falls back to the redirect in the same tap", c["popup"] == 1 and c["redirect"] == 1, c)
+        ctx.close()
+
+    # 4. you close the popup → no redirect yet; the next tap uses the redirect (a phone where popups misbehave isn't stuck)
+    ctx, page, errors = new_page(browser, phone=True, init=auth(popup="user_cancelled") + ls_init(**base))
+    page.goto(APP); page.wait_for_selector(".start")
+    page.click("button:has-text('Sign in with Microsoft')"); page.wait_for_timeout(300)
+    c = calls(page)
+    check("popup closed by you → no redirect, a hint to retry", c["popup"] == 1 and c["redirect"] == 0 and "Sign in again" in page.inner_text("#toast"), (c, page.inner_text("#toast")))
+    page.click("button:has-text('Sign in with Microsoft')"); page.wait_for_timeout(300)
+    c = calls(page)
+    check("…the next tap goes straight to the redirect", c["popup"] == 1 and c["redirect"] == 1, c)
+    ctx.close()
+
+    # 5. sign-in expires while a task is open with unsaved edits → popup sign-in keeps everything on screen
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=auth(account=True, popup="ok") + ls_init(**base)); fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row")
+    page.locator(".row .ttl", has_text="Board View").first.click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(200)
+    page.fill("#f-title", "Unsaved while signed out")
+    page.evaluate("() => { const a = window.__TEST_AUTH__; a._tok = a.token; a.token = async () => { throw new __todo.AuthError('expired'); }; return __todo.poll(true); }")
+    page.wait_for_timeout(300)
+    check("expired mid-session: no redirect, editor untouched", calls(page)["redirect"] == 0 and page.input_value("#f-title") == "Unsaved while signed out")
+    check("…the editor shows 'sign-in expired' with its own Sign in button (the status icon is hidden behind it)", page.locator("#d-auth").is_visible())
+    page.evaluate("() => { const a = window.__TEST_AUTH__; a.token = a._tok; }")
+    page.click("#d-signin"); page.wait_for_timeout(500)
+    c = calls(page)
+    check("…tap it → popup → signed in again, the unsaved edit still open, the bar gone", not page.locator("#d-auth").is_visible() and c["popup"] == 1 and c["redirect"] == 0
+          and page.evaluate("__todo.S.signedOut") is False and page.input_value("#f-title") == "Unsaved while signed out", c)
+    page.click("#d-saveclose"); page.wait_for_timeout(400)
+    check("…and it saves normally", "title: Unsaved while signed out" in fg.files()["board-view.md"])
+    check("expired mid-session: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # 6. the theory check: a return from a redirect sign-in is logged with the phone/PC decision
+    fg = FakeGraph(FOLDER, dict(TEST_FILES))
+    ctx, page, errors = new_page(browser, phone=True, init=auth(account=True, redirect_return=True) + ls_init(**base)); fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row")
+    check("a return from the redirect sign-in is logged, with the layout decision", "back from Microsoft (redirect): PHONE" in log(page), log(page)[-200:])
+    page.click("#app-menu"); page.locator("#pop button", has_text="Settings").click(); page.click("#modal [data-a=diag]")
+    check("…and shows in Diagnostics", "back from Microsoft (redirect)" in page.input_value("#diag-text"))
+    ctx.close()
+
+    # 7. the sign-in bridge: a popup/background answer is handed to the app window, and nothing else starts
+    import base64
+    def state(kind):
+        return base64.urlsafe_b64encode(json.dumps({"id": "bridge-test-1", "meta": {"interactionType": kind}}).encode()).decode().rstrip("=")
+    ctx = browser.new_context(viewport={"width": 412, "height": 860})
+    main = ctx.new_page(); main.goto(APP + "?nothing")
+    main.evaluate("() => { window.__got = []; const ch = new BroadcastChannel('bridge-test-1'); ch.onmessage = e => window.__got.push(e.data); }")
+    pop = ctx.new_page(); errs = []; pop.on("pageerror", lambda e: errs.append(str(e)))
+    pop.goto(APP + "#code=abc123&state=" + state("popup")); pop.wait_for_timeout(800)
+    got = main.evaluate("window.__got")
+    check("bridge: a popup answer is handed to the app window (MSAL's own bridge, v1 message)", got and got[0].get("v") == 1 and "code=abc123" in got[0].get("payload", ""), got)
+    check("…and the app doesn't start in that window", pop.evaluate("typeof window.__todo === 'undefined' && !document.querySelector('.row')"))
+    check("bridge: no page errors", not errs, errs[:3])
+    ctx.close()
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP + "#code=abc&state=" + state("redirect")); page.wait_for_selector(".row")
+    check("bridge: a redirect answer is left to the app (it starts normally)", page.evaluate("typeof window.__todo === 'object'"))
+    ctx.close()
+
+    # 8. the editor fits the phone in both start modes, and everything in it can be reached
+    media = r"""(() => { const real = window.matchMedia.bind(window), fake = new Map([['pointer:coarse',true],['pointer:fine',false],['any-pointer:fine',true],['any-pointer:coarse',true],['hover:hover',false],['any-hover:hover',false]]);
+      window.matchMedia = q => { const k = q.replace(/[()\s]/g, ''); return fake.has(k) ? { matches:fake.get(k), media:q, addEventListener(){}, removeEventListener(){} } : real(q); }; })();"""
+    modes = {"desktop-site": ({"width": 979, "height": 1972}, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"),
+             "normal": ({"width": 338, "height": 682}, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36")}
+    for name, (vp, ua) in modes.items():
+        ctx = browser.new_context(viewport=vp, screen={"width": 339, "height": 727}, has_touch=True, user_agent=ua)
+        page = ctx.new_page(); errs = []; page.on("pageerror", lambda e: errs.append(str(e)))
+        page.add_init_script(media + ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+        page.goto(APP); page.wait_for_selector(".row")
+        page.locator(".row .ttl", has_text="Fix gate latch").first.click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(400)
+        r = page.evaluate("""() => { const W = innerWidth, d = document.querySelector('#drawer').getBoundingClientRect();
+          const inside = s => { const b = document.querySelector(s).getBoundingClientRect(); return b.left >= -1 && b.right <= W + 1; };
+          return { left: Math.round(d.left), right: Math.round(d.right), W, fields: ['#d-close', '#f-title', '#f-prefix', '#f-status', '#f-list', '#f-due', '#f-coll', '#d-saveclose'].every(inside) }; }""")
+        check(f"editor ({name} start): exactly the screen's width, nothing cut off left or right", abs(r["left"]) <= 1 and abs(r["right"] - r["W"]) <= 1 and r["fields"], r)
+        reach = page.evaluate("""() => { const d = document.querySelector('#drawer'); d.scrollTop = d.scrollHeight;
+          const f = document.querySelector('.d-foot').getBoundingClientRect(); return f.bottom <= innerHeight + 1; }""")
+        check(f"…the bottom of the editor can be scrolled into view ({name})", reach)
+        page.evaluate("document.querySelector('#drawer').scrollTop = 0")
+        h0 = page.evaluate("document.querySelector('#editor-wrap').getBoundingClientRect().height")
+        page.click("#editor .app-expand"); page.wait_for_timeout(200)
+        h1 = page.evaluate("document.querySelector('#editor-wrap').getBoundingClientRect().height")
+        check(f"⤢ Bigger notes ({name}): fields hidden, notes much taller", not page.locator("#f-title").is_visible() and h1 > h0 * 1.8, (h0, h1))
+        if name == "normal": page.screenshot(path=str(SHOTS / "32-phone-notes-big.png"))
+        check(f"…Save buttons still there ({name})", page.locator("#d-saveclose").is_visible())
+        page.click("#editor .app-expand"); page.wait_for_timeout(200)
+        check(f"…⤡ puts the fields back ({name})", page.locator("#f-title").is_visible())
+        if name == "desktop-site": page.screenshot(path=str(SHOTS / "33-phone-desktop-site-editor.png"))
+        check(f"editor ({name}): no page errors", not errs, errs[:3])
+        ctx.close()
+
+    # 9. PC: ⤢ widens the editor to the full window; opening another task resets it; edits survive the toggle
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    page.locator(".row .ttl").first.click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(400)
+    w0 = page.evaluate("document.querySelector('#drawer').getBoundingClientRect().width")
+    page.fill("#f-title", "Edited before expanding")
+    page.click("#editor .app-expand"); page.wait_for_timeout(250)
+    w1 = page.evaluate("document.querySelector('#drawer').getBoundingClientRect().width")
+    check("PC: ⤢ widens the editor to the whole window", w0 < 800 and abs(w1 - 1280) <= 2, (w0, w1))
+    page.screenshot(path=str(SHOTS / "34-pc-notes-big.png"))
+    page.click("#editor .app-expand"); page.wait_for_timeout(200)
+    check("…⤡ back: the unsaved title edit is still there", page.input_value("#f-title") == "Edited before expanding")
+    page.click("#editor .app-expand"); page.click("#d-save"); page.wait_for_timeout(300)
+    check("…Save works while expanded", page.evaluate("__todo.all().some(t => t.title === 'Edited before expanding')"))
+    page.click("#d-close"); page.wait_for_timeout(200)
+    page.locator(".row .ttl").nth(1).click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("opening another task shows its fields again", page.locator("#f-title").is_visible())
+    check("PC bigger notes: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -1731,7 +1894,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor)]
         for name, fn in tests:
             if not only or name in only:
                 try:

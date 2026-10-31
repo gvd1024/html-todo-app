@@ -21,7 +21,7 @@ Same as round 1:
 | R2-1 | Recurring tasks | **Built** | Plain-English `repeat:` phrases; two modes per task (**Recycle** = same file, **Copy** = keep a record); three next-date rules |
 | R2-2 | Today view (rework "By due date") | **Built** | Upcoming (collapsed) · Today · Overdue (collapsed); one-tap Today/Tomorrow; ⋯ → Change due date… |
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
-| R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A, build 2026-10-24c) | Phone check also accepts "touch + nothing hovers"; awaiting Geoff's phone check |
+| R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -402,7 +402,43 @@ Same as round 1:
     - The same phone in a normal start → phone, not scaled.
     - A touch laptop (touch + hovering trackpad), at 1280 and at 1024 wide → still a PC.
 
-**Status:** Built (build 2026-10-24c). Awaiting Geoff's check on the phone.
+**Status:** A built (build 2026-10-24c).
+
+**Follow-up (Geoff, 2026-10-31):** the phone's Task Edit screen was unusable, cut off on the left with no way to scroll (screenshot). He also asked for a way to make the notes box much larger on phone and PC.
+- **Cause (reproduced):**
+    - With A, a desktop-mode start is scaled about 2.9× to the phone's width.
+    - The editor's width was `min(760px, 100vw)`, and Chrome's 100vw is 979 px in that mode. So the editor came out 760 px wide, was scaled to ~2,200 px, and was anchored to the right edge.
+    - In a normal start the editor was fine.
+- **The real cause of desktop-mode starts (theory):** the automatic sign-in **redirect**.
+    - In Geoff's log, each desktop-mode load came within a minute after a good load.
+    - Microsoft limits this kind of app's sign-in to about 24 hours, so the app bounced through Microsoft's page once a day. Navigating the whole window away and back is the likely trigger.
+- **Discussed:**
+    - **Roll back A?** No. It's correct, and it only acts when Chrome is already in desktop mode.
+    - **Can the app switch Chrome to mobile mode?** No. A page can't change Chrome's desktop-site mode, and Chrome ignores the page's viewport in that mode. A per-device "force phone layout" setting would only repeat what A does, so it was left optional.
+- **Decision (Geoff, 2026-10-31): "do 1 'confirm the theory' … also implement C … also implement 3 (fix edit screen layout)".**
+- **Built (build 2026-10-31a):**
+    1. **Confirm the theory:**
+        - Diagnostics log a line with the phone/PC decision on every return from a redirect sign-in ("back from Microsoft (redirect)").
+        - Every sign-in step is logged too: background renewal ok/failed, popup ok/failed (reason), redirect, expired mid-session.
+        - The log keeps 40 lines (was 20).
+    2. **Sign-in C:** background renewal first, then a popup on a tap, and the redirect only as the last resort.
+        - **The automatic redirect is gone.** An expired sign-in shows "Your sign-in expired — tap Sign in to continue".
+        - **Finding:** MSAL 5 returns popup and background answers through a **redirect bridge** page, and the app didn't have one. So the hidden-frame renewal inside `acquireTokenSilent` could never have worked. That is the likely reason for the daily redirect.
+        - **The bridge:** MSAL's official one (`vendor/msal-redirect-bridge.min.js`, 5.22.0), run by a script at the top of `app/index.html` when the address carries a popup/silent answer. It uses the same redirect URI, so no Azure change.
+        - **Fallback rules:** if a popup can't open or can't report back → the redirect, in the same tap. If you close the popup → a hint, and the next tap uses the redirect.
+        - **Signed out mid-session:** the tasks stay on screen. The editor shows a "sign-in expired … Sign in" bar, because on a phone it covers the status icon. A popup sign-in keeps unsaved edits in place.
+    3. **Editor layout:**
+        - On a phone, the editor is exactly the screen's width in every start mode, and it scrolls when the fields and notes don't fit.
+        - **⤢ Bigger notes** (end of the notes toolbar): hides the fields, checklist and footer; the Save buttons and the changed-elsewhere banner stay. On a PC it also widens the editor to the full window. ⤡ puts everything back, and opening another task resets it.
+- **Tests:** a new `r26` group (39 checks).
+    - Sign-in paths: silent ok, popup ok, popup blocked, bridge timeout, popup closed, expired mid-session with an unsaved edit.
+    - The bridge, run with MSAL's real bridge script: a popup answer reaches the app window and starts no app; a redirect answer is left to the app.
+    - The editor in Geoff's exact desktop-mode and normal starts.
+    - ⤢ on phone and PC.
+    - The old sign-in tests now expect no automatic redirect.
+- **Not testable here:** real Microsoft popups and background renewal on Geoff's phone. Chrome may block the hidden frame's sign-in cookies, in which case the popup does the work.
+
+**Status:** Built (build 2026-10-31a). Awaiting Geoff's check: phone sign-in after a night, the editor, ⤢, and a Diagnostics paste after a few days.
 
 ---
 
@@ -552,6 +588,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-6 | **Confirm-the-theory logging, sign-in C, editor layout fix + ⤢ bigger notes approved and built** (build 2026-10-31a); A kept; Chrome's mode can't be set by a page | Redirect bridge was missing, so background renewal never worked |
 | 2026-10-24 | R2-6 | **A approved and built** (build 2026-10-24c): "touch + nothing hovers" counts as touch-only | From Geoff's diagnostics: his phone reports a fine pointer; Chrome site settings clean |
 | 2026-10-24 | Agent rounds | **Merged to main** at Geoff's request; Geoff's PC checks (device copy, banner/conflict dialog, Check all + Undo, sign-out, Clear device copy, keyboard) all passed | Phone pass pending |
 | 2026-10-23 | R2-7 | **A approved and built** (build 2026-10-23a): device copy + change-only sync, source-swappable | OneDrive limit ~25–40× (PC), ~7–10× (phone) |
@@ -568,6 +605,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v18: R2-6 follow-up: editor cut off in desktop mode, sign-in redirect as the likely cause; logging, sign-in C, editor fix and ⤢ built (build 2026-10-31a).
 - 2026-10-24 — v17: R2-6 diagnostics analysed, A approved and built (build 2026-10-24c); Geoff's PC checks of the agent-round build recorded.
 - 2026-10-24 — v16: Agent rounds, round 3 (T3-1, T3-2 fixed; T3-3 for Geoff) and a consolidated list of decisions waiting for Geoff (build 2026-10-24b).
 - 2026-10-24 — v15: Agent rounds, round 2 (T2-1 … T2-5) fixed or listed for Geoff (build 2026-10-24a).
