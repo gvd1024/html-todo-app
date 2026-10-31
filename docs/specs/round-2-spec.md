@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C decided**; Checked off next | One category at a time; due-dated tasks matter most |
+| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C · Checked off: D (second tap) decided**; Hidden next | One category at a time; due-dated tasks matter most |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -587,7 +587,39 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 - **C:** save on every change (debounced about 2 s) in the browser's storage, keyed by task. Clear it on a successful save or Discard. Offer it only when the file's version still matches; otherwise show it next to the newer version (as the conflict dialog does).
 - **B:** in the trash index, label the entry with the version's source ("from this device" or "from elsewhere") and the time.
 
-### 3. Checked off by mistake
+### 3. Checked off by mistake (reviewed 2026-10-31, from the code)
+| # | How | Protection today | Gap |
+|---|---|---|---|
+| 1 | Mis-tap on a row's checkbox | 44 px tap areas; scrolling isn't a tap; Undo for 5 s | The task vanishes at once (Show done is off by default) and leaves the Today view; after 5 s nothing points to it |
+| 2 | Two check-offs in a row | Undo | Only the last action can be undone (a new Undo replaces the old one) |
+| 3 | The "Check all" dialog | Asks; Cancel / Check only this / Check all; Undo restores everything | **Check all** is the highlighted default: one hurried tap ticks the task, every subtask and every `- [ ]` line in its notes |
+| 4 | Recurring, Recycle mode | Undo | No dialog; one tap moves the due date and unchecks the checklist |
+| 5 | Recurring, Keep-copies mode | Undo | 5 s limit |
+| 6 | A checkbox inside the notes (Formatted editor) | Needs Save | Save & close keeps a stray tick unnoticed |
+| 7 | Status dropdown in the editor | Needs Save | — |
+| 8 | Space on a focused checkbox (PC) | Same as a tap, with Undo | — |
+| 9 | Claude marks a task done | CLAUDE.md rule 10 | Invisible in the app |
+| 10 | Another device checks it off | Synced like any change | It just disappears |
+
+**The risk is losing track, not losing data:** the file keeps everything, plus `status: done` and `completed:`.
+
+**Options pitched:**
+- **A:** a Recently done view.
+- **B:** a longer, stacking Undo.
+- **C:** due-dated tasks stay visible, struck through, after check-off.
+- **D:** a safer Check all.
+- **E:** confirm an early or checklist-heavy Recycle.
+- **F:** notes checkbox safeguards.
+- **G:** a notice for check-offs from elsewhere.
+
+**Decision (Geoff, 2026-10-31): "just add D but only the (require a second tap if it has subtasks in either the markdown or actual subtask files)".**
+- **D as decided:** when a task has open subtasks (subtask files) **or** unchecked `- [ ]` lines in its notes, **Check all** needs a second, deliberate tap to confirm. For example, the button turns into "Tap again to check all 3 subtasks and 4 items", or a short confirm step names the counts.
+- **Unchanged:** **Check only this** and Cancel; which button is highlighted (Geoff chose only the second-tap part); a task without subtasks or checklist lines still checks off in one tap.
+- A–C and E–G are not chosen.
+
+Status: **Decided**, not yet approved for build.
+
+### 4. Hidden but still there
 Under review.
 
 ---
@@ -658,6 +690,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | **Checked off by mistake: D decided** (Check all needs a second tap when there are subtasks or checklist lines); A–C, E–G not chosen | |
 | 2026-10-31 | R2-8 | **Overwritten: A, B, C decided** (diff in conflict dialog, losing version to trash, auto-saved drafts); D, E, F not chosen | |
 | 2026-10-31 | R2-8 | Added (data-safety review). **Deleted: A, B, C, D decided**; E (soft delete) not chosen | Geoff has Microsoft 365 Family (Files Restore) |
 | 2026-10-31 | R2-6 | **Confirm-the-theory logging, sign-in C, editor layout fix + ⤢ bigger notes approved and built** (build 2026-10-31a); A kept; Chrome's mode can't be set by a page | Redirect bridge was missing, so background renewal never worked |
@@ -677,6 +710,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v21: R2-8 category 3 Checked off by mistake decided (D, second tap).
 - 2026-10-31 — v20: R2-8 category 2 Overwritten decided (A–C).
 - 2026-10-31 — v19: R2-8 (data-safety review) added; category 1 Deleted decided (A–D).
 - 2026-10-31 — v18: R2-6 follow-up: editor cut off in desktop mode, sign-in redirect as the likely cause; logging, sign-in C, editor fix and ⤢ built (build 2026-10-31a).
