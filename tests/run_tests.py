@@ -2276,6 +2276,49 @@ def test_r28_phase1(browser):
     check("E2 (drafts, OneDrive): no page errors", not errors, errors[:3])
     ctx.close()
 
+    # ---------- F. hostile task text in the new dialogs (delete, check-off, conflict diff, Recently deleted, draft offer) ----------
+    evil = "<img src=x onerror=\"window.__xss=(window.__xss||0)+1\">"
+    q = lambda s: "'" + s.replace("'", "''") + "'"          # YAML single-quoted
+    hfiles = {"ev.md": fm("t-ev", q("Evil parent " + evil), f"due: {D(3)}\n") + f"\nnote {evil}\n- [ ] {evil} line\n",
+              "evs.md": fm("t-evs", q("Evil child " + evil), "parent: t-ev\n"),
+              "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'}
+    fg = FakeGraph(FOLDER, dict(hfiles))
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox", "todo.pollMs": 300}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    no_markup = lambda: page.locator("#modal img").count() == 0 and not page.evaluate("window.__xss")
+    delete_row(page, "Evil parent")
+    check("F: the delete dialog shows hostile titles (task and subtask) as text", no_markup() and page.inner_text("#modal").count("<img") >= 2, page.inner_text("#modal")[:300])
+    page.click("#modal [data-a=cancel]"); page.wait_for_timeout(200)
+    row(page, "Evil parent").locator(".ck").click(); page.wait_for_selector("#modal [data-a=all]")
+    page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
+    armed_bg = page.eval_on_selector("#modal [data-a=all]", """b => { const d = document.createElement('i'); d.style.color = 'var(--danger)'; b.after(d);
+        const red = getComputedStyle(d).color; d.remove(); return [getComputedStyle(b).backgroundColor, red, b.classList.contains('primary')]; }""")
+    check("Checked off D: the armed Check all stays the highlighted button (not recoloured red)", armed_bg[0] != armed_bg[1] and armed_bg[2], armed_bg)
+    check("F: the check-off dialog (armed) shows a hostile title as text", no_markup() and "<img" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
+    page.click("#modal [data-a=cancel]"); page.wait_for_timeout(200)
+    row(page, "Evil parent").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Mine " + evil)
+    fg.ext_edit("ev.md", fm("t-ev", q("Theirs " + evil), f"due: {q(evil)}\n") + f"\ntheirs {evil}\n<script>window.__xss=100</script>\n")
+    page.wait_for_selector("#d-banner.on", timeout=4000)
+    page.click("#d-save"); page.wait_for_selector("#modal .cf-diff")
+    check("F: the conflict comparison shows hostile titles, due and notes as text", no_markup() and page.locator("#modal script").count() == 0
+          and "<img" in page.inner_text("#modal .cf-diff"), page.inner_text("#modal .cf-diff")[:300])
+    page.click("#modal [data-a=reload]"); page.wait_for_timeout(700)
+    if page.locator("#drawer.open").count(): page.click("#d-close")
+    page.wait_for_timeout(200)
+    recently_deleted(page)
+    check("F: Recently deleted shows a replaced hostile version as text", page.locator("#modal .rd-item").count() >= 1 and no_markup() and "<img" in page.inner_text("#modal"), page.inner_text("#modal")[:300])
+    page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
+    page.evaluate("() => __todo.openDrawer('t-evs')"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Draft " + evil); page.wait_for_timeout(2300)
+    page.evaluate("() => { __todo.S.redirecting = true; }"); page.reload(); page.wait_for_selector("#modal [data-a=restore]"); page.wait_for_function(ready)
+    check("F: the unsaved-changes offer shows a hostile title as text", no_markup() and "<img" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
+    page.click("#modal [data-a=discard]"); page.wait_for_timeout(200)
+    check("F: no hostile markup ran anywhere (rows, editor, dialogs)", not page.evaluate("window.__xss") and page.locator("#rows img").count() == 0)
+    check("F (hostile text): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("F (hostile text): no page errors", not errors, errors[:3])
+    ctx.close()
 
 # ---------------------------------------------------------------- main
 def main():

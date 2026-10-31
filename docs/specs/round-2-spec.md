@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Phase 1 built** (build 2026-11-01a, branch `r2-8-phase1`, awaiting review: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
+| R2-8 | Don't lose anything (data-safety review) | **Phase 1 built** (build 2026-11-01b, branch `r2-8-phase1`, awaiting Geoff's test on the copy folder: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -828,7 +828,7 @@ Status: **Deferred**. Raise it again when the import is discussed.
 - **Then:** a prototype on the test folder → migrate the real folder → the SP/To Do import.
 - **Until Phase 2:** deletions made outside the app are covered only by OneDrive's recycle bin, version history and Files Restore.
 
-### Phase 1 — as built (build 2026-11-01a, branch `r2-8-phase1`, awaiting review)
+### Phase 1 — as built (build 2026-11-01b, branch `r2-8-phase1`, awaiting Geoff's test on the copy folder)
 **Status: Built** (Deleted A, C, D · Overwritten A, B, C · Checked off D · Hidden C, D). Built on the branch `r2-8-phase1`, not merged; Geoff's check on phone and PC is next.
 
 **Deleted A — trash for every store + Recently deleted:**
@@ -860,7 +860,7 @@ Status: **Deferred**. Raise it again when the import is discussed.
 - **On the next start** (after the tasks load): "You had unsaved changes to *title* (due *date*) — Restore / Discard", newest first. Restore opens the editor with the draft applied and unsaved. If the file changed since, the "changed elsewhere" banner is up, so Save goes through the conflict dialog. A draft whose task no longer exists offers **Restore as new task**.
 - The sign-in stash (`todo.draft`) is unchanged and runs first; its own draft isn't offered twice.
 
-**Checked off D:** in the "Check off …?" dialog the first tap on **Check all** arms it ("Tap again to check all 3 subtasks and 4 items", in red). A second tap at least 300 ms later checks everything; after 4 s it reverts. Check only this, Cancel and the highlighted button are unchanged. The recurring keep-copies path uses the same dialog.
+**Checked off D:** in the "Check off …?" dialog the first tap on **Check all** arms it ("Tap again to check all 3 subtasks and 4 items"); it stays the highlighted button, in the same colour (build 2026-11-01b; 2026-11-01a turned it red). A second tap at least 300 ms later checks everything; after 4 s it reverts. Check only this, Cancel and the highlighted button are unchanged. The recurring keep-copies path uses the same dialog.
 
 **Hidden C:** while a search is active, a bar under the header in the lists and in Today: "Filtering: “*q*”" with **✕ Clear**.
 
@@ -876,8 +876,9 @@ Status: **Deferred**. Raise it again when the import is discussed.
 - drafts after a restart (same version, changed version, deleted task)
 - Check all's second tap and revert; the search bar; the overdue badge
 - no page errors; escaped hostile text
+- **Review fixes (build 2026-11-01b, Geoff: "do the fixes first"):** hostile task text (title, due, notes, `<script>`) in the delete dialog, the armed check-off dialog, the conflict comparison, Recently deleted (a replaced version) and the unsaved-changes offer is shown as text and never runs; the armed Check all isn't recoloured.
 
-Existing tests that click Check all now tap twice. The local folder's "copy kept in `.trash`" store check became "remove() makes no copy of its own" (the app's trash covers it). Full suite: **557 checks pass**.
+Existing tests that click Check all now tap twice. The local folder's "copy kept in `.trash`" store check became "remove() makes no copy of its own" (the app's trash covers it). Full suite: **557 checks pass** (2026-11-01a); see the change history for 2026-11-01b.
 
 **For review:**
 - **Not yet verified against real OneDrive:** a folder named `.trash` (leading dot) and creating it by path; `parentReference.id` in the folder's change feed.
@@ -960,6 +961,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-01 | R2-8 | **Review fixes (build 2026-11-01b):** hostile-text tests for the new dialogs; armed Check all keeps its colour. Next: Geoff tests on the copy folder, then merge on his OK | |
 | 2026-11-01 | R2-8 | **Phase 1 built on branch r2-8-phase1, awaiting review** (build 2026-11-01a; 557 checks pass) | Not merged to `main`; Geoff approves the merge |
 | 2026-10-31 | R2-8 | **Order: option 3 (split). Phase 1 approved for build**; Phase 2 = folders + Deleted B + Hidden A | Folders change Deleted B and Hidden A a lot; the rest not, or little |
 | 2026-10-31 | R2-5 | **B decided** (the folder is the list). Additions: rename List → Folder; subtasks must share the parent's folder (recommended); consider dropping `list:` from the frontmatter (leaning remove); a Move-to-folder UI. Gate: full implementation discussion first | Storage: files stay the source of truth (no database) |
@@ -986,6 +988,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-01 — v27: R2-8 Phase 1 review fixes (build 2026-11-01b): hostile-text tests for the new dialogs; the armed Check all is no longer red.
 - 2026-11-01 — v26: R2-8 Phase 1 built (build 2026-11-01a, branch `r2-8-phase1`): trash + Recently deleted, demote/delete care, conflict diff, replaced versions kept, auto-saved drafts, Check all second tap, search bar, overdue badge.
 - 2026-10-31 — v25: R2-8 build order (option 3) recorded; Phase 1 approved for build.
 - 2026-10-31 — v24: R2-5 B decided, with cons, AI reasoning, Geoff's additions and an implementation gate; storage discussion recorded; R2-8 Long-term note (git history).
