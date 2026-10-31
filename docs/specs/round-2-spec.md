@@ -23,6 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
+| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D decided**; Overwritten next | One category at a time; due-dated tasks matter most |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -522,6 +523,46 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 
 **Status:** A built 2026-10-23, awaiting Geoff's check on phone and PC. B, C, D and the cheaper local-folder check are not approved.
 
+## R2-8 — Don't lose anything (data-safety review)
+
+**Asked** (Geoff, 2026-10-31), before moving all his to-dos from other apps into HTA: "I want to make absolutely sure I do not loose any info. I want to explore with you all the different ways my todo items can get unintentionally deleted or checked off, lost (no longer showing in a list that it should), or other ways of loosing track of items". Later: "the most important tasks to not loose track of are tasks with a due date".
+
+**Approach:** one category at a time. Each path gets its protection today, how likely it is, the gap, options and a decision.
+- **Categories:** Deleted · Overwritten · Checked off by mistake · Hidden but still there · Moving tasks in · Long-term.
+- **Context:** Geoff has a **Microsoft 365 Family** subscription, so OneDrive's **Files Restore** can roll the whole OneDrive back to any point in the last 30 days.
+
+### 1. Deleted (reviewed 2026-10-31, from the code)
+| # | How | Protection today | Gap |
+|---|---|---|---|
+| 1 | Delete in the app (⋯ → Delete…) | Confirm dialog; Undo for 5 s rebuilds the exact file; OneDrive recycle bin / local `.trash`; If-Match (no delete if changed elsewhere) | After 5 s only via OneDrive's website. No "recently deleted" view. A parent deletes all its subtasks with one confirm. No extra warning for due-dated tasks |
+| 2 | Demote without "Keep it" | "Keep it, archived" is ticked by default. Nothing is deleted if saving the line fails | No Undo. "Title only" drops the due date. Even with details, the due date becomes text inside another task, so **it leaves the Today view** |
+| 3 | Deleted outside the app (Explorer, OneDrive web, another device, a script) | OneDrive recycle bin (on the PC also the Windows Recycle Bin) | **The app quietly drops it from the list**; there's only a message if that task was open in the editor. **The biggest gap** |
+| 4 | Claude deletes files | CLAUDE.md rule 10 | Nothing in the app catches it; same as #3 |
+| 5 | "Use theirs" on a file deleted elsewhere | The dialog asks | Your unsaved edit is discarded with it |
+| 6 | OneDrive itself | Recycle bin 30 days (sooner if the bin passes ~10 % of storage); mass-delete prompt; Files Restore (M365) | Nothing of the app's own after 30 days |
+| 7 | Clear device copy / Sign out | Only the browser's copy is removed | — |
+| 8 | Work PC local folder | `.trash` for deletes made in the app | No cloud copy of the folder (see Long-term) |
+
+**Options:**
+- **A, a trash folder for every store:** before deleting, the app saves a copy in a hidden trash folder inside the task folder. Local folders already do this; OneDrive would be new. It's shared by all devices, kept until emptied, and Claude can read it. Plus a **Recently deleted** view (⋯ menu) with **Restore**, due dates shown first.
+- **B, a notice when tasks disappear from elsewhere:** the device copy still has the last text of a file that vanished. Save it into the same trash and show "N tasks were deleted elsewhere: … — Restore / OK", with due-dated tasks first and highlighted.
+- **C, protect due dates in Demote:** a due-dated task is always kept (archived, restorable), and the dialog warns "This task is due … — it will leave the Today view".
+- **D, extra care deleting due-dated tasks and parents:** the Delete dialog shows the due date and names the subtasks; Undo lasts longer (e.g. 15 s).
+- **E, soft delete only** (`status: deleted`, purged later): not chosen; it changes the file format and clutters the folder.
+
+**Decision (Geoff, 2026-10-31): "add A, B, C and D to the spec".** Status: **Decided**, not yet approved for build.
+
+**Details to settle at build time (recommendations):**
+- **Trash folder name:** `.trash`, the same name local folders already use. Names starting with `.` are never tasks.
+- **Each trashed copy:** the file's exact text, plus who and when (deleted here, or noticed as gone from elsewhere), kept in a small index next to it.
+- **Emptying:** never automatic at first. Later maybe "empty items older than N days" in the Recently deleted view.
+- **B:** the notice only covers files the device had seen. A file created and deleted elsewhere while this device was closed never reaches it; OneDrive's recycle bin still has it.
+
+### 2. Overwritten
+Under review.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -588,6 +629,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | Added (data-safety review). **Deleted: A, B, C, D decided**; E (soft delete) not chosen | Geoff has Microsoft 365 Family (Files Restore) |
 | 2026-10-31 | R2-6 | **Confirm-the-theory logging, sign-in C, editor layout fix + ⤢ bigger notes approved and built** (build 2026-10-31a); A kept; Chrome's mode can't be set by a page | Redirect bridge was missing, so background renewal never worked |
 | 2026-10-24 | R2-6 | **A approved and built** (build 2026-10-24c): "touch + nothing hovers" counts as touch-only | From Geoff's diagnostics: his phone reports a fine pointer; Chrome site settings clean |
 | 2026-10-24 | Agent rounds | **Merged to main** at Geoff's request; Geoff's PC checks (device copy, banner/conflict dialog, Check all + Undo, sign-out, Clear device copy, keyboard) all passed | Phone pass pending |
@@ -605,6 +647,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v19: R2-8 (data-safety review) added; category 1 Deleted decided (A–D).
 - 2026-10-31 — v18: R2-6 follow-up: editor cut off in desktop mode, sign-in redirect as the likely cause; logging, sign-in C, editor fix and ⤢ built (build 2026-10-31a).
 - 2026-10-24 — v17: R2-6 diagnostics analysed, A approved and built (build 2026-10-24c); Geoff's PC checks of the agent-round build recorded.
 - 2026-10-24 — v16: Agent rounds, round 3 (T3-1, T3-2 fixed; T3-3 for Geoff) and a consolidated list of decisions waiting for Geoff (build 2026-10-24b).
