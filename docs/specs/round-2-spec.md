@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D decided**; Overwritten next | One category at a time; due-dated tasks matter most |
+| R2-8 | Don't lose anything (data-safety review) | **Deleted: A–D · Overwritten: A–C decided**; Checked off next | One category at a time; due-dated tasks matter most |
 | R2-5 | A folder per list (file-explorer model) | Discussing | **B:** the folder is the truth; moving a task = moving its file; the app follows moves made in Explorer or OneDrive |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -558,7 +558,36 @@ They fix **different bottlenecks**, so they're not true alternatives: A and C at
 - **Emptying:** never automatic at first. Later maybe "empty items older than N days" in the Recently deleted view.
 - **B:** the notice only covers files the device had seen. A file created and deleted elsewhere while this device was closed never reaches it; OneDrive's recycle bin still has it.
 
-### 2. Overwritten
+### 2. Overwritten (reviewed 2026-10-31, from the code)
+| # | How | Protection today | Gap |
+|---|---|---|---|
+| 1 | Two devices (or Claude) save the same task | If-Match → conflict dialog (*Use their version / Overwrite with mine / Keep both*); local folder: version check with a tiny race | The dialog doesn't show what differs. **Use theirs** discards your edit with no copy. **Overwrite** discards theirs (only OneDrive version history has it). A due date changed on one device can be reverted blindly |
+| 2 | Editing while the file changes elsewhere | Banner; Save always asks (Geoff tested it) | — |
+| 3 | Unsaved edits lost: offline, Android closes the app, battery | A failed save keeps the text in the editor. The PC warns on tab close. A failed check-off reverts with a message | **Unsaved editor text is only in memory** (stashed only before a sign-in redirect). Medium risk on the phone |
+| 4 | The Formatted editor re-writes the notes when they are edited | Notes untouched unless edited (T1-2) | Re-styles the whole body; Markdown it doesn't support can be altered or dropped. Raw mode is exact |
+| 5 | Recurring task, Recycle mode | By design | No record of completions; checklist ticks wiped; missed dates skipped by default |
+| 6 | Undo, Today/Tmrw buttons | Undo uses the same version check | One tap changes a due date; Undo lasts only 5 s |
+| 7 | Parts of the file the user didn't touch | Key order, unknown keys, body and line endings kept | YAML comments dropped, unknown keys moved to the end (T1-9) |
+| 8 | OneDrive conflict copies (`task-PCNAME.md`) | Shown as a separate task, duplicate id flagged | Two copies of one task (see Hidden) |
+| 9 | Stale device copy | Version-matched only; `keepOpenEdit` | — |
+
+**Outside the app:** OneDrive version history per file; Microsoft 365 Files Restore (30 days). The work PC's local folder has neither.
+
+**Options:**
+- **A, show the difference in the conflict dialog:** what differs (due date first, then title, status, list, notes), which version is newer, and where it came from.
+- **B, never discard a version silently:** the losing side of *Use theirs* or *Overwrite* goes into the trash from Deleted A, labelled "replaced on …", restorable from Recently deleted. This also covers the local folder.
+- **C, auto-save unsaved edits on the device:** the open task's unsaved changes are saved on the device every few seconds. On the next open: "You had unsaved changes to *…* (due …) — Restore / Discard".
+- **D, keep notes exact in Formatted mode** (keep untouched parts, warn, or open in Raw): not chosen now. It stays in the agent-rounds decision list.
+- **E, a done-log for Recycle tasks:** not chosen.
+- **F, keep YAML comments and key order (T1-9):** not chosen now.
+
+**Decision (Geoff, 2026-10-31): "add just A, B, and C to the spec".** Status: **Decided**, not yet approved for build.
+
+**Details to settle at build time (recommendations):**
+- **C:** save on every change (debounced about 2 s) in the browser's storage, keyed by task. Clear it on a successful save or Discard. Offer it only when the file's version still matches; otherwise show it next to the newer version (as the conflict dialog does).
+- **B:** in the trash index, label the entry with the version's source ("from this device" or "from elsewhere") and the time.
+
+### 3. Checked off by mistake
 Under review.
 
 ---
@@ -629,6 +658,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-8 | **Overwritten: A, B, C decided** (diff in conflict dialog, losing version to trash, auto-saved drafts); D, E, F not chosen | |
 | 2026-10-31 | R2-8 | Added (data-safety review). **Deleted: A, B, C, D decided**; E (soft delete) not chosen | Geoff has Microsoft 365 Family (Files Restore) |
 | 2026-10-31 | R2-6 | **Confirm-the-theory logging, sign-in C, editor layout fix + ⤢ bigger notes approved and built** (build 2026-10-31a); A kept; Chrome's mode can't be set by a page | Redirect bridge was missing, so background renewal never worked |
 | 2026-10-24 | R2-6 | **A approved and built** (build 2026-10-24c): "touch + nothing hovers" counts as touch-only | From Geoff's diagnostics: his phone reports a fine pointer; Chrome site settings clean |
@@ -647,6 +677,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v20: R2-8 category 2 Overwritten decided (A–C).
 - 2026-10-31 — v19: R2-8 (data-safety review) added; category 1 Deleted decided (A–D).
 - 2026-10-31 — v18: R2-6 follow-up: editor cut off in desktop mode, sign-in redirect as the likely cause; logging, sign-in C, editor fix and ⤢ built (build 2026-10-31a).
 - 2026-10-24 — v17: R2-6 diagnostics analysed, A approved and built (build 2026-10-24c); Geoff's PC checks of the agent-round build recorded.
