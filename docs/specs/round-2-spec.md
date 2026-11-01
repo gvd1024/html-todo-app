@@ -25,6 +25,7 @@ Same as round 1:
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-8 | Don't lose anything (data-safety review) | **Phase 1 built** (build 2026-11-01b, branch `r2-8-phase1`, awaiting Geoff's test on the copy folder: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
+| R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -895,6 +896,72 @@ Reviewed 2026-10-31. Geoff chose not to add these options to the spec.
 
 ---
 
+## R2-9 — Add tasks by voice with Amazon Echo (Alexa)
+
+**Asked** (Geoff, 2026-10-31): "is it possible to somehow use the amazon alexa device to add items to the HTA lists / files? I am open to multiple different options but for now, lets limit to using my existing echo devices (not creating my own voice to text device)". Geoff also shared a research note on Amazon list APIs (kept outside the repo).
+
+**Problem:** capture a task by voice on the Echo devices Geoff already has, and have it land as a normal HTA task file (data format 3) without retyping.
+
+**Constraints found (2026-10-31):**
+- **No official way for outside apps to read Alexa's own to-do or shopping lists.** Amazon withdrew third-party access to Alexa lists (mid-2024, as far as we know); that is what ended the Todoist and Any.do list syncs.
+- **IFTTT has no "you said something to Alexa" trigger any more.** Checked in Geoff's IFTTT account on 2026-10-31: every Alexa service there only goes the other way (IFTTT makes Alexa speak or run a routine).
+- **Alexa Routines** only react to fixed phrases, so they can't carry a task's text.
+- **The Alexa Shopping Actions "AddToList" task** only adds to the Amazon **Wish List**.
+- **Amazon's product APIs** (Product Advertising API, Selling Partner API) and catalog scrapers return product and price data. They are only relevant if HTA ever gets a shopping list with product links.
+
+### Approach 1 — talk to HTA directly: a private custom Alexa skill
+- **Saying:** "Alexa, ask HTA to add *call the plumber*" / "…add *renew registration* due Friday". Alexa confirms: "Added *call the plumber* to Inbox." It can ask "Anything else?" to add several in a row.
+- **How:**
+    - An Alexa-hosted skill (Amazon's free hosting), left in **development** stage. It works on every Echo signed in to Geoff's Amazon account, with no publishing or certification.
+    - The free-text slot (`AMAZON.SearchQuery`) carries the task text; `AMAZON.DATE` carries a spoken due date.
+    - The skill creates a new `.md` in the OneDrive folder through Microsoft Graph, with a conditional create (`conflictBehavior=fail`), as the app does.
+- **Microsoft sign-in:** Alexa **account linking** with the Microsoft account (OAuth authorization-code grant). This needs a "Web" platform with Alexa's redirect URLs and a client secret, on the existing Azure registration or a separate one.
+- **Pros:** official and stable; the task is in HTA within seconds; works with the PC off.
+- **Cons:**
+    - The skill's name must be said ("ask HTA…").
+    - A new component to build and maintain; account linking is fiddly the first time.
+    - What's said goes through Amazon.
+
+### Approach 2 — Alexa's own list as an inbox, swept into HTA
+- **Saying:** the built-in "Alexa, add *call the plumber* to my to-do list". This gives the most natural phrase and Alexa's best recognition.
+- **How:** a sweeper reads Alexa's list, creates one HTA task per item, then deletes (or completes) the item on Alexa, so the Alexa list works as a queue.
+- **Unofficial:** the sweeper logs in as Geoff through Amazon's private app interface. It can break when Amazon changes it, and the Amazon login (with two-step verification) has to be renewed now and then.
+- **Fails safe:** if the sweeper breaks, items just wait on Alexa's list. Nothing is lost; they stop moving until it's fixed.
+- **Alexa's shopping list** could be swept the same way, into an HTA "Shopping" list.
+- **Ways to run the sweeper:**
+    - **2a. A script on the home PC.** Windows Task Scheduler runs it about every 15 minutes. It writes into the synced OneDrive folder, so it needs no Microsoft sign-in.
+        - **Pro:** simple, nothing to host.
+        - **Con:** runs only while the PC is on (items wait until then); the Amazon login is re-done when it expires.
+    - **2b. Claude sweeps when asked.** An Alexa-list MCP server (community projects exist, e.g. `GraysonCAdams/alexa-mcp` on the alexa-remote2 library, and `thesethrose/alexa-shopping-list`) lets Claude read the list. Claude creates the files following the task-file contract ("sweep my Alexa list").
+        - **Pro:** almost nothing to build; fits the goal of Claude managing tasks; Claude can tidy items on the way (a due date from "by Friday", the right list).
+        - **Con:** manual, or tied to a Claude session; third-party code holds the Amazon login, so it must be read before installing.
+    - **2c. Home Assistant.** Home Assistant 2026.7 exposes Alexa shopping and to-do lists as to-do entities in its core Alexa Devices integration; the custom `lonlazer/ha-alexa-todo-lists` did this earlier. An automation would write the files.
+        - **Pro:** runs all the time; Home Assistant's community maintains the Amazon side.
+        - **Con:** only sensible if Geoff runs Home Assistant; otherwise it adds a whole home server for one feature.
+
+### Common to every option
+- **Where tasks land:** the **Inbox** list by default (open question: one list per spoken word, e.g. "…to my shopping list" → Shopping).
+- **The file:** a new `id`, `title` (the spoken text), `status: open`, `list`, `order` at the end, and `due` only when a real date was said. The file name follows the S-11 slug rules.
+- **Duplicates:** a sweeper deletes the item from Alexa only after the file is written. A retry must not create a second file (match on the Alexa item's id, kept in a small local record).
+- **Real data (rule 10):** prototype against `HTML-ToDo-App-Test` first, then switch to the real folder with Geoff's OK.
+- **Secrets:** Amazon cookies, Microsoft tokens and client secrets stay local and git-ignored (`private/`), never in the public repository.
+- **Not to depend on:** the research note's tool names were checked on 2026-10-31. Community tools' maintenance status was not; check each repository before relying on it.
+
+### Recommendation (Claude)
+1. **Try 2b first.** It's nearly free to try, and shows whether the natural phrase really changes Geoff's habits.
+2. **If it does, build 2a** so it runs on its own.
+3. **Keep Approach 1 as the fallback** if Amazon closes the unofficial route; 1 and 2 can also run side by side.
+
+**Open questions:**
+- One fixed list (Inbox), or a spoken list name?
+- Should spoken due dates be supported in the first version?
+- For 2b, which MCP server, after reading its code?
+- For Approach 1: the existing Azure registration, or a separate one for the skill?
+
+**Status:** Open (options pitched; nothing decided or approved).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -961,6 +1028,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-10-31 | R2-9 | **Added** (Alexa voice capture); options 1, 2a–2c pitched; nothing decided | IFTTT has no Alexa trigger (checked); Alexa list API withdrawn |
 | 2026-11-01 | R2-8 | **Review fixes (build 2026-11-01b):** hostile-text tests for the new dialogs; armed Check all keeps its colour. Next: Geoff tests on the copy folder, then merge on his OK | |
 | 2026-11-01 | R2-8 | **Phase 1 built on branch r2-8-phase1, awaiting review** (build 2026-11-01a; 557 checks pass) | Not merged to `main`; Geoff approves the merge |
 | 2026-10-31 | R2-8 | **Order: option 3 (split). Phase 1 approved for build**; Phase 2 = folders + Deleted B + Hidden A | Folders change Deleted B and Hidden A a lot; the rest not, or little |
@@ -988,6 +1056,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-10-31 — v28: R2-9 added (add tasks by voice with Amazon Echo): constraints, two approaches with sweeper variants, recommendation, open questions.
 - 2026-11-01 — v27: R2-8 Phase 1 review fixes (build 2026-11-01b): hostile-text tests for the new dialogs; the armed Check all is no longer red.
 - 2026-11-01 — v26: R2-8 Phase 1 built (build 2026-11-01a, branch `r2-8-phase1`): trash + Recently deleted, demote/delete care, conflict diff, replaced versions kept, auto-saved drafts, Check all second tap, search bar, overdue badge.
 - 2026-10-31 — v25: R2-8 build order (option 3) recorded; Phase 1 approved for build.
