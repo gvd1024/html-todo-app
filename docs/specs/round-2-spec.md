@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: built** (build 2026-11-07a, branch `r2-8-restore-tree`, awaiting Geoff's test) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
+| R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: verified on PC** (build 2026-11-07a, on `main` since 2026-11-07) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -910,7 +910,7 @@ Claude recommended A plus a "+ N subtasks" note on the parent's entry.
 1. **Subtasks deleted separately, earlier, are included** (they still point to the parent). They're listed, marked "deleted separately", before you confirm.
 2. **Restoring a subtask alone while its parent is in the trash asks:** "Its parent *X* is also in Recently deleted — restore it too?"
 
-**As built (build 2026-11-07a, branch `r2-8-restore-tree`):**
+**As built (build 2026-11-07a; merged to `main` 2026-11-07):**
 - **How entries hang together:** by task `id` and `parent:`, not by deletion time. The sidecar now records `parent`. Entries from before this build have no `parent` in their sidecar, so it is read from the trashed file once. Replaced versions don't count (their task still exists). For an id that's in the trash twice, the newest entry wins.
 - **The list:** a parent's entry says **"+ N subtasks"**, counting every level.
 - **Restore, in order:**
@@ -943,7 +943,7 @@ Claude recommended A plus a "+ N subtasks" note on the parent's entry.
 
   Full suite: **591 checks pass**.
 
-**Status:** Built, awaiting Geoff's test on the copy folder (`http://localhost:8000/app/`).
+**Status:** **Verified on PC** (2026-11-07). Geoff's restore tests on the copy folder all passed: the deep tree, Undo, the parent question, Only this task, and a subtask with its own subtasks. Merged to `main` at his request ("the restore tests all passed, merge it").
 
 ### Speed of delete and restore (Geoff, 2026-11-07)
 **Noticed** while testing the follow-up: "it does take a little longer to process a deep level task tree". **Asked:** "does the delete or restore process change the files themselves at all?"
@@ -1106,6 +1106,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-8 | **Restore follow-up verified on PC and merged to `main`** (build 2026-11-07a) | |
 | 2026-11-07 | R2-8 | **Delete/restore speed:** options A (levels in parallel), B (a real OneDrive move; Claude recommends), C (batching) recorded; **no action** until Geoff finds it unacceptable | Files' content is never changed; a restore is a new OneDrive item |
 | 2026-11-07 | R2-8 | **Restore follow-up: A + "+ N subtasks" note decided and approved for build**; subtasks deleted separately are included (marked); a subtask whose parent is trashed asks to restore the parent too | Built as 2026-11-07a on branch `r2-8-restore-tree` |
 | 2026-11-07 | R2-8 | **Phase 1 verified on the phone** | |
@@ -1138,6 +1139,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v32: R2-8 restore follow-up verified on PC and merged (2026-11-07a).
 - 2026-11-07 — v31: R2-8 delete/restore speed options A–C recorded (B recommended), parked by Geoff.
 - 2026-11-07 — v30: R2-8 Phase 1 verified on the phone; restore follow-up (restore with subtasks at any depth, parent question) decided, approved and built (2026-11-07a).
 - 2026-11-07 — v29: R2-8 Phase 1 verified on PC (Geoff's 7 tests on the copy folder) and merged to `main`.
