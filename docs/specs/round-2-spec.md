@@ -399,6 +399,7 @@ Same as round 1:
 **Compatibility:**
 
 13. **Data format 4:** older builds must refuse the layout; the work pack and the work PC migrate separately.
+    - **Note (2026-11-07):** no build checks `format` today. The app writes `"format": 3` to `_todo.json` but never reads it back. So the refusal has to be built, and an old build (e.g. the work PC's) won't refuse anything; it only keeps unknown keys (⚠). The check must ship, and be installed everywhere (the phone, the PC, the work pack), **before** any folder is migrated.
 14. **One-time migration** of the real folder (rule 10).
 
 ### Why B, and the benefit for AI management (Geoff, 2026-10-31)
@@ -447,7 +448,7 @@ Same as round 1:
     - **Detecting a deleted folder** and offering Restore (con 1).
     - **Shared folders** (con 6).
     - **The work PC:** speed (con 9), and its own migration (con 13).
-    - **Format 4 refusal** in older builds and the work pack.
+    - **Format 4 refusal** in older builds and the work pack. It doesn't exist yet (see con 13); it's needed first, or a separate early build adds just the check.
     - **Migrating the real folder**, after removing the 500 bulk-test tasks.
 
 **Order:**
@@ -1160,6 +1161,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v34: R2-5 note: the data-format check doesn't exist yet and must be built before format 4.
 - 2026-11-07 — v33: R2-10 added and built (build number in the header).
 - 2026-11-07 — v32: R2-8 restore follow-up verified on PC and merged (2026-11-07a).
 - 2026-11-07 — v31: R2-8 delete/restore speed options A–C recorded (B recommended), parked by Geoff.
