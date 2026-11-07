@@ -68,6 +68,8 @@ button.primary:disabled{opacity:.45;cursor:default}
 button.ghost{border-color:transparent;background:transparent}
 button.btn-green{background:#1f9d63;color:#fff;border-color:#1f9d63} button.btn-green:hover{background:#27b373;border-color:#27b373}   /* green: Save & close (unique name — .ok is a status-icon state) */
 button.danger{color:var(--danger)}
+button.primary.danger{background:#c9302c;border-color:#c9302c;color:#fff} button.primary.danger:hover:not(:disabled){background:#d9443f;border-color:#d9443f}   /* R2-15: white on a deep red (was red text on blue) */
+button.btn-green.sc-idle{opacity:.45} button.btn-green.sc-idle:hover{background:#1f9d63;border-color:#1f9d63}   /* R2-12: nothing to save yet; a tap still closes */
 input[type=text],input[type=date],input[type=search],select{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 8px}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 a{color:var(--accent)}
@@ -135,6 +137,17 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center;width:100vw;max-width:100vw;white-space:normal;position:sticky;left:0}
 .qbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;font-size:calc(12px*var(--z));height:calc(32px*var(--z));padding:0 calc(7px*var(--z));margin:0 2px;white-space:nowrap;position:relative}
 /* T1-10 (R1-12 #8): compact buttons keep their look but get a 44 px tall tap area */
+.qbtn.qarrow{min-width:calc(24px*var(--z));width:calc(24px*var(--z));padding:0;margin:0;border:0;background:none;font-size:calc(17px*var(--z));line-height:1}   /* R2-14: ↑ ↓ ●, plain icons; the tall tap area comes from .qbtn::after */
+.qbtn.qdot{font-size:calc(12px*var(--z))} .qgap{flex:0 0 calc(24px*var(--z))}   /* keeps ↑ ↓ lined up on today's rows */
+/* R2-11: the inline "+ Add subtask…" line under an expanded parent (not a .row: no long-press move) */
+.addsub{display:flex;align-items:center;min-height:calc(40px*var(--z));border-bottom:1px solid var(--line);position:sticky;left:0;width:100vw;max-width:100vw}
+.addsub>.ind{flex:0 0 auto}
+.addsub-plus{flex:0 0 calc(44px*var(--z));text-align:center;color:var(--muted);font-size:calc(18px*var(--z))}
+.addsub-in{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:calc(15px*var(--z));padding:6px 4px;outline:none}
+.addsub-in::placeholder{color:var(--muted)}
+.addsub-ed{flex:0 0 auto;border:0;background:none;color:var(--muted);width:calc(40px*var(--z));min-height:calc(40px*var(--z));font-size:calc(16px*var(--z));padding:0}
+.due-wrap{display:flex;gap:4px;align-items:stretch} .due-wrap>input{flex:1;min-width:0}
+#f-due-clear{flex:0 0 auto;padding:0 10px}
 .qbtn::after,.badge::after{content:"";position:absolute;left:0;right:0;top:calc(-6px*var(--z));bottom:calc(-6px*var(--z))}
 .badge::after{top:calc(-7px*var(--z));bottom:calc(-7px*var(--z))}
 .tday-head{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;text-transform:inherit;letter-spacing:inherit;padding:0;min-height:calc(44px*var(--z))}
@@ -325,7 +338,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
       <option value="checkbox">☐ checkbox</option><option value="bullet">• bullet</option><option value="none">none</option></select></label>
     <label>Status<select id="f-status"></select></label>
     <label>List<select id="f-list"></select></label>
-    <label>Due<input type="date" id="f-due"></label>
+    <label>Due<span class="due-wrap"><input type="date" id="f-due"><button type="button" id="f-due-clear" title="Clear the due date" aria-label="Clear the due date" hidden>✕</button></span></label>
     <label class="wide">Repeat<span style="display:flex;gap:6px"><select id="f-rep" style="flex:0 0 auto">
       <option value="">Doesn't repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option>
       <option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option>
@@ -370,7 +383,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-07b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-08a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -439,7 +452,7 @@ applyTextSize(textSize());
 const S = {
   tasks: new Map(), lists: [], cfgVersion: null, cfgExtra: {}, store: null, auth: null,
   view: ls.get('todo.view2', 'list'), list: ls.get('todo.list', ''), showDone: ls.get('todo.showDone', false), showArchived: false, q: '',
-  expanded: new Set(ls.get('todo.expanded', [])), editing: null, snapshot: null,
+  expanded: new Set(ls.get('todo.expanded', [])), editing: null, snapshot: null, addSub: null,
   busy: 0, syncing: false, offline: false, conflict: false, signedOut: false, redirecting: false, editor: null,
 };
 
@@ -1309,10 +1322,17 @@ function rowHTML(t, depth, opts = {}){
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
     <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
-    <div class="act">${(opts.quick || []).map(q => `<button class="qbtn" data-act="q-${q}" title="Move to ${q === 'today' ? 'today' : 'tomorrow'}">${q === 'today' ? 'Today' : 'Tmrw'}</button>`).join('')}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
+    <div class="act">${opts.arrows ? `<button class="qbtn qarrow" data-act="q-up" title="Move to the next day" aria-label="Move to the next day">↑</button><button class="qbtn qarrow" data-act="q-down" title="Move to the previous day" aria-label="Move to the previous day">↓</button>${t.due !== today() ? `<button class="qbtn qarrow qdot" data-act="q-dot" title="Move to today" aria-label="Move to today">●</button>` : '<span class="qgap" aria-hidden="true"></span>'}` : ''}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
+  if (!opts.flat && S.view === 'list' && ((expanded && subs.length) || S.addSub === t.id)) html += addSubHTML(t, depth + 1);
   return html;
+}
+/* R2-11: "+ Add subtask…" — type, Enter, type, Enter; ⤢ continues in the full editor */
+function addSubHTML(t, depth){
+  return `<div class="addsub" data-parent="${esc(t.id)}"><div class="ind" style="width:calc(${depth*22}px*var(--z))"></div><span class="addsub-plus">+</span>
+    <input class="addsub-in" type="text" placeholder="Add subtask…" enterkeyhint="next" autocomplete="off" aria-label="Add a subtask to ${esc(t.title)}">
+    <button class="addsub-ed" data-act="addsub-ed" title="Continue in the editor (date, notes)" aria-label="Continue in the editor">⤢</button></div>`;
 }
 function render(){
   S.renderDay = today();
@@ -1333,8 +1353,11 @@ function render(){
     rows.innerHTML = `<div class="empty-hint" id="first-fill">Downloading your tasks to this device…${f.total ? ` ${f.n} / ${f.total}` : ''}</div>`; return; }
   if (S.view === 'due') return renderToday(rows);
   const top = all().filter(t => t.list === S.list && !hasParent(t)).sort(byOrder).filter(visible);
+  const ae = document.activeElement, keep = ae?.classList?.contains('addsub-in') ? { parent: ae.closest('.addsub')?.dataset.parent, value: ae.value, at: ae.selectionStart } : null;
   rows.innerHTML = top.map(t => rowHTML(t, 0)).join('') ||
     `<div class="empty-hint">No ${S.showDone ? '' : 'open '}tasks in “${esc(S.list)}”. Add one below.</div>`;
+  if (keep){ const inp = rows.querySelector(`.addsub[data-parent="${CSS.escape(keep.parent || '')}"] .addsub-in`);     // R2-11: a redraw keeps the typing line
+    if (inp){ inp.value = keep.value; inp.focus({ preventScroll:true }); try { inp.setSelectionRange(keep.at, keep.at); } catch {} } }
   updateSnapBtn();
 }
 /* R1-4 follow-up: the list name uses the biggest size that fits (from the text-size setting down to 18 px) */
@@ -1358,18 +1381,18 @@ function renderToday(rows){
   const asc = (a, b) => a.due.localeCompare(b.due) || byOrder(a, b), desc = (a, b) => b.due.localeCompare(a.due) || byOrder(a, b);
   const soon = pool.filter(t => t.due > now && t.due <= wk).sort(desc), later = pool.filter(t => t.due > wk).sort(desc);
   const tod = pool.filter(t => t.due === now).sort(byOrder), over = pool.filter(t => t.due < now).sort(desc);
-  const rowsOf = (list, quick) => list.map(t => rowHTML(t, 0, { flat:true, quick })).join('');
+  const rowsOf = list => list.map(t => rowHTML(t, 0, { flat:true, arrows:true })).join('');
   const head = (key, name, n, extra = '') => `<div class="group-head tday-group"><button class="tday-head" data-tday="${key}" aria-expanded="${TODAY_OPEN[key]}">${TODAY_OPEN[key] ? '▾' : '▸'} ${name} · ${n}${extra}</button></div>`;
   let html = head('up', 'Upcoming', soon.length + later.length);
   if (TODAY_OPEN.up){
-    if (later.length) html += TODAY_OPEN.later ? rowsOf(later, ['today'])
+    if (later.length) html += TODAY_OPEN.later ? rowsOf(later)
       : `<button class="tday-later" data-tday="later">+ ${later.length} later (after ${esc(niceDate(wk))})</button>`;
-    html += rowsOf(soon, ['today']);
+    html += rowsOf(soon);
   }
   html += `<div class="group-head tday-group" id="tday-today"><span class="tday-head tday-fixed">Today · ${tod.length}</span></div>`;
-  html += rowsOf(tod, ['tomorrow']) || '<div class="empty-hint">Nothing due today.</div>';
+  html += rowsOf(tod) || '<div class="empty-hint">Nothing due today.</div>';
   html += head('over', 'Overdue', over.length, odBadge(overdueCount()));          // stays collapsed (R2-8 Hidden D)
-  if (TODAY_OPEN.over) html += rowsOf(over, ['today', 'tomorrow']);
+  if (TODAY_OPEN.over) html += rowsOf(over);
   rows.innerHTML = html;
   updateSnapBtn();
 }
@@ -1381,20 +1404,35 @@ function todayToggle(key){
   const y1 = $('#tday-today')?.getBoundingClientRect().top;
   if (y0 != null && y1 != null) sc.scrollTop += (y1 - y0) / PAGE_ZOOM;
 }
-/* quick reschedule (Today / Tomorrow buttons, ⋯ → Change due date…): only due: changes; a recurring task moves just this occurrence */
-async function setDue(t, due){
-  const old = t.due; if (!due || due === old) return;
+/* quick reschedule (Today view ↑ ↓ ●, ⋯ → Change due date…): only due: changes; a recurring task moves just this occurrence.
+   R2-13: an empty date clears it ("No date"). */
+async function setDue(t, due, old = t.due){
+  if (due === t.due && due === old) return;
   t.due = due; render();
-  if (S.editing === t.id && $('#f-due')){ $('#f-due').value = due; updateSnapshotField('due', due); }
-  if (!(await saveTask(t))) return render();
+  if (S.editing === t.id && $('#f-due')){ $('#f-due').value = due; updateSnapshotField('due', due); dueClearUI(); }
+  if (!(await saveTask(t))){ t.due = old; render(); return; }
   render();
-  showUndo(`“${t.title}” → ${due === today() ? 'today' : niceDate(due)}`, async () => {
+  showUndo(`“${t.title}” → ${!due ? 'no date' : due === today() ? 'today' : niceDate(due)}`, async () => {
     t.due = old; render(); await saveTask(t); render();
-    if (S.editing === t.id && $('#f-due')){ $('#f-due').value = old; updateSnapshotField('due', old); }
+    if (S.editing === t.id && $('#f-due')){ $('#f-due').value = old; updateSnapshotField('due', old); dueClearUI(); }
   });
+}
+/* R2-14: ↑ / ↓ move the due date a day later / earlier. Quick taps add up and are saved once, after a short pause;
+   Undo goes back to the date before the first tap. */
+const BUMPS = new Map();
+function ymdAdd(d, n){ const [y, m, dd] = d.split('-').map(Number); const x = new Date(y, m - 1, dd + n);
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }
+function bumpDue(t, n){
+  if (!isYmd(t.due)) return;
+  let b = BUMPS.get(t.id); if (!b){ b = { old: t.due }; BUMPS.set(t.id, b); }
+  t.due = ymdAdd(t.due, n); render();
+  if (S.editing === t.id && $('#f-due')){ $('#f-due').value = t.due; updateSnapshotField('due', t.due); dueClearUI(); }
+  clearTimeout(b.timer);
+  b.timer = setTimeout(() => { BUMPS.delete(t.id); const to = t.due; t.due = b.old; if (to !== b.old) setDue(t, to, b.old); else render(); }, 700);
 }
 function dueDialog(t){
   modal(`<h3>Due date for “${esc(t.title)}”</h3>
+    ${t.due ? `<div class="pick"><button class="go" data-a="d:">No date</button></div>` : ''}
     <div class="pick"><button class="go" data-a="d:${today()}">Today</button></div>
     <div class="pick"><button class="go" data-a="d:${addDays(1)}">Tomorrow</button></div>
     <div class="pick"><button class="go" data-a="d:${addDays(7)}">In a week (${esc(niceDate(addDays(7)))})</button></div>
@@ -1402,7 +1440,7 @@ function dueDialog(t){
     <div class="btns"><button data-a="cancel">Cancel</button><button class="btn-green" data-a="set">Set</button></div>`,
     a => { if (a === 'cancel'){ closeModal(); return; }
       const d = a === 'set' ? $('#due-pick').value : a.startsWith('d:') ? a.slice(2) : '';
-      if (a === 'set' && !d) return; closeModal(); setDue(t, d); }, { sheet:true });
+      if (a === 'set' && !d) return; closeModal(); if (d !== t.due) setDue(t, d); }, { sheet:true });
 }
 
 /* pull to refresh: at the top of the list, pull down and let go → re-read everything from the store */
@@ -1579,14 +1617,55 @@ $('#rows').addEventListener('keydown', e => {           // T1-11: a focused titl
 $('#rows').addEventListener('click', async e => {
   const tg = e.target.closest('[data-tday]'); if (tg){ todayToggle(tg.dataset.tday); return; }
   const actEl = e.target.closest('[data-act]'); if (!actEl) return;
+  if (actEl.dataset.act === 'addsub-ed') return addSubToEditor(actEl.closest('.addsub'));
   const act = actEl.dataset.act; const row = actEl.closest('.row'); const t = row && get(row.dataset.id); if (!t) return;
   if (act === 'open') openDrawer(t.id);
   else if (act === 'expand'){ S.expanded.has(t.id) ? S.expanded.delete(t.id) : S.expanded.add(t.id); persistExpanded(); render(); }
   else if (act === 'toggle') toggleDone(t);
   else if (act === 'menu') rowMenu(t, actEl);
-  else if (act === 'q-today') setDue(t, today());
-  else if (act === 'q-tomorrow') setDue(t, addDays(1));
+  else if (act === 'q-dot') setDue(t, today());
+  else if (act === 'q-up') bumpDue(t, 1);
+  else if (act === 'q-down') bumpDue(t, -1);
 });
+/* R2-11: the inline add line. Enter saves a subtask (title only) at the end of the parent's subtasks and keeps the line
+   ready; Enter on an empty line stops. A failed save puts the text back. */
+$('#rows').addEventListener('keydown', async e => {
+  const inp = e.target; if (!inp.classList?.contains('addsub-in') || e.key !== 'Enter' || e.isComposing) return;
+  e.preventDefault();
+  const pid = inp.closest('.addsub')?.dataset.parent, p = get(pid); if (!p || !S.store) return;
+  const title = inp.value.trim();
+  if (!title){ inp.blur(); return; }
+  const t = { file:'', version:null, id:newId(), title, status:'open', prefix:'', list:p.list, collections:[], parent:p.id,
+    order: nextOrder(kids(p.id)), due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
+  S.tasks.set(t.id, t); S.expanded.add(p.id); persistExpanded(); inp.value = ''; render();
+  if (!(await saveTask(t))){ S.tasks.delete(t.id); render(); const again = addSubInput(pid); if (again){ again.value = title; again.focus(); } return; }
+  render();
+});
+$('#rows').addEventListener('focusout', e => {
+  if (!e.target.classList?.contains('addsub-in')) return;
+  const pid = e.target.closest('.addsub')?.dataset.parent;
+  setTimeout(() => {                                   // the line under a parent with no subtasks goes away once you leave it
+    if (S.addSub !== pid || document.activeElement?.classList?.contains('addsub-in')) return;
+    if (addSubInput(pid)?.value.trim()) return;
+    S.addSub = null; render();
+  }, 150);
+});
+const addSubInput = pid => document.querySelector(`#rows .addsub[data-parent="${CSS.escape(pid || '')}"] .addsub-in`);
+/* ⋯ → Add subtask: expand the parent (and its parents) and put the cursor in its add line; the Today view is flat, so
+   there it opens the editor as before */
+function addSubtask(p){
+  if (S.view !== 'list') return newTask({ parent:p.id });
+  for (let x = p; x; x = hasParent(x) ? get(x.parent) : null) S.expanded.add(x.id);
+  persistExpanded(); S.addSub = p.id; render();
+  const inp = addSubInput(p.id); if (!inp) return newTask({ parent:p.id });
+  inp.scrollIntoView({ block:'nearest' }); inp.focus();
+}
+function addSubToEditor(line){
+  const pid = line?.dataset.parent; if (!get(pid)) return;
+  const inp = line.querySelector('.addsub-in'), title = inp.value.trim(); inp.value = '';
+  newTask({ parent:pid });
+  if (title){ $('#f-title').value = title; onDirtyCheck(); }
+}
 function persistExpanded(){ ls.set('todo.expanded', [...S.expanded]); }
 /* ---------------- recurring tasks (round 2, R2-1) ----------------
    repeat: <schedule>[, keep copies][, catch up | after done]
@@ -1801,7 +1880,7 @@ function rowMenu(t, anchor){
     { label:'Change due date…', fn:() => dueDialog(t) },
     { label:'Move to list…', fn:() => moveToListDialog(t) },
     { label:'Change prefix…', fn:() => prefixDialog(t) },
-    { label:'Add subtask', fn:() => newTask({ parent:t.id }) } ];
+    { label:'Add subtask', fn:() => addSubtask(t) } ];
   if (t.parent) items.push({ label:'Move to top level', fn: async () => { t.parent = ''; t.order = nextOrder(all().filter(x => x.list === t.list && !hasParent(x))); await saveTask(t); render(); } });
   items.push({ sep:true }, { label:'Delete…', danger:true, fn:() => deleteDialog(t) });
   popover(anchor, items);
@@ -2058,15 +2137,30 @@ $('#d-mode').onclick = () => { const ed = ensureEditor(); const to = ed.isMarkdo
 
 function fieldState(){ return JSON.stringify({ rep: repControlsKey(), title:$('#f-title').value, status:$('#f-status').value, prefix:$('#f-prefix').value, list:$('#f-list').value,
   due:$('#f-due').value, coll:$('#f-coll').value }); }
-function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing); if (t?.isNew) return true;
+function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing);
+  if (t?.isNew && $('#f-title').value.trim()) return true;          // R2-12: a new task counts once it has a title (or any other change)
   return fieldState() !== S.snapshot.fields || S.editor.getMarkdown() !== S.snapshot.md; }
-function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d;
+function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on', d); $('#d-save').disabled = !d; $('#d-saveclose').classList.toggle('sc-idle', !d);
   if (d){ const t = get(S.editing); if (t) t.editedAt = Date.now(); }      // R2-8 Overwritten A: "yours, edited …"
   if (S.editing) scheduleAutoDraft(); }
 function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
 ['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
 ['#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-due'].forEach(s => $(s).addEventListener('input', repUI));
-['input', 'change'].forEach(ev => $('#f-due').addEventListener(ev, () => { S.dueTouched = true; }));
+['input', 'change'].forEach(ev => $('#f-due').addEventListener(ev, () => { S.dueTouched = true; dueClearUI(); }));
+/* R2-13: ✕ clears the due date (Android's date picker has no Clear); saved with Save as usual */
+function dueClearUI(){ $('#f-due-clear').hidden = !$('#f-due').value; }
+$('#f-due-clear').onclick = () => { const f = $('#f-due'); f.value = ''; f.dispatchEvent(new Event('input', { bubbles:true })); f.dispatchEvent(new Event('change', { bubbles:true })); $('#f-title').focus({ preventScroll:true }); };
+/* R2-11: Enter in the title. A new task: save it and start the next one (same parent and list); Enter on an empty
+   title stops (closes, nothing saved). An existing task: Save & close. */
+$('#f-title').addEventListener('keydown', async e => {
+  if (e.key !== 'Enter' || e.isComposing || !S.editing) return;
+  e.preventDefault();
+  const t = get(S.editing); if (!t) return;
+  if (!t.isNew) return $('#d-saveclose').click();
+  if (!$('#f-title').value.trim()) return closeDrawer();
+  if (!(await saveDrawer())) return;
+  newTask(hasParent(t) ? { parent:t.parent } : { list:t.list });
+});
 /* Repeat controls ↔ phrase (R2-1). The phrase is only rewritten when these controls actually change. */
 function repBase(){
   const v = $('#f-rep').value, due = $('#f-due').value || today(), d = pd(due);
@@ -2116,6 +2210,7 @@ function openDrawer(id){
   if (S.editing && S.editing !== id && isDirty()){
     return confirmDiscard(() => { discardNew(); openDrawer(id); });
   }
+  if (S.editing && S.editing !== id) discardNew();      // R2-12: a blank new task isn't "dirty" any more, but mustn't linger
   const t = get(id); if (!t) return;
   if (S.editing !== id) setNotesBig(false);          // another task opens with its fields showing
   S.editing = id; ensureEditor(); fillDrawer(t);
@@ -2124,7 +2219,8 @@ function openDrawer(id){
 function fillDrawer(t){
   $('#f-title').value = t.title; fillStatusSelect(t.status); fillListSelect(t.list);
   $('#f-prefix').value = PREFIXES.includes(prefixOf(t)) ? prefixOf(t) : 'checkbox';
-  $('#f-due').value = t.due; $('#f-coll').value = t.collections.join(', ');
+  $('#f-due').value = t.due; $('#f-coll').value = t.collections.join(', '); dueClearUI();
+  $('#f-title').enterKeyHint = t.isNew ? 'next' : 'done';
   fillRepeat(t);
   const p = hasParent(t) ? get(t.parent) : null;
   $('#f-list').disabled = !!p;
@@ -2156,7 +2252,7 @@ function readDrawerInto(t){
   if (!(t.due && !isYmd(t.due) && !S.dueTouched && t.due === S.snapshot.due)) t.due = dueIn;   // T1-4: an unreadable due stays unless the Due field was used (T2-2: clearing it removes it)
   t.collections = asArr($('#f-coll').value);
   if (repControlsKey() !== S.repKey){ t.repeat = repPhrase(); }              // only rewrite repeat: when its controls changed
-  if (t.repeat && !t.due) t.due = today();
+  if (t.repeat && !t.due && !S.dueTouched) t.due = today();             // R2-13: a date cleared on purpose stays cleared
   const md = S.editor.getMarkdown();
   if (md !== S.snapshot.md) t.body = normBody(md);                          // T1-2: an untouched body is written back byte for byte
   const changed = [t];

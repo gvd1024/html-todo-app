@@ -27,10 +27,11 @@ Same as round 1:
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
-| R2-11 | Enter tasks and subtasks one after another | **Decided: C** | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
-| R2-12 | Save & close subdued until there's a change | **Decided: A** | Subdued, still closes |
-| R2-13 | Clear a due date on the phone | **Decided: A + B** | ✕ next to Due in the editor; "No date" in Change due date… |
-| R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Decided** | From the due date; ● hidden on today rows |
+| R2-11 | Enter tasks and subtasks one after another | **Built** (2026-11-08a, branch) | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
+| R2-12 | Save & close subdued until there's a change | **Built** (2026-11-08a, branch) | Subdued, still closes |
+| R2-13 | Clear a due date on the phone | **Built** (2026-11-08a, branch) | ✕ next to Due in the editor; "No date" in Change due date… |
+| R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-08a, branch) | From the due date; ● hidden on today rows |
+| R2-15 | Delete all: readable button | **Built** (2026-11-08a, branch) | White on deep red |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -1109,7 +1110,11 @@ Explained to Geoff with a sketch:
 - ⋯ → Add subtask focuses the inline line.
 - Works on phone and PC.
 
-**Status:** Decided (C), not yet approved for build.
+**Approved for build** (Geoff, 2026-11-07: "include in the next build with the rest of these new feature (R2-11 through R2-14)"). **Built** in build 2026-11-08a, branch `r2-11-fast-entry`, awaiting Geoff's test.
+- **As built:** exactly as decided.
+    - The line is a plain `.addsub` element, not a `.row`, so a long-press never tries to move it.
+    - A redraw (a sync, a save) keeps what's being typed and the cursor.
+    - The editor's + subtask button keeps opening the editor, so it starts an Enter chain.
 
 ---
 
@@ -1127,7 +1132,7 @@ Explained to Geoff with a sketch:
 - It shows full green as soon as there's a change, the same moment Save turns on.
 - **A brand-new task** counts as "changed" once its title isn't empty.
 
-**Status:** Decided (A), not yet approved for build.
+**Approved for build** (Geoff, 2026-11-07: "include in the next build with the rest of these new feature (R2-11 through R2-14)"). **Built** in 2026-11-08a. Opening another task drops a blank new one (it is no longer counted as "changed").
 
 ---
 
@@ -1149,7 +1154,7 @@ Explained to Geoff with a sketch:
 - **"No date" in Change due date…:** clears it at once, with Undo, like the other date changes.
 - **A recurring task with its date cleared** keeps its `repeat:`. As today, its next date is counted from today when it's checked off.
 
-**Status:** Decided (A + B), not yet approved for build.
+**Approved for build** (Geoff, 2026-11-07: "include in the next build with the rest of these new feature (R2-11 through R2-14)"). **Built** in 2026-11-08a. In the editor, a recurring task's date is set to today only when the Due field wasn't touched, so a date cleared on purpose stays cleared.
 
 ---
 
@@ -1174,7 +1179,22 @@ Explained to Geoff with a sketch:
 - **Recurring tasks:** they move just this occurrence, as the current buttons do (`setDue`). Tooltips on the PC: "Move to the next day", "Move to the previous day", "Move to today".
 - **Not changed:** ⋯ → Change due date…, and the list views (no arrows there).
 
-**Status:** Decided, not yet approved for build.
+**Approved for build** (Geoff, 2026-11-07: "include in the next build with the rest of these new feature (R2-11 through R2-14)"). **Built** in 2026-11-08a.
+- **The buttons:** plain blue icons, 24 px wide, without borders. The first try (bordered 32 px squares) took more room than Today/Tmrw had. Each keeps a 44 px tall tap area.
+- **Lined up:** a blank space takes ●'s place on today's rows, so ↑ ↓ line up down the list.
+- **Quick taps:** saved once, 0.7 s after the last tap.
+
+---
+
+## R2-15 — Delete all: readable button
+
+**Asked** (Geoff, 2026-11-07): "Delete all button is red text on blue, which is hard to read. Add it as a spec item and include in the next build with the rest of these new feature (R2-11 through R2-14)". Found during the R2-8 phone test. The same button style was on `main` before R2-8.
+
+**Cause:** the delete dialog's button has both `primary` (blue background) and `danger` (red text) classes.
+
+**Decision (Geoff, 2026-11-07):** fix it in the R2-11 build. **Built** in 2026-11-08a: `primary danger` buttons are white text on a deep red (`#c9302c`, contrast about 5.6:1). This covers Delete and Delete all; other danger-only buttons (e.g. Discard) are unchanged.
+
+**Status:** Built, awaiting Geoff's test.
 
 ---
 
@@ -1244,6 +1264,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-11–15 | **Approved and built** as one build (2026-11-08a, branch `r2-11-fast-entry`); R2-15 added (Delete all readable). Geoff: the phone keeps the build in Settings only; the 500 bulk-test tasks stay (for performance); the Feedback review waits | 627 checks pass |
 | 2026-11-07 | R2-11 | **C (both)**: editor Enter chains new siblings (parent + list only; empty Enter stops); Enter on an existing task = Save & close; inline "+ Add subtask…" line with ⤢; ⋯ → Add subtask opens it | Not yet approved for build |
 | 2026-11-07 | R2-12 | **A**: Save & close subdued until a change, still closes | Not yet approved for build |
 | 2026-11-07 | R2-13 | **A + B**: ✕ next to Due; "No date" in Change due date… | Not yet approved for build |
@@ -1282,6 +1303,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-08 — v36: R2-11 to R2-14 approved and built; R2-15 (Delete all readable) added and built (build 2026-11-08a).
 - 2026-11-07 — v35: R2-11 to R2-14 added and decided (fast entry, Save & close subdued, clear due date, Today arrows).
 - 2026-11-07 — v34: R2-5 note: the data-format check doesn't exist yet and must be built before format 4.
 - 2026-11-07 — v33: R2-10 added and built (build number in the header).

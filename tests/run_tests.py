@@ -1138,14 +1138,14 @@ def test_today(browser):
     check("starts with Upcoming and Overdue collapsed (only today's task shows)", [x.strip() for x in titles()] == [names["C"]], titles())
     check("no list name on rows", page.locator("#rows .row .chip").count() == 0)
     rc = row(page, names["C"])
-    check("Today rows: one 'Tmrw' button", rc.locator(".qbtn").all_inner_texts() == ["Tmrw"], rc.locator(".qbtn").all_inner_texts())
+    check("R2-14: Today rows: ↑ ↓ (no ● — already today)", rc.locator(".qbtn").all_inner_texts() == ["↑", "↓"], rc.locator(".qbtn").all_inner_texts())
     check("undated tasks are hidden", names["U"] not in titles())
 
     # expand Overdue: most recent first
     page.locator("[data-tday=over]").click(); page.wait_for_timeout(100)
     tl = [x.strip() for x in titles()]
     check("Overdue: most recent first (yesterday right below Today)", tl[0] == names["C"] and tl[1] == names["B"] and tl[2] == names["A"], tl[:4])
-    check("Overdue rows: Today + Tmrw", row(page, names["A"]).locator(".qbtn").all_inner_texts() == ["Today", "Tmrw"])
+    check("R2-14: Overdue rows: ↑ ↓ ●", row(page, names["A"]).locator(".qbtn").all_inner_texts() == ["↑", "↓", "●"], row(page, names["A"]).locator(".qbtn").all_inner_texts())
 
     # expand Upcoming while scrolled: Today keeps its place
     page.evaluate("() => { const h = document.querySelector('#tday-today'); const sc = document.querySelector('#scroller'); sc.scrollTop = Math.max(0, h.offsetTop - 300); }")
@@ -1158,7 +1158,7 @@ def test_today(browser):
     check("Upcoming: furthest first, tomorrow right above Today", tl[:3] == [names["E"], names["D"], names["C"]], tl[:4])
     later = page.locator(".tday-later")
     check("'+ 2 later' is the top row of Upcoming", later.count() == 1 and later.inner_text().startswith("+ 2 later"), later.all_inner_texts())
-    check("Upcoming rows: one 'Today' button", row(page, names["E"]).locator(".qbtn").all_inner_texts() == ["Today"])
+    check("R2-14: Upcoming rows: ↑ ↓ ●", row(page, names["E"]).locator(".qbtn").all_inner_texts() == ["↑", "↓", "●"])
     later.scroll_into_view_if_needed(); page.wait_for_timeout(100)   # Playwright scrolls before clicking; measure after that
     y0 = page.evaluate("() => document.querySelector('#tday-today').getBoundingClientRect().top")
     later.click(); page.wait_for_timeout(150)
@@ -1170,16 +1170,25 @@ def test_today(browser):
 
     fm = lambda title, key: page.evaluate("([ti, k]) => __todo.all().find(x => x.title === ti)[k]", [title, key])
     ftxt = lambda title: page.evaluate("ti => { const t = __todo.all().find(x => x.title === ti); return __todo.S.store.files.get(t.file).text; }", title)
-    # Tmrw on today's task
-    row(page, names["C"]).locator(".qbtn", has_text="Tmrw").click(); page.wait_for_timeout(250)
-    check("Tmrw: due moves to tomorrow in the file", f"due: {D(1)}" in ftxt(names["C"]), ftxt(names["C"])[:200])
-    check("Tmrw: row moves into Upcoming; Today shows the empty hint", page.locator(".group-head").nth(1).inner_text().strip().lower() == "today · 0" and page.locator(".empty-hint", has_text="Nothing due today").count() == 1)
+    # ↑ on today's task
+    row(page, names["C"]).locator("[data-act=q-up]").click(); page.wait_for_timeout(1100)
+    check("↑: due moves one day later (tomorrow) in the file", f"due: {D(1)}" in ftxt(names["C"]), ftxt(names["C"])[:200])
+    check("↑: row moves into Upcoming; Today shows the empty hint", page.locator(".group-head").nth(1).inner_text().strip().lower() == "today · 0" and page.locator(".empty-hint", has_text="Nothing due today").count() == 1)
     check("Undo bar offered", page.locator("#undo.on").count() == 1 and names["C"] in page.inner_text("#undo-msg"), page.inner_text("#undo-msg"))
     page.click("#undo-btn"); page.wait_for_timeout(250)
     check("Undo puts it back on today", fm(names["C"], "due") == D(0) and f"due: {D(0)}" in ftxt(names["C"]))
-    # Today on an overdue task
-    row(page, names["A"]).locator(".qbtn", has_text="Today").click(); page.wait_for_timeout(250)
-    check("Today on an overdue row: due = today", fm(names["A"], "due") == D(0) and f"due: {D(0)}" in ftxt(names["A"]))
+    # quick taps add up: one save, Undo goes back to before the first tap
+    da = fm(names["A"], "due"); rA = row(page, names["A"])
+    rA.locator("[data-act=q-up]").click(); rA.locator("[data-act=q-up]").click(); rA.locator("[data-act=q-down]").click(); rA.locator("[data-act=q-up]").click()
+    page.wait_for_timeout(1100)
+    import datetime as _dt
+    plus2 = (_dt.date.fromisoformat(da) + _dt.timedelta(days=2)).isoformat()
+    check("↑ ↑ ↓ ↑ quickly: the date moves 2 days later from its due date (not from today), saved", fm(names["A"], "due") == plus2 and f"due: {plus2}" in ftxt(names["A"]), (da, fm(names["A"], "due")))
+    page.click("#undo-btn"); page.wait_for_timeout(300)
+    check("…Undo goes back to the date before the first tap", fm(names["A"], "due") == da and f"due: {da}" in ftxt(names["A"]), fm(names["A"], "due"))
+    # ● on an overdue task
+    row(page, names["A"]).locator("[data-act=q-dot]").click(); page.wait_for_timeout(250)
+    check("● on an overdue row: due = today", fm(names["A"], "due") == D(0) and f"due: {D(0)}" in ftxt(names["A"]))
     check("…and it shows under Today now", page.locator(".group-head").nth(1).inner_text().strip().lower() == "today · 2")
     # ⋯ → Change due date…
     row(page, names["B"]).locator(".row-more").click()
@@ -1196,17 +1205,17 @@ def test_today(browser):
     page.evaluate("""async ti => { const t = __todo.all().find(x => x.title === ti); t.repeat = 'weekly'; await __todo.saveTask(t); __todo.render(); }""", names["D"])
     rd = row(page, names["D"])
     check("recurring rows show ↻ in the Today view", rd.locator(".rep-ico").count() == 1)
-    rd.locator(".qbtn", has_text="Today").click(); page.wait_for_timeout(250)
-    check("recurring: Today moves only due, repeat stays", fm(names["D"], "due") == D(0) and "repeat: weekly" in ftxt(names["D"]) and fm(names["D"], "status") == "open")
+    rd.locator("[data-act=q-dot]").click(); page.wait_for_timeout(250)
+    check("recurring: ● moves only due, repeat stays", fm(names["D"], "due") == D(0) and "repeat: weekly" in ftxt(names["D"]) and fm(names["D"], "status") == "open")
 
     # fit at 175 %: buttons and ⋯ stay on screen, title column keeps some room
     page.evaluate("() => { document.documentElement.style.setProperty('--z', '1.75'); __todo.render(); }")
     page.wait_for_timeout(150)
     vw = page.evaluate("innerWidth")
-    over_row = page.locator("#rows .row", has=page.locator(".qbtn", has_text="Tmrw")).filter(has=page.locator(".qbtn", has_text="Today")).first
+    over_row = page.locator("#rows .row", has=page.locator("[data-act=q-dot]")).first
     boxes = over_row.locator(".qbtn, .row-more").evaluate_all("els => els.map(e => { const r = e.getBoundingClientRect(); return [r.left, r.right]; })")
     pfx = over_row.locator(".pfx").evaluate("e => e.getBoundingClientRect().right")
-    check("175 %: Today + Tmrw + ⋯ fit on screen with room for the title", all(r <= vw + 1 for _, r in boxes) and min(l for l, _ in boxes) - pfx >= 100, (vw, pfx, boxes))
+    check("175 %: ↑ ↓ ● + ⋯ fit on screen with room for the title", all(r <= vw + 1 for _, r in boxes) and min(l for l, _ in boxes) - pfx >= 100, (vw, pfx, boxes))
     page.screenshot(path=str(SHOTS / "27-phone-today-175.png"))
 
     # --- R2-3: quick-add chips in the Today view ---
@@ -1562,7 +1571,7 @@ def test_agent_round1(browser):
     check("T1-10: Today view section headers are ≥ 44 px tall", heads and min(heads) >= 44 * z - 0.5, (heads, z))
     hit = page.evaluate("""z => { const b = document.querySelector('.row .qbtn'); const r = b.getBoundingClientRect(); const x = r.left + r.width / 2, e = 6 * z - 0.5;
         return [r.height, document.elementFromPoint(x, r.top - e) === b, document.elementFromPoint(x, r.bottom + e - 1) === b]; }""", z)
-    check("T1-10: Today/Tmrw buttons keep their size but have a ≥ 44 px tap area", hit[1] and hit[2] and hit[0] + 12 * z >= 44 * z - 0.5, (hit, z))
+    check("T1-10: the Today-view buttons keep their size but have a ≥ 44 px tap area", hit[1] and hit[2] and hit[0] + 12 * z >= 44 * z - 0.5, (hit, z))
     page.evaluate("() => { __todo.S.view = 'list'; __todo.S.list = 'Home'; __todo.render(); }")
     ttl = page.locator(".row .ttl").first
     check("T1-11: task titles are focusable buttons", ttl.get_attribute("tabindex") == "0" and ttl.get_attribute("role") == "button")
@@ -2438,6 +2447,113 @@ def test_r28_phase1(browser):
     check("G (restore tree, OneDrive): no page errors", not [e for e in errors if "test: connection lost" not in e], errors[:3])
     ctx.close()
 
+def test_r211_fast_entry(browser):
+    print("\n[23] R2-11 to R2-15: Enter = next task, inline add line, Save & close subdued, clear due, Delete all colour")
+    D = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
+    files = lambda page: page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))")
+    task = lambda page, title: page.evaluate("ti => { const t = __todo.all().find(x => x.title === ti); return t ? { id:t.id, parent:t.parent, list:t.list, order:t.order, file:t.file, due:t.due, isNew:!!t.isNew } : null; }", title)
+    focused_line = lambda page: page.evaluate("() => { const a = document.activeElement; return a && a.classList.contains('addsub-in') ? a.closest('.addsub').dataset.parent : null; }")
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP); page.wait_for_selector(".row")
+
+    # ---- R2-11 inline line ----
+    check("R2-11: no add line under a collapsed parent", page.locator(".addsub").count() == 0)
+    row(page, "Solar panel cleaning").locator("[data-act=expand]").click(); page.wait_for_timeout(150)
+    line = page.locator(".addsub[data-parent=t-s05] .addsub-in")
+    check("R2-11: an expanded parent with subtasks gets '+ Add subtask…' under its subtasks", line.count() == 1 and line.get_attribute("placeholder") == "Add subtask…")
+    line.click(); line.type("Sub A"); page.keyboard.press("Enter"); page.wait_for_timeout(300)
+    page.keyboard.type("Sub B"); page.keyboard.press("Enter"); page.wait_for_timeout(300)
+    a, b = task(page, "Sub A"), task(page, "Sub B")
+    check("…two Enters save two subtasks under that parent, in the parent's list, in order", a and b and a["parent"] == b["parent"] == "t-s05" and a["list"] == b["list"] == "Home"
+          and b["order"] > a["order"] and not a["isNew"] and not b["isNew"] and "sub-a.md" in files(page) and "sub-b.md" in files(page), (a, b))
+    check("…the line stays focused and empty, ready for the next one", focused_line(page) == "t-s05" and page.locator(".addsub[data-parent=t-s05] .addsub-in").input_value() == "")
+    kids_titles = page.evaluate("() => [...document.querySelectorAll('#rows .row.sub .ttl')].map(e => e.textContent.trim())")
+    check("…and they show at the end of its subtasks", kids_titles[-2:] == ["Sub A", "Sub B"], kids_titles)
+    page.keyboard.type("keep me"); page.evaluate("() => __todo.render()"); page.wait_for_timeout(100)
+    check("…a redraw (e.g. a sync) keeps what you're typing and the focus", focused_line(page) == "t-s05" and page.locator(".addsub[data-parent=t-s05] .addsub-in").input_value() == "keep me")
+    page.locator(".addsub[data-parent=t-s05] .addsub-in").fill("")
+    page.keyboard.press("Enter"); page.wait_for_timeout(100)
+    check("…Enter on an empty line stops (leaves the line, saves nothing)", focused_line(page) is None and not any(k.startswith("untitled") for k in files(page)))
+    # ⤢ hands the typed title to the editor
+    page.locator(".addsub[data-parent=t-s05] .addsub-in").fill("Handoff with notes")
+    page.locator(".addsub[data-parent=t-s05] .addsub-ed").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(200)
+    check("R2-11: ⤢ opens the full editor with the typed title, as a subtask of that parent", page.input_value("#f-title") == "Handoff with notes" and "Solar panel cleaning" in page.inner_text("#d-parent")
+          and page.is_enabled("#d-save"))
+    page.click("#d-saveclose"); page.wait_for_timeout(300)
+    check("…and saves there", task(page, "Handoff with notes") and task(page, "Handoff with notes")["parent"] == "t-s05" and page.locator("#drawer.open").count() == 0)
+    # ⋯ → Add subtask on a task with no subtasks
+    row(page, "A deliberately long").locator(".row-more").click(); page.locator("#pop button", has_text="Add subtask").click(); page.wait_for_timeout(200)
+    check("R2-11: ⋯ → Add subtask opens the inline line (focused) even with no subtasks yet, not the editor", focused_line(page) == "t-s18" and page.locator("#drawer.open").count() == 0)
+    page.keyboard.type("First child"); page.keyboard.press("Enter"); page.wait_for_timeout(300)
+    fc = task(page, "First child")
+    check("…Enter saves it under that task, which now has a 1-subtask badge", fc and fc["parent"] == "t-s18" and row(page, "A deliberately long").locator("[data-act=expand]").inner_text() == "0/1")
+    page.locator(".addsub[data-parent=t-s18] .addsub-in").evaluate("e => e.blur()"); page.wait_for_timeout(300)
+    check("…its line stays while it's expanded with subtasks", page.locator(".addsub[data-parent=t-s18]").count() == 1)
+    row(page, "Fix gate latch").locator(".row-more").click(); page.locator("#pop button", has_text="Add subtask").click(); page.wait_for_timeout(200)
+    check("…(Fix gate latch: only an archived subtask) the line appears", focused_line(page) == "t-s03")
+    page.locator(".addsub[data-parent=t-s03] .addsub-in").evaluate("e => e.blur()"); page.wait_for_timeout(350)
+    check("…and goes away when you leave it empty", page.locator(".addsub[data-parent=t-s03]").count() == 0)
+    page.screenshot(path=str(SHOTS / "48-phone-inline-add.png"))
+
+    # ---- R2-11 editor chain + R2-12 Save & close subdued ----
+    row(page, "Solar panel cleaning").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("R2-12: nothing changed → Save disabled and Save & close subdued", page.is_disabled("#d-save") and "sc-idle" in page.get_attribute("#d-saveclose", "class"))
+    page.click("#d-sub"); page.wait_for_timeout(300)
+    check("R2-12: a brand-new blank task isn't 'changed' yet (Save off, Save & close subdued)", page.input_value("#f-title") == "" and page.is_disabled("#d-save") and "sc-idle" in page.get_attribute("#d-saveclose", "class"))
+    page.fill("#f-title", "Chain one")
+    check("…typing a title turns both on", page.is_enabled("#d-save") and "sc-idle" not in page.get_attribute("#d-saveclose", "class"))
+    check("R2-11: the phone keyboard says 'next' for a new task", page.evaluate("document.querySelector('#f-title').enterKeyHint") == "next")
+    page.press("#f-title", "Enter"); page.wait_for_timeout(500)
+    c1 = task(page, "Chain one")
+    check("R2-11: Enter saves the new subtask and opens the next blank one (same parent), cursor in the title", c1 and not c1["isNew"] and c1["parent"] == "t-s05"
+          and page.locator("#drawer.open").count() == 1 and page.input_value("#f-title") == "" and "Solar panel cleaning" in page.inner_text("#d-parent")
+          and page.evaluate("document.activeElement.id") == "f-title", c1)
+    page.fill("#f-title", "Chain two"); page.press("#f-title", "Enter"); page.wait_for_timeout(500)
+    c2 = task(page, "Chain two")
+    check("…copies only the parent and list (no due date)", c2 and c2["parent"] == "t-s05" and c2["list"] == "Home" and not c2["due"] and c2["order"] > c1["order"], c2)
+    page.press("#f-title", "Enter"); page.wait_for_timeout(300)
+    check("R2-11: Enter on an empty title stops: editor closed, no blank file, no unsaved ghost", page.locator("#drawer.open").count() == 0
+          and not page.evaluate("() => __todo.all().some(t => t.isNew)") and not any(k.startswith("untitled") for k in files(page)))
+    row(page, "Solar panel cleaning").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("R2-11: the keyboard says 'done' for an existing task", page.evaluate("document.querySelector('#f-title').enterKeyHint") == "done")
+    page.click("#d-saveclose"); page.wait_for_timeout(200)
+    check("R2-12: the subdued Save & close still closes", page.locator("#drawer.open").count() == 0)
+    row(page, "Solar panel cleaning").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.fill("#f-title", "Solar panel cleaning (both houses)"); page.press("#f-title", "Enter"); page.wait_for_timeout(400)
+    check("R2-11: Enter in an existing task's title = Save & close (no new task)", page.locator("#drawer.open").count() == 0
+          and "title: Solar panel cleaning (both houses)" in files(page)["solar-panel-cleaning.md"] and not page.evaluate("() => __todo.all().some(t => t.isNew)"))
+
+    # ---- R2-13 clear the due date ----
+    row(page, "Solar panel cleaning").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    check("R2-13: ✕ shows next to Due while there's a date", page.is_visible("#f-due-clear"))
+    page.click("#f-due-clear")
+    check("…tapping it clears the field, hides itself and marks the task changed", page.input_value("#f-due") == "" and not page.is_visible("#f-due-clear") and page.is_enabled("#d-save"))
+    page.click("#d-saveclose"); page.wait_for_timeout(300)
+    check("…Save removes due from the file", "\ndue:" not in files(page)["solar-panel-cleaning.md"], files(page)["solar-panel-cleaning.md"][:250])
+    row(page, "Fix gate latch").locator(".row-more").click(); page.locator("#pop button", has_text="Change due date").click()
+    check("R2-13: Change due date… offers 'No date' when there is one", page.locator("#modal .pick .go", has_text="No date").count() == 1)
+    page.locator("#modal .pick .go", has_text="No date").click(); page.wait_for_timeout(300)
+    check("…which clears it in the file, with Undo", "\ndue:" not in files(page)["fix-gate-latch.md"] and "no date" in page.inner_text("#undo-msg"), page.inner_text("#undo-msg"))
+    page.click("#undo-btn"); page.wait_for_timeout(300)
+    check("…Undo puts the date back", f"due: {D(-1)}" in files(page)["fix-gate-latch.md"])
+    row(page, "A deliberately long").locator(".row-more").click(); page.locator("#pop button", has_text="Change due date").click()
+    check("…no 'No date' choice for a task without a date", page.locator("#modal .pick .go", has_text="No date").count() == 0)
+    page.click("#modal [data-a=cancel]")
+    page.evaluate("() => __todo.openDrawer('t-s19')"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.click("#f-due-clear"); page.click("#d-saveclose"); page.wait_for_timeout(300)
+    cr = files(page)["collect-rent.md"]
+    check("R2-13: a recurring task's date can be cleared; repeat: stays", "\ndue:" not in cr and "repeat: monthly" in cr, cr[:250])
+
+    # ---- R2-15 Delete all colour ----
+    row(page, "Solar panel cleaning").locator(".row-more").click(); page.locator("#pop button", has_text="Delete").click(); page.wait_for_selector("#modal [data-a=ok]")
+    st = page.eval_on_selector("#modal [data-a=ok]", "b => [getComputedStyle(b).backgroundColor, getComputedStyle(b).color, b.textContent]")
+    check("R2-15: Delete all is white text on a deep red (readable), not red on blue", st[0] == "rgb(201, 48, 44)" and st[1] == "rgb(255, 255, 255)" and st[2] == "Delete all", st)
+    page.screenshot(path=str(SHOTS / "49-phone-delete-all.png"))
+    page.click("#modal [data-a=cancel]")
+    check("R2-11 to R2-15: no page errors", not errors, errors[:3])
+    ctx.close()
+
+
 # ---------------------------------------------------------------- main
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -2447,7 +2563,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry)]
         for name, fn in tests:
             if not only or name in only:
                 try:
