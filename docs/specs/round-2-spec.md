@@ -27,6 +27,10 @@ Same as round 1:
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
+| R2-11 | Enter tasks and subtasks one after another | **Decided: C** | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
+| R2-12 | Save & close subdued until there's a change | **Decided: A** | Subdued, still closes |
+| R2-13 | Clear a due date on the phone | **Decided: A + B** | ✕ next to Due in the editor; "No date" in Change due date… |
+| R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Decided** | From the due date; ● hidden on today rows |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -1061,6 +1065,119 @@ Claude recommended A plus a "+ N subtasks" note on the parent's entry.
 
 ---
 
+## R2-11 — Enter tasks and subtasks one after another
+
+**Asked** (Geoff, 2026-11-07): "I want the UI to make it easier to enter multiple tasks/subtasks one right after the other... When entering tasks or subtasks, enter should save the current task/subtask and allow the user to enter a new task/subtasks."
+
+**Today:**
+- The **quick-add line** at the bottom already works this way: Enter saves, clears the line, and keeps the cursor there.
+- The gap is the **editor**: ⋯ → Add subtask (and new tasks from menus) open it, and Enter in the title does nothing.
+
+**Options:**
+- **A:** Enter in the editor's title saves and opens the next blank one.
+- **B:** an inline "+ Add subtask…" line under an expanded parent's subtasks, which works like the quick-add line (type, Enter, type, Enter) without opening the editor.
+- **C:** both.
+
+Explained to Geoff with a sketch:
+```
+☐ Plan garden                        2/3  ⋯
+     ☑ Buy seeds
+     ☐ Till the beds
+     + Add subtask…          ← tap, type, Enter
+```
+
+**Decision (Geoff, 2026-11-07): C, both ("i want you to do both").** Details, as recommended:
+1. **The editor, for a new task:** Enter in the title saves it, then opens a new blank **sibling**: the same parent and list, placed right after it, with the cursor in the title.
+    - **Copied:** only the parent and list. The due date, collections, notes and prefix start empty.
+    - **Stopping:** Enter on an **empty** title closes the editor and drops the blank task. ✕, the back gesture and Save & close also stop.
+2. **The editor, for an existing task:** Enter in the title means **Save & close**. Only new tasks chain, so fixing a typo in an old title doesn't create an empty task.
+3. **The inline line:** "+ Add subtask…" appears under every **expanded** parent in the list views. The Today view is flat, so it has none.
+    - Enter saves a subtask (title only) under that parent, at the end, and keeps the line ready for the next one.
+    - A small **⤢** on the line opens the typed title in the full editor, for a date or notes.
+4. **⋯ → Add subtask** expands the parent and puts the cursor in its "Add subtask…" line, even if it has no subtasks yet. It no longer opens the editor.
+
+**Implementation notes:**
+- **Phone keyboard:** `enterkeyhint="next"` on the chaining title and on the inline line; IME composition is ignored, as in quick-add.
+- **Saving:** each Enter saves through the normal `saveTask` (conditional create). A failed save keeps the text in the line or the editor and doesn't move on.
+- **The ⤢ handoff:** it opens the editor on a new, unsaved task, with the typed title and the parent set.
+- **Nested parents:** a subtask that is itself expanded gets its own line.
+
+**Acceptance:**
+- Five subtasks can be entered with five Enters from the inline line, and land in order.
+- A chain in the editor creates siblings and stops on an empty Enter, leaving no blank file.
+- Enter on an existing task's title saves and closes.
+- ⋯ → Add subtask focuses the inline line.
+- Works on phone and PC.
+
+**Status:** Decided (C), not yet approved for build.
+
+---
+
+## R2-12 — Save & close subdued until there's a change
+
+**Asked** (Geoff, 2026-11-07): "The save button stays subdued until there is a change to save, Save & close should to the same".
+
+**Today:** Save is disabled until something changes. Save & close is always fully coloured; with no changes it just closes.
+
+**Options:**
+- **A:** Save & close looks subdued, like Save, when nothing has changed, but a tap still closes the editor.
+- **B:** disabled; close with ✕ or the back gesture.
+
+**Decision (Geoff, 2026-11-07): A ("Subdued, still closes").**
+- It shows full green as soon as there's a change, the same moment Save turns on.
+- **A brand-new task** counts as "changed" once its title isn't empty.
+
+**Status:** Decided (A), not yet approved for build.
+
+---
+
+## R2-13 — Clear a due date on the phone
+
+**Asked** (Geoff, 2026-11-07): "for the pc app, i can clear a date from the date picker. but for the phone app, there is not clear date or any other way to clear out a due date".
+
+**Today:**
+- The phone uses Android's own date picker, which has no Clear.
+- ⋯ → **Change due date…** has no "No date", and the app's quick reschedule (`setDue`) ignores an empty date.
+
+**Options:**
+- **A:** a ✕ next to the editor's Due field.
+- **B:** "No date" in Change due date….
+- **C:** "No date" in the quick-add date chip.
+
+**Decision (Geoff, 2026-11-07): A and B.**
+- **The ✕ (phone and PC):** shown only while there's a date. It clears the field, and the change is saved with Save as usual.
+- **"No date" in Change due date…:** clears it at once, with Undo, like the other date changes.
+- **A recurring task with its date cleared** keeps its `repeat:`. As today, its next date is counted from today when it's checked off.
+
+**Status:** Decided (A + B), not yet approved for build.
+
+---
+
+## R2-14 — Today view: ↑ ↓ ● instead of Today / Tmrw
+
+**Asked** (Geoff, 2026-11-07): "In Today view, replace today, and tomorrow buttons with much smaller up arrow icon (move to next day), down arrow icon (move to previous day), and a dot icon (move to today)".
+
+**Today:** Upcoming rows get **Today**, Today rows get **Tmrw**, and Overdue rows get both, as text buttons.
+
+**Decision (Geoff, 2026-11-07):**
+- **Counted from the task's due date:**
+    - ↑ = one day later, ↓ = one day earlier, even for overdue tasks (due Nov 10 → Nov 11 / Nov 9).
+    - ● = today.
+    - Up means later, matching the view's time running upward.
+- **Which rows:** ↑ and ↓ on every row. ● on every row except those already due today.
+
+**Implementation notes:**
+- **Size:** small icons, narrower than the text buttons, but each keeps a touch target about 32 px tall, so it's still easy to hit on the phone.
+- **Quick taps:** a task can move several days with quick taps. The row moves between sections as its date crosses today.
+    - **Undo** restores the date from before the first tap of a quick series, not just the last step.
+    - **Saves:** rapid taps can be combined into one save after a short pause.
+- **Recurring tasks:** they move just this occurrence, as the current buttons do (`setDue`). Tooltips on the PC: "Move to the next day", "Move to the previous day", "Move to today".
+- **Not changed:** ⋯ → Change due date…, and the list views (no arrows there).
+
+**Status:** Decided, not yet approved for build.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1127,6 +1244,10 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-11 | **C (both)**: editor Enter chains new siblings (parent + list only; empty Enter stops); Enter on an existing task = Save & close; inline "+ Add subtask…" line with ⤢; ⋯ → Add subtask opens it | Not yet approved for build |
+| 2026-11-07 | R2-12 | **A**: Save & close subdued until a change, still closes | Not yet approved for build |
+| 2026-11-07 | R2-13 | **A + B**: ✕ next to Due; "No date" in Change due date… | Not yet approved for build |
+| 2026-11-07 | R2-14 | **↑ ↓ ●** from the due date; ● hidden on today rows | Not yet approved for build |
 | 2026-11-07 | R2-10 | **A decided and approved** (the plain build in the header; version in Settings) | Built as 2026-11-07b |
 | 2026-11-07 | R2-8 | **Restore follow-up verified on PC and merged to `main`** (build 2026-11-07a) | |
 | 2026-11-07 | R2-8 | **Delete/restore speed:** options A (levels in parallel), B (a real OneDrive move; Claude recommends), C (batching) recorded; **no action** until Geoff finds it unacceptable | Files' content is never changed; a restore is a new OneDrive item |
@@ -1161,6 +1282,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v35: R2-11 to R2-14 added and decided (fast entry, Save & close subdued, clear due date, Today arrows).
 - 2026-11-07 — v34: R2-5 note: the data-format check doesn't exist yet and must be built before format 4.
 - 2026-11-07 — v33: R2-10 added and built (build number in the header).
 - 2026-11-07 — v32: R2-8 restore follow-up verified on PC and merged (2026-11-07a).
