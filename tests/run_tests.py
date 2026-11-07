@@ -1952,7 +1952,13 @@ def test_r28_phase1(browser):
     check("Recently deleted: shows the original path, when and why", "solar-panel-cleaning.md" in items.first.inner_text() and "Deleted on Phone" in items.first.inner_text(), items.first.inner_text())
     check("Recently deleted: full screen on a phone", page.evaluate("() => document.querySelector('#modal-bg').classList.contains('full') && document.querySelector('#modal').getBoundingClientRect().height > innerHeight * 0.95"))
     page.screenshot(path=str(SHOTS / "40-phone-recently-deleted.png"))
-    items.first.locator("button", has_text="Restore").click(); page.wait_for_timeout(600)
+    check("Restore follow-up: the parent's entry says '+ 3 subtasks'", "+ 3 subtasks" in items.first.inner_text(), items.first.inner_text())
+    items.first.locator("button", has_text="Restore").click(); page.wait_for_selector("#modal [data-a=only]")
+    txt = page.inner_text("#modal")
+    check("…Restore asks: 'Restore <task> and its 3 subtasks?', naming them — Cancel / Only this task / Restore all",
+          "Restore Solar panel cleaning and its 3 subtasks (3 levels)?" in txt and all(s in txt for s in ["Get three cleaning quotes", "Compare inverter readings", "Export last 90 days to CSV"])
+          and page.locator("#modal [data-a=cancel]").count() == 1 and page.locator("#modal [data-a=all]").count() == 1, txt)
+    page.click("#modal [data-a=only]"); page.wait_for_timeout(600)
     check("Restore re-creates the file at its original path, exact text", files_of(page).get("solar-panel-cleaning.md") == before["solar-panel-cleaning.md"])
     check("…removes that trash entry", page.locator("#modal .rd-item").count() == 4 and not any("solar-panel-cleaning" in k for k in trash_of(page)), list(trash_of(page)))
     page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
@@ -2318,6 +2324,118 @@ def test_r28_phase1(browser):
     check("F: no hostile markup ran anywhere (rows, editor, dialogs)", not page.evaluate("window.__xss") and page.locator("#rows img").count() == 0)
     check("F (hostile text): never wrote without If-Match", not fg.violations, fg.violations[:3])
     check("F (hostile text): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- G. Restore follow-up (2026-11-07): a task with 7 levels of subtasks, parents in the trash, partial restore, Undo ----------
+    names = ["A-top", "B-two", "C-three", "D-four", "E-five", "F-six", "G-seven"]
+    ids = [f"t-g{i}" for i in range(7)]
+    gfiles = {}
+    for i, n in enumerate(names):
+        title = q(n + " " + evil) if n == "F-six" else n
+        extra = (f"due: {D(2)}\n" if i == 0 else f"parent: {ids[i-1]}\n") + ("" if i else "")
+        gfiles[f"{n.lower()}.md"] = fm(ids[i], title, extra) + f"\nnotes of {n}\n"
+    gfiles["s-sib.md"] = fm("t-gs", "S-sib", "parent: t-g0\n") + "\nsibling notes\n"
+    gfiles["_todo.json"] = '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'
+    tasks8 = [k for k in gfiles if k.endswith(".md")]
+    fg = FakeGraph(FOLDER, dict(gfiles))
+    ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
+    fg.install(page)
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    page.evaluate("""() => { const s = __todo.S.store, c = s.create.bind(s); window.__creates = [];
+        s.create = async (p, t) => { if (window.__failAfter != null && !p.startsWith('.trash') && window.__failAfter-- <= 0) throw new Error('test: connection lost');
+          const v = await c(p, t); if (!p.startsWith('.trash')) window.__creates.push(p); return v; }; }""")
+    rd_item = lambda title: page.locator("#modal .rd-item", has=page.locator(".rd-ttl", has_text=title))
+    def restore(title):
+        rd_item(title).locator("button", has_text="Restore").click(); page.wait_for_timeout(300)
+    def settle():
+        page.wait_for_function("() => !document.querySelector('#rd-list')?.textContent.includes('Restoring') && !document.querySelector('#rd-list')?.textContent.includes('Loading')", timeout=15000)
+    order_ok = lambda seq: all(seq.index(f"{a.lower()}.md") < seq.index(f"{b.lower()}.md") for a, b in zip(names, names[1:]) if f"{a.lower()}.md" in seq and f"{b.lower()}.md" in seq)
+
+    delete_row(page, "A-top")
+    check("G: the delete dialog lists all 7 subtasks (every level)", "Also delete its 7 subtasks" in page.inner_text("#modal"), page.inner_text("#modal")[:300])
+    page.click("#modal [data-a=ok]"); page.wait_for_timeout(1500)
+    check("G: …all 8 files are in the trash", not any(k in fg.files() for k in tasks8) and len([k for k in fg.trash() if k.endswith(".md")]) == 8, list(fg.top_files()))
+    for k, v in list(fg.trash().items()):                    # sidecars from before this build have no parent: the app reads it from the file
+        if k.endswith(".json"):
+            j = json.loads(v); j.pop("parent", None); fg.ext_edit(k, json.dumps(j, indent=2) + "\n")
+    recently_deleted(page)
+    check("G: '+ 7 subtasks' on the top task's entry, '+ 3 subtasks' on D-four's (even without parent in the sidecars)",
+          "+ 7 subtasks" in rd_item("A-top").inner_text() and "+ 3 subtasks" in rd_item("D-four").inner_text() and "subtask" not in rd_item("G-seven").inner_text(),
+          (rd_item("A-top").inner_text(), rd_item("D-four").inner_text()))
+    restore("A-top"); page.wait_for_selector("#modal [data-a=all]")
+    txt = page.inner_text("#modal")
+    lis = page.locator("#modal .dl-subs li")
+    check("G: Restore asks about all 7 subtasks across 7 levels, indented by level", "and its 7 subtasks (7 levels)?" in txt and lis.count() == 7
+          and page.evaluate("() => [...document.querySelectorAll('#modal .dl-subs li')].map(l => parseInt(l.style.marginLeft)).sort((a,b) => a-b).pop()") == 70, txt[:400])
+    shown = [l.split(" ")[0] for l in page.evaluate("() => [...document.querySelectorAll('#modal .dl-subs li')].map(l => l.textContent)")]
+    check("G: …shown as a tree: each task followed by its own subtasks", shown in (["B-two", "C-three", "D-four", "E-five", "F-six", "G-seven", "S-sib"], ["S-sib", "B-two", "C-three", "D-four", "E-five", "F-six", "G-seven"]), shown)
+    check("G: hostile titles in the restore dialog stay text", page.locator("#modal img").count() == 0 and "<img" in txt and not page.evaluate("window.__xss"))
+    page.screenshot(path=str(SHOTS / "47-phone-restore-tree.png"))
+    page.evaluate("() => { window.__creates = []; }")
+    page.click("#modal [data-a=all]"); settle(); page.wait_for_timeout(300)
+    seq = page.evaluate("window.__creates")
+    check("G: Restore all brings back all 8 files with their exact text; the trash is empty",
+          all(fg.files().get(k) == gfiles[k] for k in tasks8) and not fg.trash(), [k for k in tasks8 if fg.files().get(k) != gfiles[k]])
+    check("G: …top level first: every parent comes back before its subtasks", len(seq) == 8 and order_ok(seq) and seq[0] == "a-top.md", seq)
+    check("G: …says how many were restored", "Restored 8 tasks" in page.inner_text("#toast"), page.inner_text("#toast"))
+    page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
+    check("G: …the tree is back in the list", row(page, "A-top").count() == 1 and page.evaluate("() => __todo.all().length") == 8)
+    page.click("#undo-btn"); page.wait_for_timeout(2500)
+    check("G: one Undo deletes the whole restore again (back to the trash)", not any(k in fg.files() for k in tasks8) and len([k for k in fg.trash() if k.endswith(".md")]) == 8,
+          [k for k in tasks8 if k in fg.files()])
+
+    # Q2: restoring a subtask alone while its parents are in the trash
+    recently_deleted(page); restore("D-four"); page.wait_for_selector("#modal [data-a=up]")
+    txt = page.inner_text("#modal")
+    check("G: a subtask whose parent is in the trash asks 'Its parent … is also in Recently deleted — restore them too?'",
+          "Its parent C-three is also in Recently deleted (and 2 tasks above it)" in txt and page.locator("#modal [data-a=only]").count() == 1, txt)
+    page.evaluate("() => { window.__creates = []; }")
+    page.click("#modal [data-a=up]"); page.wait_for_selector("#modal [data-a=all]")
+    check("G: …then asks about its own 3 subtasks", "D-four and its 3 subtasks" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
+    page.click("#modal [data-a=all]"); settle(); page.wait_for_timeout(300)
+    seq = page.evaluate("window.__creates")
+    check("G: …parents and subtasks back (7), top first; the sibling stays in the trash", len(seq) == 7 and order_ok(seq) and seq[0] == "a-top.md"
+          and "s-sib.md" not in fg.files() and len([k for k in fg.trash() if k.endswith(".md")]) == 1, seq)
+    restore("S-sib"); settle()
+    check("G: …the sibling, its parent back, restores without any question", "s-sib.md" in fg.files() and not fg.trash())
+    page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
+
+    # a connection lost half way: what's back stays back; the rest finishes from the highest remaining entry
+    delete_row(page, "A-top"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(1500)
+    recently_deleted(page); restore("A-top"); page.wait_for_selector("#modal [data-a=all]")
+    page.evaluate("() => { window.__failAfter = 3; }")
+    page.click("#modal [data-a=all]"); settle(); page.wait_for_timeout(300)
+    page.evaluate("() => { window.__failAfter = null; }")
+    back = [k for k in tasks8 if k in fg.files()]
+    check("G: connection lost after 3: 'Restored 3 of 8 — 5 are still in Recently deleted.'", "Restored 3 of 8 — 5 are still in Recently deleted." in page.inner_text("#toast")
+          and len(back) == 3 and page.locator("#modal .rd-item").count() == 5, (page.inner_text("#toast"), back))
+    rest = [n for n in names if f"{n.lower()}.md" not in back]
+    restore(rest[0])
+    if page.locator("#modal [data-a=all]").count(): page.click("#modal [data-a=all]")
+    settle(); page.wait_for_timeout(300)
+    check("G: …one more Restore (with its subtasks) on the highest remaining entry finishes the job", all(fg.files().get(k) == gfiles[k] for k in tasks8) and not fg.trash(),
+          [k for k in tasks8 if fg.files().get(k) != gfiles[k]])
+    page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
+
+    # decision 1: a subtask deleted separately earlier is included, and marked
+    page.evaluate("() => __todo.removeTask(__todo.S.tasks.get('t-g6'))"); page.wait_for_timeout(800)
+    for k, v in list(fg.trash().items()):
+        if k.endswith(".json"):
+            j = json.loads(v); j["deletedAt"] = "2026-01-01T00:00:00.000Z"; fg.ext_edit(k, json.dumps(j, indent=2) + "\n")
+    page.evaluate("() => __todo.render()"); page.wait_for_timeout(200)
+    page.evaluate("async () => { await __todo.removeTask(__todo.S.tasks.get('t-g5')); await __todo.removeTask(__todo.S.tasks.get('t-g4')); __todo.render(); }"); page.wait_for_timeout(800)
+    recently_deleted(page); restore("E-five"); page.wait_for_selector("#modal [data-a=only]")
+    lis = page.locator("#modal .dl-subs li")
+    check("G (decision 1): a subtask deleted separately earlier is in the list, marked 'deleted separately'", lis.count() == 2
+          and "deleted separately" in lis.nth(1).inner_text() and "G-seven" in lis.nth(1).inner_text() and "deleted separately" not in lis.nth(0).inner_text(), [lis.nth(i).inner_text() for i in range(lis.count())])
+    page.click("#modal [data-a=only]"); settle()
+    check("G: 'Only this task' restores just that one", "e-five.md" in fg.files() and "f-six.md" not in fg.files() and "g-seven.md" not in fg.files())
+    restore("F-six"); page.wait_for_selector("#modal [data-a=all]"); page.click("#modal [data-a=all]"); settle()
+    check("G: …and the rest come back from the next level", all(fg.files().get(k) == gfiles[k] for k in tasks8) and not fg.trash())
+    page.click("#modal [data-a=close]")
+    check("G: no hostile markup ran", not page.evaluate("window.__xss"))
+    check("G (restore tree, OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("G (restore tree, OneDrive): no page errors", not [e for e in errors if "test: connection lost" not in e], errors[:3])
     ctx.close()
 
 # ---------------------------------------------------------------- main

@@ -261,7 +261,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 #modal-bg.full #modal{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;padding-top:calc(12px + env(safe-area-inset-top))}
 .rd-item{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:8px 0}
 .rd-item.rd-due{border-left:3px solid var(--warn);padding-left:8px}
-.rd-body{flex:1;min-width:0;overflow-wrap:anywhere} .rd-ttl{font-weight:600} .rd-meta{color:var(--muted);font-size:calc(12px*var(--z))}
+.rd-body{flex:1;min-width:0;overflow-wrap:anywhere} .rd-ttl{font-weight:600} .rd-kids{font-size:calc(12px*var(--z))} .rd-meta{color:var(--muted);font-size:calc(12px*var(--z))}
 .rd-item .rd-duev{color:var(--warn);font-size:calc(13px*var(--z))}
 .rd-item button{flex:0 0 auto;min-height:calc(40px*var(--z))}
 .rd-note{color:var(--muted);font-size:calc(12px*var(--z))}
@@ -370,7 +370,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-01b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-07a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -1072,7 +1072,7 @@ async function removeTask(t, { trash = true } = {}){
   busy(1); let entry = null;
   try {
     if (!t.isNew){
-      if (trash) entry = await trashPut(t.file, t.raw ?? serializeTask(t), { id:t.id, title:t.title, due:t.due });
+      if (trash) entry = await trashPut(t.file, t.raw ?? serializeTask(t), { id:t.id, title:t.title, due:t.due, parent:t.parent });
       try { await S.store.remove(t.file, t.version); }
       catch (e){ if (entry) await trashDrop(entry).catch(() => {}); throw e; }     // not deleted → no trash entry either
     }
@@ -1087,7 +1087,7 @@ async function removeTask(t, { trash = true } = {}){
    saved in the task folder's hidden .trash folder — on every store, so it's shared by all devices and Claude can read it.
    No shared index file (two devices would conflict): each entry is two files with one unique name,
      .trash/<YYYYMMDD-HHMMSS>-<random>-<slug>.md    the file's exact text
-     .trash/<same>.json                             { format, path, id, title, due, deletedAt, reason, by, device }
+     .trash/<same>.json                             { format, path, id, title, due, parent, deletedAt, reason, by, device }
    path = the full relative path it came from (R2-5 folders restore into the right folder); reason = deleted | replaced;
    by = "this device" | "elsewhere" (whose version it is); device = Phone | PC (where it was trashed). Never emptied
    automatically. Trash files go to the source store directly (not the device copy) and are never tasks (isTaskPath). */
@@ -1097,9 +1097,9 @@ function trashBase(path){
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
   return `${TRASH}/${stamp}-${Math.random().toString(36).slice(2, 8)}-${slug(baseName(path).replace(/\.md$/i, ''))}`;
 }
-async function trashPut(path, text, { reason = 'deleted', by = 'this device', id = '', title = '', due = '' } = {}){
+async function trashPut(path, text, { reason = 'deleted', by = 'this device', id = '', title = '', due = '', parent = '' } = {}){
   const st = rawStore();
-  const meta = { format:1, path, id, title, due, deletedAt:new Date().toISOString(), reason, by, device:DEVICE };
+  const meta = { format:1, path, id, title, due, parent, deletedAt:new Date().toISOString(), reason, by, device:DEVICE };
   for (let i = 0; ; i++){
     const base = trashBase(path); let mdV;
     try { mdV = await st.create(base + '.md', text); } catch (e){ if (e instanceof ExistsError && i < 3) continue; throw e; }
@@ -1110,7 +1110,7 @@ async function trashPut(path, text, { reason = 'deleted', by = 'this device', id
 }
 async function trashDrop(e){ const st = rawStore(); for (const f of [e.json, e.md]) if (f) await st.remove(f.path, f.version); }
 /* Every trash entry, newest first. Copies from older builds (FsStore: "<UTC stamp> name.md", no sidecar) are read for
-   their fields. */
+   their fields; sidecars from before build 2026-11-07a have no parent, so it's read from the file. */
 async function trashEntries(){
   const st = rawStore(); if (!st?.trashList) return [];
   const by = new Map();
@@ -1124,8 +1124,9 @@ async function trashEntries(){
         const t = parseTask(e.md.path, (await st.read(e.md.path)).text, e.md.version);
         const m = baseName(e.md.path).match(/^(\d{4})-(\d\d)-(\d\d)-(\d\d)-(\d\d)-(\d\d) (.+)$/);
         e.meta = { path: m ? m[7] : baseName(e.md.path), id:t.noId ? '' : t.id, title:t.title, due:t.due, reason:'deleted', by:'this device', device:'',
-          deletedAt: m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : '' };
+          deletedAt: m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : '', parent:t.parent };
       }
+      if (!('parent' in e.meta) && e.meta.reason !== 'replaced') e.meta.parent = parseTask(e.md.path, (await st.read(e.md.path)).text, e.md.version).parent;
       out.push(e);
     } catch (err){ if (!(err instanceof NotFoundError)) throw err; }
   });
@@ -1186,7 +1187,7 @@ async function conflictDialog(t){
   catch (e){ if (e instanceof NotFoundError) gone = true; else console.warn('conflict: their version unreadable', e); }
   return new Promise(resolve => {
     const done = v => { S.conflict = false; setStat(); resolve(v); };
-    const keepMine = async () => { try { await trashPut(t.file, serializeTask(t), { reason:'replaced', by:'this device', id:t.id, title:t.title, due:t.due }); return true; }
+    const keepMine = async () => { try { await trashPut(t.file, serializeTask(t), { reason:'replaced', by:'this device', id:t.id, title:t.title, due:t.due, parent:t.parent }); return true; }
       catch (e){ storeError(e, 'keeping a copy of your version'); return false; } };
     modal(`<h3>Changed elsewhere</h3><p><b>${esc(t.title)}</b> (<code>${esc(t.file)}</code>) was changed or removed by something else — Claude, another device, or a sync — since this page loaded it.</p>
       ${diffHTML(t, theirs, gone)}
@@ -1199,7 +1200,7 @@ async function conflictDialog(t){
           try { cur = await S.store.read(t.file); } catch (e){ if (!(e instanceof NotFoundError)){ storeError(e, 'overwrite'); return done(false); } }
           if (!cur) return done(await saveTask(t, { force:true }));          // gone elsewhere: re-create mine
           const p = parseTask(t.file, cur.text, cur.version);
-          try { await trashPut(t.file, cur.text, { reason:'replaced', by:'elsewhere', id:p.id, title:p.title, due:p.due }); }
+          try { await trashPut(t.file, cur.text, { reason:'replaced', by:'elsewhere', id:p.id, title:p.title, due:p.due, parent:p.parent }); }
           catch (e){ storeError(e, 'keeping a copy of their version'); return done(false); }
           t.version = cur.version; done(await saveTask(t));
         }
@@ -2456,6 +2457,42 @@ function searchDialog(){
 }
 $('#srch-clear').onclick = () => { S.q = ''; render(); toast('Search cleared'); };          // R2-8 Hidden C
 
+/* R2-8 restore follow-up: how trash entries hang together, by task id and parent: (not by when they were deleted).
+   Only deleted entries count (a replaced version's task still exists); for an id in the trash twice, the newest wins.
+   tree(e) = its trashed subtasks at every level, top level first (a parent always comes back before its subtasks); shown(e) = the
+   same as an indented tree for the dialog;
+   a task that's already back is skipped, but its own trashed subtasks are still found. ancestors(e) = the chain of
+   trashed parents above it, up to the first one that exists, topmost first. A loop of parent ids stops. */
+function trashKin(entries){
+  const byId = new Map();
+  for (const e of entries) if (e.meta.reason !== 'replaced' && e.meta.id && !byId.has(e.meta.id)) byId.set(e.meta.id, e);
+  const kidsOf = new Map();
+  for (const e of byId.values()){ const p = e.meta.parent; if (p){ if (!kidsOf.has(p)) kidsOf.set(p, []); kidsOf.get(p).push(e); } }
+  const tree = root => {
+    const out = [], seen = new Set([root.meta.id]); let level = [root.meta.id], depth = 0;
+    while (level.length){ depth++; const next = [];
+      for (const id of level) for (const k of kidsOf.get(id) || []){
+        if (seen.has(k.meta.id)) continue; seen.add(k.meta.id); next.push(k.meta.id);
+        if (!S.tasks.has(k.meta.id)) out.push({ e:k, depth });
+      }
+      level = next; }
+    return out;
+  };
+  const shown = root => {                       // the same entries for showing: as a tree, each task followed by its subtasks
+    const out = [], seen = new Set([root.meta.id]);
+    const walk = (id, depth) => { for (const k of kidsOf.get(id) || []){ if (seen.has(k.meta.id)) continue; seen.add(k.meta.id);
+      if (!S.tasks.has(k.meta.id)) out.push({ e:k, depth }); walk(k.meta.id, depth + 1); } };
+    walk(root.meta.id, 1); return out;
+  };
+  const ancestors = e => {
+    const out = [], seen = new Set([e.meta.id]); let p = e.meta.parent;
+    while (p && !S.tasks.has(p) && byId.has(p) && !seen.has(p)){ seen.add(p); const a = byId.get(p); out.unshift(a); p = a.meta.parent; }
+    return out;
+  };
+  const counts = e => e.meta.reason !== 'replaced' && e.meta.id && byId.get(e.meta.id) === e;   // has kin worth asking about
+  return { tree, shown, ancestors, counts };
+}
+
 /* R2-8 Deleted A: ⋯ → Recently deleted. Every trash entry, due-dated ones first (they matter most), each newest first;
    Restore puts the file back where it was. Full screen on a phone. */
 async function recentlyDeleted(){
@@ -2466,11 +2503,12 @@ async function recentlyDeleted(){
   let entries = [];
   const draw = () => {
     if (!$('#rd-list')) return;
-    const due = entries.filter(e => e.meta.due), rest = entries.filter(e => !e.meta.due);
-    const item = (e, i) => { const m = e.meta, by = m.by === 'elsewhere';
+    const due = entries.filter(e => e.meta.due), rest = entries.filter(e => !e.meta.due), kin = trashKin(entries);
+    const item = (e, i) => { const m = e.meta, by = m.by === 'elsewhere', n = kin.counts(e) ? kin.tree(e).length : 0;
       const what = m.reason === 'replaced' ? (by ? 'Replaced: the other version, overwritten' : 'Replaced: your version, not used') : 'Deleted';
       return `<div class="rd-item${m.due ? ' rd-due' : ''}"><div class="rd-body"><div class="rd-ttl">${esc(m.title || baseName(m.path || e.md.path))}</div>
         ${m.due ? `<div class="rd-duev">Due ${esc(dueText(m.due))}</div>` : ''}
+        ${n ? `<div class="rd-kids">+ ${n} subtask${n > 1 ? 's' : ''}</div>` : ''}
         <div class="rd-meta">${esc(what)}${m.device ? ` on ${esc(m.device)}` : ''}${m.deletedAt ? ` · ${esc(whenText(Date.parse(m.deletedAt)))}` : ''} · <code>${esc(m.path || '')}</code></div></div>
         <button data-a="r:${i}">Restore</button></div>`; };
     const idx = e => entries.indexOf(e);
@@ -2480,18 +2518,63 @@ async function recentlyDeleted(){
   };
   const load = async () => { try { entries = await trashEntries(); draw(); }
     catch (e){ if ($('#rd-list')) $('#rd-list').innerHTML = `<p class="rd-note">Couldn't read the trash: ${esc(e.message)}</p>`; storeError(e, 'reading the trash'); } };
-  modal(shell('<p class="rd-note">Loading…</p>'), async a => {
+  const ask = html => new Promise(res => modal(html, res, opts));
+  const ttl = e => e.meta.title || baseName(e.meta.path || e.md.path);
+  /* R2-8 restore follow-up. Q2: its parent is in the trash too → restore that chain first? Q1: it has trashed subtasks
+     (every level, including ones deleted separately earlier, marked so) → Restore all / Only this task. */
+  const restoreFlow = async e => {
+    const kin = trashKin(entries), asks = kin.counts(e);
+    const ups = asks ? kin.ancestors(e) : [];
+    let withUps = false;
+    if (ups.length){
+      const dad = ups[ups.length - 1], more = ups.length - 1;          // its direct parent, then the chain above it
+      const a = await ask(`<h3>Restore its parent too?</h3><p>Its parent <b>${esc(ttl(dad))}</b> is also in Recently deleted${more ? ` (and ${more} task${more > 1 ? 's' : ''} above it)` : ''} — restore ${more ? 'them' : 'it'} too?</p>
+        <p class="rd-note">Without ${more ? 'them' : 'it'}, <b>${esc(ttl(e))}</b> comes back without its parent.</p>
+        <div class="btns"><button data-a="cancel">Cancel</button><button data-a="only">Only this task</button><button class="primary" data-a="up">Restore ${more ? 'them' : 'parent'} too</button></div>`);
+      if (a !== 'only' && a !== 'up') return;
+      withUps = a === 'up';
+    }
+    const subs = asks ? kin.tree(e) : [];
+    let withSubs = false;
+    if (subs.length){
+      const MAX = 10, levels = Math.max(...subs.map(s => s.depth)) + 1, at = Date.parse(e.meta.deletedAt || '');
+      const earlier = s => { const w = Date.parse(s.e.meta.deletedAt || ''); return at && w && Math.abs(at - w) > 60000; };
+      const li = s => `<li style="margin-left:${(s.depth - 1) * 14}px">${esc(ttl(s.e))}${s.e.meta.due ? ` <span class="dl-sdue">· due ${esc(dueText(s.e.meta.due))}</span>` : ''}${earlier(s) ? ' <span class="rd-meta">· deleted separately</span>' : ''}</li>`;
+      const a = await ask(`<h3>Restore its subtasks too?</h3><p>Restore <b>${esc(ttl(e))}</b> and its ${subs.length} subtask${subs.length > 1 ? 's' : ''}${levels > 2 ? ` (${levels} levels)` : ''}?</p>
+        <ul class="dl-subs">${kin.shown(e).slice(0, MAX).map(li).join('')}${subs.length > MAX ? `<li class="dl-more">and ${subs.length - MAX} more</li>` : ''}</ul>
+        <div class="btns"><button data-a="cancel">Cancel</button><button data-a="only">Only this task</button><button class="primary" data-a="all">Restore all</button></div>`);
+      if (a !== 'only' && a !== 'all') return;
+      withSubs = a === 'all';
+    }
+    const plan = [...(withUps ? ups : []), e, ...(withSubs ? subs.map(s => s.e) : [])], done = [];
+    modal(shell('<p class="rd-note">Restoring…</p>'), () => {}, opts);
+    busy(1);
+    try {
+      for (const x of plan){
+        if (plan.length > 1) toast(`Restoring ${done.length + 1} of ${plan.length}…`);
+        done.push({ file: await trashRestore(x), x });
+      }
+    } catch (err){ storeError(err, 'restore'); }
+    finally { busy(-1); syncLists(); render(); }
+    if (!done.length) return;
+    const left = plan.length - done.length, renamed = done.filter(d => d.file !== d.x.meta.path);
+    toast(left ? `Restored ${done.length} of ${plan.length} — ${left} ${left > 1 ? 'are' : 'is'} still in Recently deleted.`
+      : plan.length > 1 ? `Restored ${plan.length} tasks${renamed.length ? ` (${renamed.length} under a new name — the name was taken)` : ''}`
+      : renamed.length ? `Restored as ${done[0].file} (the name was taken)` : `Restored “${ttl(e)}”`);
+    showUndo(done.length > 1 ? `Restored “${ttl(done[0].x)}” and ${done.length - 1} more` : `Restored “${ttl(e)}”`, async () => {
+      busy(1);                                  // one Undo for the whole restore: deleted again (back to the trash), subtasks first
+      try { for (const d of [...done].reverse()){ const t = all().find(x => x.file === d.file); if (t) await removeTask(t); } }
+      finally { busy(-1); syncLists(); render(); }
+    }, 15000);
+  };
+  const open = () => modal(shell('<p class="rd-note">Loading…</p>'), async a => {
     if (a === 'close') return closeModal();
     if (!a.startsWith('r:')) return;
     const e = entries[+a.slice(2)]; if (!e || e.busy) return; e.busy = true;
-    busy(1);
-    try { const file = await trashRestore(e); syncLists(); render();
-      toast(file === e.meta.path ? `Restored “${e.meta.title || file}”` : `Restored as ${file} (the name was taken)`); }
-    catch (err){ storeError(err, 'restore'); }
-    finally { busy(-1); e.busy = false; }
-    await load();
+    try { await restoreFlow(e); } finally { e.busy = false; }
+    open(); await load();
   }, opts);
-  await load();
+  open(); await load();
 }
 function diagnosticsDialog(){
   let log = []; try { log = JSON.parse(localStorage.getItem('todo.deviceLog') || '[]'); } catch {}

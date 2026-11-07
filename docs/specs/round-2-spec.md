@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified on PC** (build 2026-11-01b, merged to `main` 2026-11-07; phone check pending: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
+| R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: built** (build 2026-11-07a, branch `r2-8-restore-tree`, awaiting Geoff's test) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -831,7 +831,7 @@ Status: **Deferred**. Raise it again when the import is discussed.
 
 ### Phase 1 — as built (build 2026-11-01b; verified on PC 2026-11-07, merged to `main`)
 
-**Geoff's PC test (2026-10-31 to 2026-11-07, `HTML-ToDo-App-Test` on real OneDrive, served from `http://localhost:8000/app/`): all 7 passed.** Delete dialog + Recently deleted + Restore (the `.trash` folder on real OneDrive, no trash files shown as tasks after a refresh); demote guard; conflict comparison + replaced version in the trash; unsaved-changes offer (Restore and Discard); Check all second tap, revert and Undo; search bar; overdue badge. **Still to check on the phone** after the merge.
+**Geoff's PC test (2026-10-31 to 2026-11-07, `HTML-ToDo-App-Test` on real OneDrive, served from `http://localhost:8000/app/`): all 7 passed.** Delete dialog + Recently deleted + Restore (the `.trash` folder on real OneDrive, no trash files shown as tasks after a refresh); demote guard; conflict comparison + replaced version in the trash; unsaved-changes offer (Restore and Discard); Check all second tap, revert and Undo; search bar; overdue badge. **Phone check (2026-11-07): passed** (build number, Recently deleted at phone size, Check all). It found that subtasks restore one at a time → the restore follow-up below.
 **Status: Built** (Deleted A, C, D · Overwritten A, B, C · Checked off D · Hidden C, D). Built on the branch `r2-8-phase1`, not merged; Geoff's check on phone and PC is next.
 
 **Deleted A — trash for every store + Recently deleted:**
@@ -895,6 +895,55 @@ Reviewed 2026-10-31. Geoff chose not to add these options to the spec.
 **Note (Geoff, 2026-10-31: "note the git history"):** revisit a **local-only git history of the task folder** when Claude (or another AI) starts managing tasks regularly.
 - **How:** a scheduled job commits the folder daily, kept on the home PC only.
 - **Why:** any change, including an AI's bulk change, can be found and undone precisely, which goes beyond OneDrive's 30-day safety nets.
+
+### Follow-up: restore a task with its subtasks (Geoff, 2026-11-07)
+**Found** in Geoff's phone check of Phase 1: "When i deleted a task with subtasks (the task itself was a subtask of another task), and then tapped delete all... I restored the parent task, but none of its subtasks were automatically restored. I had to seperately restored each of the parent tasks subtasks". **Asked:** "Is there a way to modify the restore function so I have the option to restor the task and all it's subtasks just like the delete screen gives me the option…". Also: "what about restoring a task with 7 levels of subtasks?"
+
+**Options pitched:**
+- **A:** Restore asks, like Delete does.
+- **B:** a grouped list (one entry per delete).
+- **C:** both.
+
+Claude recommended A plus a "+ N subtasks" note on the parent's entry.
+
+**Decision (Geoff, 2026-11-07): A plus the "+ N subtasks" note, with both details as recommended. Approved for build** ("add it to the spec and you are approved to build it").
+1. **Subtasks deleted separately, earlier, are included** (they still point to the parent). They're listed, marked "deleted separately", before you confirm.
+2. **Restoring a subtask alone while its parent is in the trash asks:** "Its parent *X* is also in Recently deleted — restore it too?"
+
+**As built (build 2026-11-07a, branch `r2-8-restore-tree`):**
+- **How entries hang together:** by task `id` and `parent:`, not by deletion time. The sidecar now records `parent`. Entries from before this build have no `parent` in their sidecar, so it is read from the trashed file once. Replaced versions don't count (their task still exists). For an id that's in the trash twice, the newest entry wins.
+- **The list:** a parent's entry says **"+ N subtasks"**, counting every level.
+- **Restore, in order:**
+    1. **Its parent is in the trash too (decision 2):** "Restore its parent too? — Its parent *X* is also in Recently deleted (and N tasks above it) — restore them too?" Buttons: **Cancel / Only this task / Restore parent too**. "Too" brings back the chain of trashed parents up to the first one that exists.
+    2. **It has trashed subtasks:** "Restore *X* and its N subtasks (L levels)?" The list is indented as a tree (first 10, then "and N more"), with due dates. Subtasks deleted earlier are marked "deleted separately" (decision 1). Buttons: **Cancel / Only this task / Restore all**.
+- **Any depth:**
+    - Subtasks are found level by level until a level turns up nothing; a loop of parent ids stops.
+    - Files are restored **top level first**, so a subtask never comes back before its parent.
+    - A task that's already back is skipped, but its trashed subtasks are still found.
+    - A taken file name gets the unique-name rule; nesting goes by `id`, so it's unaffected.
+- **Progress and failures:**
+    - "Restoring 9 of 24…" while it runs.
+    - If it stops (e.g. the connection drops), what's back stays back: "Restored 9 of 24 — 15 are still in Recently deleted." Restore on the highest remaining entry finishes the job.
+- **Undo:** one Undo (15 s) for the whole restore. It deletes the restored tasks again, subtasks first, so they go back to the trash.
+- **Not changed:** a task with nothing related in the trash restores at once, as before.
+
+**Tests:**
+- **Demo:** the Phase 1 restore now asks; "+ 3 subtasks"; Only this task.
+- **New group (fake OneDrive, phone):** a 7-level tree plus a sibling.
+    - the delete dialog lists all 7
+    - "+ 7 subtasks", and "+ 3" on a middle task, with the parent removed from the sidecars
+    - the dialog: 7 subtasks, 7 levels, indented as a tree
+    - hostile titles stay text
+    - Restore all: exact text back, trash empty, every parent before its subtasks
+    - one Undo
+    - decision 2: a middle task's chain of 3 parents, then its own subtasks; the sibling restores without a question
+    - a connection lost after 3 files, then finishing from the highest remaining entry
+    - decision 1: "deleted separately" marked; Only this task; finishing from the next level
+    - no writes without If-Match, no page errors
+
+  Full suite: **591 checks pass**.
+
+**Status:** Built, awaiting Geoff's test on the copy folder (`http://localhost:8000/app/`).
 
 ---
 
@@ -1030,6 +1079,8 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-8 | **Restore follow-up: A + "+ N subtasks" note decided and approved for build**; subtasks deleted separately are included (marked); a subtask whose parent is trashed asks to restore the parent too | Built as 2026-11-07a on branch `r2-8-restore-tree` |
+| 2026-11-07 | R2-8 | **Phase 1 verified on the phone** | |
 | 2026-11-07 | R2-8 | **Phase 1 verified on PC (all 7 tests) and merged to `main`** at Geoff's request ("yes, merge it") | Phone check on the live app next |
 | 2026-10-31 | R2-9 | **Added** (Alexa voice capture); options 1, 2a–2c pitched; nothing decided | IFTTT has no Alexa trigger (checked); Alexa list API withdrawn |
 | 2026-11-01 | R2-8 | **Review fixes (build 2026-11-01b):** hostile-text tests for the new dialogs; armed Check all keeps its colour. Next: Geoff tests on the copy folder, then merge on his OK | |
@@ -1059,6 +1110,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v30: R2-8 Phase 1 verified on the phone; restore follow-up (restore with subtasks at any depth, parent question) decided, approved and built (2026-11-07a).
 - 2026-11-07 — v29: R2-8 Phase 1 verified on PC (Geoff's 7 tests on the copy folder) and merged to `main`.
 - 2026-10-31 — v28: R2-9 added (add tasks by voice with Amazon Echo): constraints, two approaches with sweeper variants, recommendation, open questions.
 - 2026-11-01 — v27: R2-8 Phase 1 review fixes (build 2026-11-01b): hostile-text tests for the new dialogs; the armed Check all is no longer red.
