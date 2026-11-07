@@ -945,6 +945,33 @@ Claude recommended A plus a "+ N subtasks" note on the parent's entry.
 
 **Status:** Built, awaiting Geoff's test on the copy folder (`http://localhost:8000/app/`).
 
+### Speed of delete and restore (Geoff, 2026-11-07)
+**Noticed** while testing the follow-up: "it does take a little longer to process a deep level task tree". **Asked:** "does the delete or restore process change the files themselves at all?"
+
+**Why it's slow:** each task is handled one at a time, one OneDrive request per step.
+- **Delete** is 3 requests: copy to `.trash`, write the `.json` note, delete the original (which also goes to OneDrive's recycle bin).
+- **Restore** is about 4: read the copy, create the file, remove the copy, remove the note.
+- **Opening Recently deleted** reads each note, and for entries from before build 2026-11-07a, the file too.
+- **An 8-task tree** is about 30 requests in a row.
+
+**Files are not changed:**
+- The trash copy is the exact text, and Restore writes it back unchanged.
+- Delete never edits the task first.
+- **What does differ after a restore:** OneDrive sees a new file, with a new item id, new dates, and version history starting again (the old history stays with the deleted original in the recycle bin). A taken name gets the unique-name rule.
+
+**Options:**
+- **A. Each level in parallel:** all subtasks of one level at once, then the next level (parents still first). Small change; noticeably faster on deep or wide trees.
+- **B. A real move instead of copy + delete:** Graph `PATCH` of the item's parent into `.trash` and back.
+    - **Pros:** one request per file instead of 3–4; the file keeps its OneDrive id and version history (a data-safety gain).
+    - **Cons:** a bigger change, and the local-folder store (`FsStore`, the work PC) needs checking; Chrome's `move()` support for folders must be verified.
+- **C. Graph JSON batching:** up to 20 requests in one call. The fastest and the most complex.
+
+**Recommendation (Claude):** B, as the long-term fix.
+
+**Decision (Geoff, 2026-11-07):** recorded, **no action**. "I will explore this further if I feel the delete / restore process is unacceptable. For now, I am guessing I will rarely need to delete and even more rarely need to restore a delete."
+
+**Status:** Open (parked).
+
 ---
 
 ## R2-9 — Add tasks by voice with Amazon Echo (Alexa)
@@ -1079,6 +1106,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-8 | **Delete/restore speed:** options A (levels in parallel), B (a real OneDrive move; Claude recommends), C (batching) recorded; **no action** until Geoff finds it unacceptable | Files' content is never changed; a restore is a new OneDrive item |
 | 2026-11-07 | R2-8 | **Restore follow-up: A + "+ N subtasks" note decided and approved for build**; subtasks deleted separately are included (marked); a subtask whose parent is trashed asks to restore the parent too | Built as 2026-11-07a on branch `r2-8-restore-tree` |
 | 2026-11-07 | R2-8 | **Phase 1 verified on the phone** | |
 | 2026-11-07 | R2-8 | **Phase 1 verified on PC (all 7 tests) and merged to `main`** at Geoff's request ("yes, merge it") | Phone check on the live app next |
@@ -1110,6 +1138,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v31: R2-8 delete/restore speed options A–C recorded (B recommended), parked by Geoff.
 - 2026-11-07 — v30: R2-8 Phase 1 verified on the phone; restore follow-up (restore with subtasks at any depth, parent question) decided, approved and built (2026-11-07a).
 - 2026-11-07 — v29: R2-8 Phase 1 verified on PC (Geoff's 7 tests on the copy folder) and merged to `main`.
 - 2026-10-31 — v28: R2-9 added (add tasks by voice with Amazon Echo): constraints, two approaches with sweeper variants, recommendation, open questions.
