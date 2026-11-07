@@ -142,7 +142,7 @@ def test_phone_demo(browser):
     page.goto(APP)
     page.wait_for_selector(".row")
     check("header shows the list name", page.inner_text("#list-label").strip() == "Home", page.inner_text("#list-label"))
-    check("version is in the page (shown in the header on PCs, in Settings on phones)", "0.2.0-dev" in page.text_content("#ver"), page.text_content("#ver"))
+    check("R2-10: the header shows the build (PCs; Settings on phones), not the version", page.text_content("#ver") == page.evaluate("__todo.BUILD") and "0.2.0" not in page.text_content("#ver"), page.text_content("#ver"))
     page.screenshot(path=str(SHOTS / "01-phone-list-home.png"))
 
     fs = page.eval_on_selector(".row .ttl", "t => parseFloat(getComputedStyle(t).fontSize)")
@@ -264,7 +264,7 @@ def test_phone_demo(browser):
     page.wait_for_timeout(300)
     fit = page.eval_on_selector("#list-name", "el => [el.scrollWidth, el.clientWidth, parseFloat(el.style.fontSize)]")
     check("list name shrinks to fit at 175% (\"Feedback\" not cut off)", fit[0] <= fit[1] + 1 and fit[2] >= 18, fit)
-    check("phone header hides the version but keeps the status dot", not page.locator("#ver").is_visible() and page.locator("#stat").is_visible())
+    check("phone header hides the build label but keeps the status dot", not page.locator("#ver").is_visible() and page.locator("#stat").is_visible())
     page.screenshot(path=str(SHOTS / "14-phone-175-feedback-header.png"))
     page.evaluate("() => { localStorage.setItem('todo.textSize', '125'); document.documentElement.style.setProperty('--z', '1.25'); }")
 

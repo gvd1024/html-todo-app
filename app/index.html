@@ -79,7 +79,7 @@ header{display:flex;gap:6px;align-items:center;padding:6px 8px 6px 4px;border-bo
 .spacer{flex:1}
 .ver{font-size:calc(11px*var(--z));color:var(--muted);white-space:nowrap}
 @media (max-width:600px){                        /* phones: the list name gets the room */
-  .ver{display:none}                             /* the version is shown in Settings */
+  .ver{display:none}                             /* the build is shown in Settings */
   header{padding-right:0;gap:0}
   header .stat{min-width:calc(16px*var(--z));padding:0 2px}                    /* status dot sits right next to ⋯ */
   #app-menu{min-width:calc(30px*var(--z));text-align:right;padding:0 8px 0 0} /* ⋯ flush with the right edge; tap area stays full height */
@@ -297,7 +297,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
 <header>
   <button id="list-name" class="list-name" title="Switch list"><span id="list-label">…</span><span class="caret">▾</span><span id="od-head" class="od-badge" hidden></span></button>
   <span class="spacer"></span>
-  <span class="ver" id="ver"></span>
+  <span class="ver" id="ver" title="Build"></span>
   <button id="stat" class="stat off" title="">○</button>
   <button id="app-menu" class="icon" title="Menu">⋯</button>
 </header>
@@ -370,7 +370,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-07a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-07b';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -1318,7 +1318,7 @@ function render(){
   S.renderDay = today();
   syncListsQuiet();
   $('#list-label').textContent = S.view === 'due' ? 'Today' : (S.list || '…');
-  $('#ver').textContent = 'v' + APP_VERSION;
+  $('#ver').textContent = BUILD;                     // R2-10: the build in the header; the version is in Settings
   fitListName();
   $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${S.list}…`;
   qaChips();

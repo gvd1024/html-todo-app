@@ -22,7 +22,7 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
    - Log every decision in the spec's Decision log, and keep the spec's change history.
    - Statuses: `Open → Discussing → Decided → Approved for build → Built → Verified`.
 4. **Specs are Markdown only.** No HTML copies.
-5. **Versioning:** app version in `APP_VERSION` (shown in the header) plus a separate **data format** (`DATA_FORMAT`, written to `_todo.json`). Released: v0.1.0, v0.1.1 (git tag `v0.1.1`). In progress: **v0.2.0-dev**. Data format 2 added `prefix` and `completed` (statuses open/active/done/archived); **data format 3** (2026-10-20) adds `repeat` and `series`. The full R1-6 scheme can follow later.
+5. **Versioning:** app version in `APP_VERSION` (shown in Settings; the header shows `BUILD`, R2-10) plus a separate **data format** (`DATA_FORMAT`, written to `_todo.json`). Released: v0.1.0, v0.1.1 (git tag `v0.1.1`). In progress: **v0.2.0-dev**. Data format 2 added `prefix` and `completed` (statuses open/active/done/archived); **data format 3** (2026-10-20) adds `repeat` and `series`. The full R1-6 scheme can follow later.
 6. **Geoff reviews before anything is executed.** Propose, wait for approval, then act. He wants detailed technical explanations with honest tradeoffs, and both simple and more complex options. He prefers phased checklists and a casual, direct tone.
 7. **Resolve the hardest or most architecturally dependent problems first** (Geoff's design approach). The storage and phone requirements (R1-9, R1-10) come before UI polish.
 8. **Verify before saying something doesn't exist.** Geoff has caught wrong "that's not possible" answers before.

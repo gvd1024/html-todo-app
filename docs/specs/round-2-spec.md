@@ -26,6 +26,7 @@ Same as round 1:
 | R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: verified on PC** (build 2026-11-07a, on `main` since 2026-11-07) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
+| R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -1040,6 +1041,25 @@ Claude recommended A plus a "+ N subtasks" note on the parent's entry.
 
 ---
 
+## R2-10 — Build number in the header, version in Settings
+
+**Asked** (Geoff, 2026-11-07), about the "v0.2.0-dev" at the top right: "what is that for?" Then: "i would rather see the build number at the top and the version being worked on in the setting".
+
+**Options:**
+- **A:** the plain build (`2026-11-07a`) at the top right. About the same width as `v0.2.0-dev`; the tooltip on a PC says "Build".
+- **B:** "build 2026-11-07a". Clearer, but wider on a phone.
+
+**Decision (Geoff, 2026-11-07): A ("go ahead with the plain version"), approved.**
+
+**As built (build 2026-11-07b):**
+- The header label shows `BUILD` instead of `v` + `APP_VERSION`.
+- Settings already showed the version, build and data format ("HTML-ToDo-App v0.2.0-dev · build … · data format 3"); unchanged.
+- Phones still hide the header label to save room, so on a phone the build is in Settings, as before.
+
+**Status:** Built (pushed to `main` directly, as agreed).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1106,6 +1126,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-10 | **A decided and approved** (the plain build in the header; version in Settings) | Built as 2026-11-07b |
 | 2026-11-07 | R2-8 | **Restore follow-up verified on PC and merged to `main`** (build 2026-11-07a) | |
 | 2026-11-07 | R2-8 | **Delete/restore speed:** options A (levels in parallel), B (a real OneDrive move; Claude recommends), C (batching) recorded; **no action** until Geoff finds it unacceptable | Files' content is never changed; a restore is a new OneDrive item |
 | 2026-11-07 | R2-8 | **Restore follow-up: A + "+ N subtasks" note decided and approved for build**; subtasks deleted separately are included (marked); a subtask whose parent is trashed asks to restore the parent too | Built as 2026-11-07a on branch `r2-8-restore-tree` |
@@ -1139,6 +1160,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v33: R2-10 added and built (build number in the header).
 - 2026-11-07 — v32: R2-8 restore follow-up verified on PC and merged (2026-11-07a).
 - 2026-11-07 — v31: R2-8 delete/restore speed options A–C recorded (B recommended), parked by Geoff.
 - 2026-11-07 — v30: R2-8 Phase 1 verified on the phone; restore follow-up (restore with subtasks at any depth, parent question) decided, approved and built (2026-11-07a).
