@@ -23,7 +23,7 @@ Same as round 1:
 | R2-4 | Default task folder next to the app | **Built** | B: `<root>\data`, path shown to paste into the folder dialog, plus a check on the pick |
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
-| R2-8 | Don't lose anything (data-safety review) | **Phase 1 built** (build 2026-11-01b, branch `r2-8-phase1`, awaiting Geoff's test on the copy folder: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
+| R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified on PC** (build 2026-11-01b, merged to `main` 2026-11-07; phone check pending: Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D) · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
 | R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -829,7 +829,9 @@ Status: **Deferred**. Raise it again when the import is discussed.
 - **Then:** a prototype on the test folder → migrate the real folder → the SP/To Do import.
 - **Until Phase 2:** deletions made outside the app are covered only by OneDrive's recycle bin, version history and Files Restore.
 
-### Phase 1 — as built (build 2026-11-01b, branch `r2-8-phase1`, awaiting Geoff's test on the copy folder)
+### Phase 1 — as built (build 2026-11-01b; verified on PC 2026-11-07, merged to `main`)
+
+**Geoff's PC test (2026-10-31 to 2026-11-07, `HTML-ToDo-App-Test` on real OneDrive, served from `http://localhost:8000/app/`): all 7 passed.** Delete dialog + Recently deleted + Restore (the `.trash` folder on real OneDrive, no trash files shown as tasks after a refresh); demote guard; conflict comparison + replaced version in the trash; unsaved-changes offer (Restore and Discard); Check all second tap, revert and Undo; search bar; overdue badge. **Still to check on the phone** after the merge.
 **Status: Built** (Deleted A, C, D · Overwritten A, B, C · Checked off D · Hidden C, D). Built on the branch `r2-8-phase1`, not merged; Geoff's check on phone and PC is next.
 
 **Deleted A — trash for every store + Recently deleted:**
@@ -1028,6 +1030,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-07 | R2-8 | **Phase 1 verified on PC (all 7 tests) and merged to `main`** at Geoff's request ("yes, merge it") | Phone check on the live app next |
 | 2026-10-31 | R2-9 | **Added** (Alexa voice capture); options 1, 2a–2c pitched; nothing decided | IFTTT has no Alexa trigger (checked); Alexa list API withdrawn |
 | 2026-11-01 | R2-8 | **Review fixes (build 2026-11-01b):** hostile-text tests for the new dialogs; armed Check all keeps its colour. Next: Geoff tests on the copy folder, then merge on his OK | |
 | 2026-11-01 | R2-8 | **Phase 1 built on branch r2-8-phase1, awaiting review** (build 2026-11-01a; 557 checks pass) | Not merged to `main`; Geoff approves the merge |
@@ -1056,6 +1059,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-07 — v29: R2-8 Phase 1 verified on PC (Geoff's 7 tests on the copy folder) and merged to `main`.
 - 2026-10-31 — v28: R2-9 added (add tasks by voice with Amazon Echo): constraints, two approaches with sweeper variants, recommendation, open questions.
 - 2026-11-01 — v27: R2-8 Phase 1 review fixes (build 2026-11-01b): hostile-text tests for the new dialogs; the armed Check all is no longer red.
 - 2026-11-01 — v26: R2-8 Phase 1 built (build 2026-11-01a, branch `r2-8-phase1`): trash + Recently deleted, demote/delete care, conflict diff, replaced versions kept, auto-saved drafts, Check all second tap, search bar, overdue badge.
