@@ -467,7 +467,47 @@ Same as round 1:
 - a compatibility check against the task-file contract, R2-7 A (device copy), R2-6, the work-PC setup and the network lock
 - a migration plan Geoff approves
 
-**Status:** **Decided (B)**, not approved for build. The implementation discussion comes first.
+### Implementation discussion (started 2026-11-08)
+**Decisions so far (Geoff, 2026-11-08):**
+1. **Nesting:** "lets start out with one level deep only allowed. But where possible, structure the design and implementation in a way that supports a tree structure later."
+    - Every folder is identified by its path relative to the task folder, using `/`: `Real Todo` now, `Home/Garden` later.
+    - "One level" is a single validation rule that can be lifted later, without moving files or changing the format.
+2. **"List" is replaced by "Folder" completely:** "i want to comletely remove the idea of a list and replace it with the idea of a folder."
+    - **UI:** the folder picker, Move to folder…, "Add a task to *Folder*…".
+    - **`_todo.json`:** `"lists"` becomes `"folders"`, which holds only the display order, as paths (tree-ready).
+3. **No folder field in the frontmatter; the path is the truth** (Geoff agreed with Claude's recommendation). `list:` is removed from every file in the migration.
+    - **Reasons:**
+        - Every tool that sees a file sees its path: Explorer, editors, Graph's `parentReference`, Claude.
+        - With a tree, a field would make renaming or moving a folder rewrite every file beneath it. Without one it rewrites nothing.
+        - No disagreement between a field and the location.
+    - **Accepted cost:** a file seen completely on its own, without its location, doesn't say where it belongs. The trash note already records the original path.
+4. **Same-folder rule, enforced:** "I will have it enforce the parent/child/grandchild all being in the same folder rule." A whole family sits in the exact same folder.
+    - Moving a task in the app moves its subtree. Making a task a subtask of one in another folder moves it (with its subtree) into that folder.
+    - Subtasks are still not subfolders; `parent:` stays the truth for nesting.
+5. **Moving a subtask alone to another folder:** "give me the option to cancel or make it a top level task in the new folder."
+6. **Subtasks left behind by a move outside the app** (e.g. a parent dragged in Explorer without them): **ask, one tap**.
+    - They still show under the parent, marked ⚠, with "Move N subtasks to *Folder*".
+    - Nothing moves until Geoff taps.
+7. **No Home or Inbox folder.** Files directly in the task folder belong to the top folder, shown as **"/ (root)"**.
+    - **Why `/`:** OneDrive, the phone, web paths and the app's own folder paths all use it. Windows also accepts `/`.
+8. **Folder-name rules** (Geoff asked about leading slashes; a slash is refused anywhere, since it means "subfolder"):
+    - no `/ \ : * ? " < > |`
+    - not starting with `.` or `_` (hidden/system, e.g. `.trash`)
+    - no trailing space or dot
+    - no Windows reserved names (`CON`, `NUL`, `COM1`, …)
+    - unique ignoring case
+
+    So no folder can ever be named "/ (root)".
+
+**Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
+- **Done 2026-11-08, before any migration:**
+    - **Backup:** a zip of the whole folder (559 files, verified) in `private/backups/` (local, git-ignored).
+    - **Deleted:** 516 files (Home: the 500 bulk-test tasks plus 11 early test tasks; Test List: 5) went to the Windows Recycle Bin and OneDrive's recycle bin.
+    - **`_todo.json`:** Inbox, Home and Test List removed from its lists.
+- **Remaining:** 42 tasks (Real Todo 33, Feedback 5, Entertainment 4). No family crossed lists.
+- **After the migration:** `/ (root)` (empty) plus the folders `Real Todo`, `Feedback`, `Entertainment`.
+
+**Status:** **Decided (B)**; implementation discussion in progress (above). Not approved for build.
 
 ---
 
@@ -1264,6 +1304,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-08 | R2-5 | **Implementation decisions 1–8:** one level (tree-ready); List → Folder everywhere; no folder field (path is the truth, `list:` removed); same-folder rule enforced; subtask alone → Cancel / top-level there; left behind → ask, one tap; top = "/ (root)", no Home/Inbox; folder-name rules | Real folder cleaned: 516 test files deleted (backup kept); 42 tasks in 3 lists remain |
 | 2026-11-07 | R2-11–15 | **Verified on the phone** (keyboard Enter in the add line and the editor, due ✕, ↑ ↓ ● tap size) | |
 | 2026-11-07 | R2-11–15 | **Verified on PC and merged to `main`** (build 2026-11-07c) at Geoff's request ("it all looks good merge") | Phone check passed the same day |
 | 2026-11-07 | R2-11–15 | **Approved and built** as one build (2026-11-07c, branch `r2-11-fast-entry`); R2-15 added (Delete all readable). Geoff: the phone keeps the build in Settings only; the 500 bulk-test tasks stay (for performance); the Feedback review waits | 627 checks pass |
@@ -1305,6 +1346,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-08 — v39: R2-5 implementation discussion started (decisions 1–8); real-folder cleanup recorded.
 - 2026-11-07 — v38: R2-11 to R2-15 verified on the phone.
 - 2026-11-07 — v37: R2-11 to R2-15 verified on PC and merged (2026-11-07c).
 - 2026-11-07 — v36: R2-11 to R2-14 approved and built; R2-15 (Delete all readable) added and built (build 2026-11-07c).
