@@ -137,6 +137,7 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center;width:100vw;max-width:100vw;white-space:normal;position:sticky;left:0}
 .qbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;font-size:calc(12px*var(--z));height:calc(32px*var(--z));padding:0 calc(7px*var(--z));margin:0 2px;white-space:nowrap;position:relative}
 /* T1-10 (R1-12 #8): compact buttons keep their look but get a 44 px tall tap area */
+.stray-chip{color:var(--warn);font-size:calc(12px*var(--z));margin-left:8px;white-space:nowrap}
 .stray-btn{border:1px solid var(--warn);color:var(--warn);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;white-space:nowrap}
 .qbtn.qarrow{min-width:calc(24px*var(--z));width:calc(24px*var(--z));padding:0;margin:0;border:0;background:none;font-size:calc(17px*var(--z));line-height:1}   /* R2-14: ↑ ↓ ●, plain icons; the tall tap area comes from .qbtn::after */
 .qbtn.qdot{font-size:calc(12px*var(--z))} .qgap{flex:0 0 calc(24px*var(--z))}   /* keeps ↑ ↓ lined up on today's rows */
@@ -387,7 +388,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-08b';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-08c';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -1548,13 +1549,14 @@ function prefixHTML(t){
 function rowHTML(t, depth, opts = {}){
   const subs = subtasksOf(t); const doneN = subs.filter(k => k.status === 'done').length; const open = subs.length - doneN;
   const strays = opts.flat ? 0 : strayCount(t);
+  const par = depth && !opts.flat && hasParent(t) ? get(t.parent) : null, away = par && par.list !== t.list ? t.list : null;   // R2-5: this subtask's file is in another folder
   const expanded = S.expanded.has(t.id) && !opts.flat;
   const warn = t.unknown?.length || t.readonly || t.dupOf;
   const warnTip = t.readonly ? 'Unreadable frontmatter' : t.dupOf ? `Two files share id ${t.dupOf} — often a conflict copy` : 'Unrecognized frontmatter: ' + (t.unknown || []).join(', ');
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
+    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}${away != null ? `<span class="stray-chip" title="This subtask's file is in “${esc(fname(away))}”, not in its parent's folder — ⚠ on the parent moves it">⚠ in ${esc(fname(away))}</span>` : ''}</div>
     <div class="act">${opts.arrows ? `<button class="qbtn qarrow" data-act="q-up" title="Move to the next day" aria-label="Move to the next day">↑</button><button class="qbtn qarrow" data-act="q-down" title="Move to the previous day" aria-label="Move to the previous day">↓</button>${t.due !== today() ? `<button class="qbtn qarrow qdot" data-act="q-dot" title="Move to today" aria-label="Move to today">●</button>` : '<span class="qgap" aria-hidden="true"></span>'}` : ''}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}${strays ? `<button class="stray-btn" data-act="strays" title="${strays} subtask${strays > 1 ? 's are' : ' is'} in another folder — tap to move ${strays > 1 ? 'them' : 'it'} here">⚠ ${strays}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);

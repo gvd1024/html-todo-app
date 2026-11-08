@@ -615,7 +615,9 @@ Full suite: 637 checks pass.
 3. With his OK: back up and convert the real folder.
 4. Merge, then a phone check.
 
-**Status:** Built, awaiting Geoff's test.
+**Follow-up (Geoff's test, 2026-11-08):** after dragging a parent in Explorer, its subtasks looked moved (they show under the parent) though their files hadn't moved; ⚠ 4 on the parent moved them. Geoff: "add the per-row marker". **Built (2026-11-08c):** each subtask row whose file is in another folder than its parent's shows "⚠ in *Folder*".
+
+**Status:** Built, being tested by Geoff (all tested steps passed so far).
 
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
 - **Done 2026-11-08, before any migration:**
