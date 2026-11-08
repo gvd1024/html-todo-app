@@ -24,7 +24,7 @@ from playwright.sync_api import sync_playwright
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from fake_graph import FakeGraph  # noqa: E402
+from fake_graph import FakeGraph, Files  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "tests" / "screenshots"
@@ -63,11 +63,15 @@ def serve():
     return httpd
 
 
+FGET_JS = r"""window.__fget = n => { const f = window.__todo?.S?.store?.files; if (!f) return undefined; if (f.has(n)) return f.get(n); for (const [k, v] of f) if (k.endsWith('/' + n)) return v; };"""
+
+
 def new_page(browser, *, phone=False, init=""):
     ctx = browser.new_context(**({"viewport": {"width": 412, "height": 860}, "is_mobile": True, "has_touch": True,
                                    "user_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0 Mobile Safari/537.36"}
                                 if phone else {"viewport": {"width": 1280, "height": 860}}))
     page = ctx.new_page()
+    page.add_init_script(FGET_JS)
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     # expected HTTP failures (412/409/404 in conflict tests) are logged by Chrome as "Failed to load resource" — not app errors
@@ -189,37 +193,37 @@ def test_phone_demo(browser):
     row(page, "Fix gate latch").locator(".ck").click()
     page.click("#modal button:has-text('Check only this')")
     page.wait_for_timeout(200)
-    txt = page.evaluate("() => __todo.S.store.files.get('fix-gate-latch.md').text")
+    txt = page.evaluate("() => __fget('fix-gate-latch.md').text")
     check("tapping a checkbox marks it done and saves the file", "status: done" in txt and "done" in row(page, "Fix gate latch").get_attribute("class"), txt[:80])
     row(page, "Fix gate latch").locator(".ck").click()
     page.wait_for_timeout(200)
-    check("tapping again unchecks it", "status: open" in page.evaluate("() => __todo.S.store.files.get('fix-gate-latch.md').text"))
+    check("tapping again unchecks it", "status: open" in page.evaluate("() => __fget('fix-gate-latch.md').text"))
     check("bullet rows have no checkbox", True)
 
     # quick-add
     page.fill("#qa", "Buy milk")
     page.press("#qa", "Enter")
     page.wait_for_timeout(250)
-    has = page.evaluate("() => __todo.S.store.files.has('buy-milk.md')")
+    has = page.evaluate("() => !!__fget('buy-milk.md')")
     check("quick-add creates a task file in the current list", has and row(page, "Buy milk").count() == 1, has)
     check("quick-add clears and keeps focus for the next task", page.input_value("#qa") == "" and page.evaluate("document.activeElement.id") == "qa")
 
     # ⋯ menu
     row(page, "Buy milk").locator(".row-more").click()
     labels = page.eval_on_selector_all("#pop button", "bs => bs.map(b => b.textContent)")
-    check("⋯ menu offers Edit / Move to list / Change prefix / Delete", all(any(x in l for l in labels) for x in ["Edit", "Move to list", "Change prefix", "Delete"]), labels)
+    check("⋯ menu offers Edit / Move to folder / Change prefix / Delete", all(any(x in l for l in labels) for x in ["Edit", "Move to folder", "Change prefix", "Delete"]), labels)
     page.screenshot(path=str(SHOTS / "03-phone-row-menu.png"))
     page.locator("#pop button", has_text="Change prefix").click()
     page.locator("#modal button", has_text="Bullet").click()
     page.wait_for_timeout(200)
-    check("change prefix to bullet saves prefix: bullet", "prefix: bullet" in page.evaluate("() => __todo.S.store.files.get('buy-milk.md').text")
+    check("change prefix to bullet saves prefix: bullet", "prefix: bullet" in page.evaluate("() => __fget('buy-milk.md').text")
           and row(page, "Buy milk").locator(".bullet").count() == 1)
 
     # list picker
     page.click("#list-name")
     page.wait_for_selector("#modal .pick")
     picks = page.eval_on_selector_all("#modal .pick .go", "bs => bs.map(b => b.textContent)")
-    check("list picker shows every list", all(l in picks for l in ["Inbox", "Home", "Rental", "School"]), picks)
+    check("R2-5: the folder picker shows / (root) and every folder", all(l in picks for l in ["/ (root)", "Home", "Rental", "School"]), picks)
     page.screenshot(path=str(SHOTS / "04-phone-list-picker.png"))
     page.locator("#modal .pick .go", has_text="School").click()
     page.wait_for_timeout(150)
@@ -239,7 +243,7 @@ def test_phone_demo(browser):
     page.select_option("#f-prefix", "none")
     page.click("#d-save")
     page.wait_for_timeout(250)
-    saved = page.evaluate("() => __todo.S.store.files.get('register-spring.md').text")
+    saved = page.evaluate("() => __fget('register-spring.md').text")
     check("saving keeps unknown keys untouched (priority: 2)", "priority: 2" in saved and "prefix: none" in saved, saved[:200])
     page.click("#d-close")
     page.wait_for_timeout(250)
@@ -258,7 +262,7 @@ def test_phone_demo(browser):
     page.screenshot(path=str(SHOTS / "13-phone-text-175.png"))
     check("text size is remembered per device", page.evaluate("localStorage.getItem('todo.textSize')") == "175")
     page.click("#list-name")
-    page.click("#modal button:has-text('New list')")
+    page.click("#modal button:has-text('New folder')")
     page.fill("#m-name", "Feedback")
     page.click("#modal button:has-text('Add')")
     page.wait_for_timeout(300)
@@ -339,7 +343,7 @@ def test_onedrive(browser):
     fg.ext_edit("sub-2.md", fg.files()["sub-2.md"].replace("title: Sub 2", "title: Sub 2 edited elsewhere"))
     page.wait_for_selector(".ttl:has-text('Sub 2 edited elsewhere')", timeout=4000)
     check("an outside edit appears without reloading", True)
-    fg.ext_edit("from-claude.md", "---\nid: t-c1\ntitle: Added by Claude\nstatus: open\nlist: Test List\norder: 9\n---\n")
+    fg.ext_edit("Test List/from-claude.md", "---\nid: t-c1\ntitle: Added by Claude\nstatus: open\norder: 9\n---\n")
     page.wait_for_selector(".ttl:has-text('Added by Claude')", timeout=4000)
     check("an outside new file appears", True)
     fg.ext_delete("from-claude.md")
@@ -364,7 +368,7 @@ def test_onedrive(browser):
     page.screenshot(path=str(SHOTS / "08-onedrive-conflict-dialog.png"))
     page.click("#modal button:has-text('Keep both')")
     page.wait_for_timeout(800)
-    copies = [n for n in fg.files() if n.startswith("sub-2 (conflict Phone")]
+    copies = [n for n in fg.files() if n.split("/")[-1].startswith("sub-2 (conflict Phone")]
     check("Keep both saves my version as a conflict copy", len(copies) == 1 and "my phone edit" in fg.files()[copies[0]], list(fg.files()))
     check("…and the original keeps the other device's edit", "PC edit for conflict test" in fg.files()["sub-2.md"] and "my phone edit" not in fg.files()["sub-2.md"])
     page.click("#d-close")
@@ -378,16 +382,17 @@ def test_onedrive(browser):
     page.wait_for_timeout(500)
     check("delete removes the file from OneDrive", "phone-added-task.md" not in fg.files())
 
-    # list order: outside reorder + local new list → merged, format 2
-    fg.ext_edit("_todo.json", '{\n  "lists": ["Feedback", "Test List", "Inbox", "Remote List"],\n  "note": "kept"\n}\n')
+    # folder order (R2-5): outside reorder + a folder made elsewhere + a local new folder → merged
+    fg.ext_mkdir("Remote List")
+    fg.ext_edit("_todo.json", '{\n  "format": 4,\n  "folders": ["Feedback", "Test List", "Remote List"],\n  "note": "kept"\n}\n')
     page.wait_for_timeout(900)
     page.click("#list-name")
-    page.click("#modal button:has-text('New list')")
+    page.click("#modal button:has-text('New folder')")
     page.fill("#m-name", "Local List")
     page.click("#modal button:has-text('Add')")
     page.wait_for_timeout(600)
     cfg = json.loads(fg.files()["_todo.json"])
-    check("list order merges both devices' changes", cfg.get("lists") == ["Feedback", "Test List", "Inbox", "Remote List", "Local List"], cfg)
+    check("folder order merges both devices' changes; the new folder exists", cfg.get("folders") == ["Feedback", "Test List", "Remote List", "Local List"] and "Local List" in fg.folders() and "lists" not in cfg, (cfg, fg.folders()))
     check("_todo.json gets the current data format and keeps unknown keys", cfg.get("format") == page.evaluate("__todo.DATA_FORMAT") and cfg.get("note") == "kept", cfg)
 
     # sign-in expires mid-session → no automatic redirect (R2-6 C); a tap on the status icon signs in, stashing the draft first
@@ -519,7 +524,7 @@ def test_hostile_files(browser):
         page.wait_for_timeout(300)
     page.click("#list-name")
     page.wait_for_timeout(300)
-    page.locator("#modal .pick .go").nth(1).click()   # the list whose name is the injection
+    page.locator("#modal .pick .go").nth(2).click()   # the folder whose name is the injection (after / (root) and Evil)
     page.wait_for_timeout(500)
     row(page, "title").locator(".row-more").click()
     page.wait_for_timeout(200)
@@ -598,7 +603,7 @@ def test_phase4(browser):
     ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Inbox"}))
     page.goto(APP)
     page.wait_for_selector(".row")
-    f = lambda name: page.evaluate(f"() => __todo.S.store.files.get('{name}')?.text")
+    f = lambda name: page.evaluate(f"() => __fget('{name}')?.text")
 
     # simple check-off: hides, saves done + completed, Undo bar
     today = page.evaluate("() => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }")
@@ -771,7 +776,7 @@ def test_phase5(browser):
     page.goto(APP)
     page.wait_for_selector(".row")
     cdp = ctx.new_cdp_session(page)
-    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => x.file === '{name}'); return t ? t['{key}'] : null; }}")
+    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => (x.file === '{name}' || x.file.endsWith('/{name}'))); return t ? t['{key}'] : null; }}")
     titles = lambda: page.eval_on_selector_all(".row .ttl", "ts => ts.map(t => t.textContent.trim())")
 
     def center(title, frac=0.5, x=150):
@@ -891,7 +896,7 @@ def test_indent_saveclose(browser):
     page.fill("#f-title", "Fix gate latch (saved and closed)")
     page.click("#d-saveclose")
     page.wait_for_timeout(400)
-    txt = page.evaluate("() => __todo.S.store.files.get('fix-gate-latch.md').text")
+    txt = page.evaluate("() => __fget('fix-gate-latch.md').text")
     check("Save & close saves the file and closes the editor", "saved and closed" in txt and page.locator("#drawer.open").count() == 0, txt[:120])
     row(page, "Water the plants").locator(".ttl").click()
     page.wait_for_selector("#drawer.open")
@@ -1023,12 +1028,12 @@ def test_recurring(browser):
     flags = page.evaluate("() => { const r = __todo.parseRepeat('weekly on fri, keep copies, after done'); return [r.keep, r.mode]; }")
     check("suffixes parsed: keep copies + after done", flags == [True, "afterdone"], flags)
 
-    f = lambda name: page.evaluate(f"() => __todo.S.store.files.get('{name}')?.text ?? null")
-    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => x.file === '{name}'); return t ? t['{key}'] : null; }}")
+    f = lambda name: page.evaluate(f"() => __fget('{name}')?.text ?? null")
+    fm = lambda name, key: page.evaluate(f"() => {{ const t = __todo.all().find(x => (x.file === '{name}' || x.file.endsWith('/{name}'))); return t ? t['{key}'] : null; }}")
     today = page.evaluate("() => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }")
 
     # --- Recycle: same file, next date, everything unchecked, nothing logged ---
-    page.evaluate("""() => { const t = __todo.all().find(x => x.file === 'collect-rent.md');
+    page.evaluate("""() => { const t = __todo.all().find(x => (x.file === 'collect-rent.md' || x.file.endsWith('/collect-rent.md')));
         t.body = t.body.replace('- [ ] Unit A', '- [x] Unit A'); __todo.render(); }""")
     rent_due = fm("collect-rent.md", "due")
     want_next = page.evaluate("d => __todo.nextDue(__todo.parseRepeat('monthly on day ' + Number(d.slice(8))), d)", rent_due)
@@ -1065,7 +1070,7 @@ def test_recurring(browser):
     check("Copy: Undo removes the copy and restores the original", f(copy_name) is None and "repeat: weekly, keep copies" in f("weekly-review.md") and "status: open" in f("weekly-review.md"))
 
     # --- Copy with subtasks: fresh copies of the subtasks ---
-    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'weekly-review.md'); t.body = ''; t.repeat = 'weekly, keep copies'; await __todo.saveTask(t);
+    page.evaluate("""async () => { const t = __todo.all().find(x => (x.file === 'weekly-review.md' || x.file.endsWith('/weekly-review.md'))); t.body = ''; t.repeat = 'weekly, keep copies'; await __todo.saveTask(t);
         const S = __todo.S; const sub = { file:'', version:null, id:'t-sub-wr', title:'Review calendar', status:'done', prefix:'', list:'School', collections:[], parent:'t-s20',
           order:1, due:'', repeat:'', series:'', completed:'2026-10-01', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
         S.tasks.set(sub.id, sub); await __todo.saveTask(sub); __todo.render(); }""")
@@ -1091,10 +1096,10 @@ def test_recurring(browser):
     page.click("#d-saveclose")
     page.wait_for_timeout(300)
     hv = f("hvac-filter.md")
-    dow = page.evaluate("() => { const t = __todo.all().find(x => x.file === 'hvac-filter.md'); const [y,m,d] = t.due.split('-').map(Number); return ['sun','mon','tue','wed','thu','fri','sat'][new Date(y, m-1, d, 12).getDay()]; }")
+    dow = page.evaluate("() => { const t = __todo.all().find(x => (x.file === 'hvac-filter.md' || x.file.endsWith('/hvac-filter.md'))); const [y,m,d] = t.due.split('-').map(Number); return ['sun','mon','tue','wed','thu','fri','sat'][new Date(y, m-1, d, 12).getDay()]; }")
     check("editor: Weekly + Copy + Catch up writes the phrase", f"repeat: weekly on {dow}, keep copies, catch up" in hv, hv[:260])
     check("editor: live hint shows the next date", "next after checking off" in hint, hint)
-    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'collect-rent.md'); t.repeat = 'Monthly On Day 3,  after done'; await __todo.saveTask(t); __todo.render(); }""")
+    page.evaluate("""async () => { const t = __todo.all().find(x => (x.file === 'collect-rent.md' || x.file.endsWith('/collect-rent.md'))); t.repeat = 'Monthly On Day 3,  after done'; await __todo.saveTask(t); __todo.render(); }""")
     row(page, "Collect rent").locator(".ttl").click()
     page.wait_for_selector("#drawer.open")
     page.wait_for_timeout(300)
@@ -1104,9 +1109,9 @@ def test_recurring(browser):
     check("editor: a hand-typed phrase is kept exactly when Repeat isn't touched", "repeat: Monthly On Day 3,  after done" in f("collect-rent.md"), f("collect-rent.md")[:260])
 
     # --- unknown phrase: ⚠, normal check-off ---
-    page.evaluate("""async () => { const t = __todo.all().find(x => x.file === 'tenant-lease-renewal.md'); t.repeat = 'every blue moon'; t.unknown = ['repeat: every blue moon']; await __todo.saveTask(t); __todo.render(); }""")
+    page.evaluate("""async () => { const t = __todo.all().find(x => (x.file === 'tenant-lease-renewal.md' || x.file.endsWith('/tenant-lease-renewal.md'))); t.repeat = 'every blue moon'; t.unknown = ['repeat: every blue moon']; await __todo.saveTask(t); __todo.render(); }""")
     check("unknown phrase → ⚠ on the row, no ↻", row(page, "Tenant lease renewal").locator(".wflag").count() == 1 and row(page, "Tenant lease renewal").locator(".rep-ico").count() == 0)
-    check("data format 3 recognized", page.evaluate("__todo.DATA_FORMAT") == 3)
+    check("data format 4 (folders) recognized", page.evaluate("__todo.DATA_FORMAT") == 4)
     check("recurring: no page errors", not errors, errors[:3])
     ctx.close()
 
@@ -1128,8 +1133,8 @@ def test_today(browser):
         __todo.render(); return out; }""", plan)
     check("test setup: enough open demo tasks", len(names) == 8 and page.evaluate("__todo.all().filter(t => t.status === 'open' || t.status === 'active').length") > 12, names)
     page.click("#list-name")
-    check("list picker says 'Today (all lists)'", page.locator("#modal .pick .go", has_text="Today (all lists)").count() == 1)
-    page.locator("#modal .pick .go", has_text="Today (all lists)").click()
+    check("folder picker says 'Today (all folders)'", page.locator("#modal .pick .go", has_text="Today (all folders)").count() == 1)
+    page.locator("#modal .pick .go", has_text="Today (all folders)").click()
     page.wait_for_timeout(150)
     check("header reads 'Today'", page.inner_text("#list-label").strip() == "Today", page.inner_text("#list-label"))
     heads = page.locator(".group-head").all_inner_texts()
@@ -1253,7 +1258,7 @@ def test_today(browser):
     page.fill("#qa", "QA list-view task"); page.press("#qa", "Enter"); page.wait_for_timeout(250)
     r = newt("QA list-view task")
     check("quick-add in a list view: that list, no date (unchanged)", r and r[0] == first and r[1] == "", r)
-    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Today (all lists)").click(); page.wait_for_timeout(100)
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Today (all folders)").click(); page.wait_for_timeout(100)
     check("back in Today: date chip reset to Today, list chip remembered", page.inner_text("#qa-date").startswith("Today") and page.inner_text("#qa-list").startswith(other), (page.inner_text("#qa-list"), page.inner_text("#qa-date")))
 
     # new app start: view kept, sections collapsed again
@@ -1285,7 +1290,7 @@ def test_local_folder(browser):
         const root = await navigator.storage.getDirectory();
         const mk = async (name, files) => { try { await root.removeEntry(name, { recursive:true }); } catch {}
           const d = await root.getDirectoryHandle(name, { create:true });
-          for (const f of files){ const w = await (await d.getFileHandle(f, { create:true })).createWritable(); await w.write(f.endsWith('.md') ? '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n' : '<p>'); await w.close(); }
+          for (const f of files){ const w = await (await d.getFileHandle(f, { create:true })).createWritable(); await w.write(f.endsWith('.md') ? '---\\nid: t-1\\ntitle: One\\nstatus: open\\norder: 1\\n---\\n' : '<p>'); await w.close(); }
           return d; };
         window.__dirs = { data: await mk('data', []), build: await mk('html-todo-app-x', ['index.html']), misc: await mk('misc', []), tasks: await mk('work-tasks', ['one.md']) };
         window.showDirectoryPicker = async () => window.__dirs[window.__next]; }""")
@@ -1357,7 +1362,7 @@ def test_device_copy(browser):
         "todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.list": "Feedback", "todo.everSignedIn": True}))
     fg.install(page)
     n_files = len(TEST_FILES)
-    title = lambda name: page.evaluate("f => __todo.all().find(t => t.file === f)?.title ?? null", name)
+    title = lambda name: page.evaluate("f => __todo.all().find(t => t.file === f || t.file.endsWith('/' + f))?.title ?? null", name)
     def restart():
         page.reload(); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store && __todo.S.store.ready === true"); page.wait_for_timeout(150)
 
@@ -1377,7 +1382,7 @@ def test_device_copy(browser):
     check("…the edit shows", title("board-view.md") == "Board View (edited elsewhere)", title("board-view.md"))
     check("…and a file deleted elsewhere is gone", title("round-1.md") is None)
 
-    page.evaluate("async () => { const t = __todo.all().find(x => x.file === 'access-from-android-phone.md'); t.title = 'Saved here'; await __todo.saveTask(t); }")
+    page.evaluate("async () => { const t = __todo.all().find(x => (x.file === 'access-from-android-phone.md' || x.file.endsWith('/access-from-android-phone.md'))); t.title = 'Saved here'; await __todo.saveTask(t); }")
     d0 = fg.downloads(); restart()
     check("our own save: kept in the copy, not downloaded again", fg.downloads() == d0 and title("access-from-android-phone.md") == "Saved here", (fg.downloads() - d0, title("access-from-android-phone.md")))
 
@@ -1416,8 +1421,8 @@ def test_device_copy(browser):
         const root = await navigator.storage.getDirectory(); try { await root.removeEntry('dc', { recursive:true }); } catch {}
         const d = await root.getDirectoryHandle('dc', { create:true });
         const put = async (n, s) => { const w = await (await d.getFileHandle(n, { create:true })).createWritable(); await w.write(s); await w.close(); };
-        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n');
-        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n');
+        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\norder: 1\\n---\\n');
+        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\norder: 2\\n---\\n');
         await __todo.useStore(new __todo.FsStore(d));
         const db = await new Promise(r => { const q = indexedDB.open('task-board', 1); q.onupgradeneeded = () => q.result.createObjectStore('kv'); q.onsuccess = () => r(q.result); });
         await new Promise(r => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(d, 'dir'); tx.oncomplete = r; }); }""")
@@ -1425,7 +1430,7 @@ def test_device_copy(browser):
     check("local folder runs on the device-copy layer", page.evaluate("__todo.S.store.cachedLayer === true && __todo.S.store.kind === 'local'"))
     page.evaluate("""async () => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('dc');
         await new Promise(r => setTimeout(r, 20));
-        const w = await (await d.getFileHandle('two.md')).createWritable(); await w.write('---\\nid: t-2\\ntitle: Two (edited outside)\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n'); await w.close(); }""")
+        const w = await (await d.getFileHandle('two.md')).createWritable(); await w.write('---\\nid: t-2\\ntitle: Two (edited outside)\\nstatus: open\\norder: 2\\n---\\n'); await w.close(); }""")
     page.reload(); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store && __todo.S.store.ready === true")
     info = page.evaluate("__todo.S.store.info()")
     check("local folder: the outside edit shows after a restart", page.evaluate("__todo.all().some(t => t.title === 'Two (edited outside)')"))
@@ -1438,7 +1443,7 @@ def test_agent_round1(browser):
     print("\n[19] Agent round 1 fixes (T1-1 … T1-11)")
     od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
     ready = "__todo.S.store && __todo.S.store.ready === true"
-    tid = lambda page, f: page.evaluate("f => __todo.all().find(t => t.file === f).id", f)
+    tid = lambda page, f: page.evaluate("f => __todo.all().find(t => t.file === f || t.file.endsWith('/' + f)).id", f)
 
     def hold_delta(page):                       # hold the device copy's change-feed check (the start-up window)
         held = []
@@ -1473,7 +1478,7 @@ def test_agent_round1(browser):
             check(f"T1-1 ({case}): Save → conflict dialog, the other edit is still on disk",
                   "Changed elsewhere" in page.inner_text("#modal") and "ADDED-ELSEWHERE" in fg.files()["sub-2.md"], fg.files()["sub-2.md"])
             page.click("#modal [data-a=both]"); page.wait_for_timeout(600)
-            names = [n for n in fg.files() if n.startswith("sub-2 (conflict")]
+            names = [n for n in fg.files() if n.split("/")[-1].startswith("sub-2 (conflict")]
             check(f"T1-1 ({case}): Keep both → both versions are kept", names and "TYPED-HERE" in fg.files()[names[0]] and "ADDED-ELSEWHERE" in fg.files()["sub-2.md"], list(fg.files()))
         else:
             release(fg, page, held, h)
@@ -1546,7 +1551,7 @@ def test_agent_round1(browser):
         const root = await navigator.storage.getDirectory();
         const mk = async (path, name, title) => { let d = root; for (const p of path.split('/')) d = await d.getDirectoryHandle(p, { create:true });
           const w = await (await d.getFileHandle(name, { create:true })).createWritable();
-          await w.write(`---\\nid: ${name}\\ntitle: ${title}\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n`); await w.close(); return d; };
+          await w.write(`---\\nid: ${name}\\ntitle: ${title}\\nstatus: open\\norder: 1\\n---\\n`); await w.close(); return d; };
         for (const r of ['r1a', 'r1b']) try { await root.removeEntry(r, { recursive:true }); } catch {}
         window.__A = await mk('r1a/data', 'a.md', 'Folder A task'); window.__B = await mk('r1b/data', 'b.md', 'Folder B task'); }""")
     open_dir = """async (k) => { window.__seen = []; const mo = new MutationObserver(() => { const ts = [...document.querySelectorAll('#rows .ttl')].map(e => e.textContent); if (ts.length) window.__seen.push(ts.join('|')); });
@@ -1643,14 +1648,15 @@ def test_agent_round2(browser):
     page.evaluate("() => __todo.openDrawer('t-ga')"); page.wait_for_selector("#drawer.open")
     add_text("MY EDIT"); fg.ext_delete("goes-away.md")
     page.click("#d-save"); page.wait_for_selector("#modal [data-a=both]"); page.click("#modal [data-a=both]"); page.wait_for_timeout(700)
-    copies = [n for n in fg.files() if n.startswith("goes-away (conflict")]
+    copies = [n for n in fg.files() if n.split("/")[-1].startswith("goes-away (conflict")]
     check("T2-3: Keep both on a deleted file saves my version as a copy", copies and "MY EDIT" in fg.files()[copies[0]], list(fg.files()))
     check("T2-3: …and closes the editor instead of silently editing the copy", page.locator("#drawer.open").count() == 0 and "saved as" in page.inner_text("#toast"), page.inner_text("#toast"))
 
-    # T2-5: a demoted, archived task takes the target's list
+    # T2-5 / R2-5: a demoted, archived task moves into the target's folder
     page.evaluate("async () => { await __todo.doDemote(__todo.get('t-ch'), __todo.get('t-tg'), { keep:true, kids:'move' }); }"); page.wait_for_timeout(400)
     f = fg.files()["child.md"]
-    check("T2-5: demote (keep) writes the target's list on the archived task", "status: archived" in f and "parent: t-tg" in f and "list: Home" in f, f)
+    check("T2-5: demote (keep) moves the archived task into the target's folder (no list: line)", "status: archived" in f and "parent: t-tg" in f and "\nlist:" not in f
+          and "Home/child.md" in dict(fg.files()), (list(dict(fg.files())), f))
     check("T2-*: never wrote without If-Match", not fg.violations, fg.violations[:3])
     check("T2-*: no page errors", not errors, errors[:3])
     ctx.close()
@@ -1708,7 +1714,7 @@ def test_agent_round3(browser):
     f = fg.files()["ck.md"]
     check("T3-1: …and Save asks first (no silent overwrite of the checkmarks)", asked and "[ ] open line" not in f and "status: done" in f, (asked, f))
     page.click("#modal [data-a=both]"); page.wait_for_timeout(600)
-    copies = [n for n in fg.files() if n.startswith("ck (conflict")]
+    copies = [n for n in fg.files() if n.split("/")[-1].startswith("ck (conflict")]
     check("T3-1: Keep both keeps the checkmarks and the typed text", copies and "TYPED DURING SAVE" in fg.files()[copies[0]] and "[ ] open line" not in fg.files()["ck.md"], list(fg.files()))
     check("T3-1: never wrote without If-Match", not fg.violations, fg.violations[:3])
     check("T3-1: no page errors", not errors, errors[:3])
@@ -1910,7 +1916,7 @@ def test_r28_phase1(browser):
     fm = lambda i, title, extra="", lst="Inbox": f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: {lst}\norder: 1\n{extra}---\n"
     od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, **kv})
     ready = "__todo.S.store && __todo.S.store.ready === true"
-    files_of = lambda page: page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))")
+    files_of = lambda page: Files(page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))"))
     trash_of = lambda page: {k: v for k, v in files_of(page).items() if k.startswith(".trash/")}
     no_trash_tasks = lambda page: page.evaluate("() => !__todo.all().some(t => String(t.file).includes('.trash'))")
 
@@ -1940,7 +1946,7 @@ def test_r28_phase1(browser):
     metas = [json.loads(v) for k, v in tr.items() if k.endswith(".json")]
     check("Deleted A: each entry has a sidecar with path, id, title, due, deletedAt, reason, by, device",
           len(metas) == 4 and all({"path", "id", "title", "due", "deletedAt", "reason", "by", "device"} <= set(m) for m in metas)
-          and {m["path"] for m in metas} == set(solar) and all(m["reason"] == "deleted" and m["by"] == "this device" and m["device"] == "Phone" for m in metas)
+          and {m["path"] for m in metas} == {"Home/" + n for n in solar} and all(m["reason"] == "deleted" and m["by"] == "this device" and m["device"] == "Phone" for m in metas)
           and any(m["due"] == D(10) for m in metas), metas[:1])
     check("Deleted A: trash names never collide (timestamp + random + slug)", len({k.rsplit("-", 1)[0] for k in tr}) >= 4 and all(".trash/" in k and "-" in k for k in tr), list(tr))
     check("Deleted A: trashed files never show as tasks (demo)", no_trash_tasks(page) and row(page, "Solar panel cleaning").count() == 0)
@@ -1972,17 +1978,17 @@ def test_r28_phase1(browser):
     check("…removes that trash entry", page.locator("#modal .rd-item").count() == 4 and not any("solar-panel-cleaning" in k for k in trash_of(page)), list(trash_of(page)))
     page.click("#modal [data-a=close]"); page.wait_for_timeout(200)
     check("…and the task is back in its list", row(page, "Solar panel cleaning").count() == 1)
-    page.evaluate("() => __todo.S.store.create('long-title-example.md', '---\\nid: t-other\\ntitle: Someone else took the name\\nstatus: open\\nlist: Home\\norder: 9\\n---\\n')")
+    page.evaluate("() => __todo.S.store.create('Home/long-title-example.md', '---\\nid: t-other\\ntitle: Someone else took the name\\nstatus: open\\norder: 9\\n---\\n')")
     recently_deleted(page)
     page.locator("#modal .rd-item", has_text="A deliberately long").locator("button").click(); page.wait_for_timeout(600)
-    check("Restore when the name is taken: a unique name, like Undo", "long-title-example-2.md" in files_of(page) and "Someone else" in files_of(page)["long-title-example.md"], [k for k in files_of(page) if "long" in k])
+    check("Restore when the name is taken: a unique name in its folder, like Undo", "Home/long-title-example-2.md" in dict(files_of(page)) and "Someone else" in files_of(page)["Home/long-title-example.md"], [k for k in files_of(page) if "long" in k])
     page.click("#modal [data-a=close]")
     res = page.evaluate("""async () => { const T = __todo;
         const e = await T.trashPut('Sub/deep/folder-task.md', '---\\nid: t-ft\\ntitle: In a folder\\nstatus: open\\nlist: Home\\norder: 1\\n---\\n', { id:'t-ft', title:'In a folder' });
         const all = await T.trashEntries(); const it = all.find(x => x.meta.path === 'Sub/deep/folder-task.md');
         const to = await T.trashRestore(it); return { to, has: T.S.store.files.has('Sub/deep/folder-task.md'), left: (await T.trashEntries()).some(x => x.meta.path === 'Sub/deep/folder-task.md') }; }""")
     check("Restore into a folder path (R2-5 ready): back at Sub/deep/folder-task.md, entry gone", res["to"] == "Sub/deep/folder-task.md" and res["has"] and not res["left"], res)
-    check("…and a file in a folder isn't shown as a task in Phase 1 (top folder only)", not page.evaluate("() => __todo.all().some(t => t.file.includes('/'))"))
+    check("…and a file two folders down isn't shown as a task (one level of folders for now)", not page.evaluate("() => __todo.all().some(t => t.file.startsWith('Sub/'))"))
     evil = "<img src=x onerror=\"window.__xss=1\">"
     page.evaluate("t => __todo.trashPut('evil.md', 'x', { title: t, due: t })", evil)
     recently_deleted(page)
@@ -1998,8 +2004,8 @@ def test_r28_phase1(browser):
         const root = await navigator.storage.getDirectory(); try { await root.removeEntry('r28', { recursive:true }); } catch {}
         const d = await root.getDirectoryHandle('r28', { create:true });
         const put = async (n, s) => { const w = await (await d.getFileHandle(n, { create:true })).createWritable(); await w.write(s); await w.close(); };
-        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\nlist: Inbox\\norder: 1\\ndue: """ + D(2) + """\\n---\\nbody one\\n');
-        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\nlist: Inbox\\norder: 2\\n---\\n');
+        await put('one.md', '---\\nid: t-1\\ntitle: One\\nstatus: open\\norder: 1\\ndue: """ + D(2) + """\\n---\\nbody one\\n');
+        await put('two.md', '---\\nid: t-2\\ntitle: Two\\nstatus: open\\norder: 2\\n---\\n');
         await __todo.useStore(new __todo.FsStore(d));
         const db = await new Promise(r => { const q = indexedDB.open('task-board', 1); q.onupgradeneeded = () => q.result.createObjectStore('kv'); q.onsuccess = () => r(q.result); });
         await new Promise(r => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(d, 'dir'); tx.oncomplete = r; }); }""")
@@ -2020,7 +2026,7 @@ def test_r28_phase1(browser):
     check("…nor after a restart from the device copy", no_trash_tasks(page) and page.evaluate("__todo.all().length") == 1 and page.evaluate("__todo.S.store.cachedLayer === true"))
     page.evaluate("""async () => { const d = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('r28')).getDirectoryHandle('.trash');
         const w = await (await d.getFileHandle('2026-10-19-12-00-00 old.md', { create:true })).createWritable();
-        await w.write('---\\nid: t-old\\ntitle: Old legacy copy\\nstatus: open\\nlist: Inbox\\norder: 3\\n---\\n'); await w.close(); }""")
+        await w.write('---\\nid: t-old\\ntitle: Old legacy copy\\nstatus: open\\norder: 3\\n---\\n'); await w.close(); }""")
     recently_deleted(page)
     txt = page.inner_text("#modal")
     check("Recently deleted (PC): lists the new entry and an older build's .trash copy", "One" in txt and "Old legacy copy" in txt and page.locator("#modal .rd-item").count() == 2, txt[:300])
@@ -2032,7 +2038,7 @@ def test_r28_phase1(browser):
     fs = opfs()
     check("Restore (local folder): one.md back with its exact text; .trash empty", fs.get("one.md") == one_text and not [k for k in fs if k.startswith(".trash/")], list(fs))
     page.click("#modal [data-a=close]")
-    page.evaluate("""async () => { const T = __todo; await T.trashPut('Gone/sub/y.md', '---\\nid: t-y\\ntitle: Y\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n', { title:'Y' });
+    page.evaluate("""async () => { const T = __todo; await T.trashPut('Gone/sub/y.md', '---\\nid: t-y\\ntitle: Y\\nstatus: open\\norder: 1\\n---\\n', { title:'Y' });
         const e = (await T.trashEntries()).find(x => x.meta.path === 'Gone/sub/y.md'); await T.trashRestore(e); }""")
     check("Restore re-creates missing folders (local folder: Gone/sub/y.md)", "Gone/sub/y.md" in opfs(), list(opfs()))
     check("A2 (local folder): no page errors", not errors, errors[:3])
@@ -2041,7 +2047,7 @@ def test_r28_phase1(browser):
     # ---------- A3. OneDrive (fake Graph: subfolders, delta without paths), phone ----------
     gfiles = {"one.md": fm("t-1", "One", f"due: {D(1)}\n"), "two.md": fm("t-2", "Two"), "three.md": fm("t-3", "Three"),
               "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'}
-    fg = FakeGraph(FOLDER, dict(gfiles))
+    fg = FakeGraph(FOLDER, dict(gfiles)); gfiles = dict(fg.files())          # the fixture as stored (folder layout)
     ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
     fg.install(page)
     page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
@@ -2056,9 +2062,10 @@ def test_r28_phase1(browser):
     it = fg.by_name("three.md"); fg._folder_id("Archive", create=True); it["parent"] = "Archive"; fg._touch(it, "Other device")
     page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(600)
     check("…a file put in .trash elsewhere never shows (delta)", row(page, "Sneaky").count() == 0 and no_trash_tasks(page))
-    check("…a task moved into a subfolder elsewhere leaves the list (it isn't top-level any more)", row(page, "Three").count() == 0, page.evaluate("__todo.all().map(t => t.file)"))
+    check("…a task moved into a folder elsewhere leaves this view and is in that folder (R2-5)", row(page, "Three").count() == 0
+          and page.evaluate("__todo.all().find(t => t.id === 't-3')?.file") == "Archive/three.md", page.evaluate("__todo.all().map(t => t.file)"))
     page.reload(); page.wait_for_selector(".row"); page.wait_for_function(ready); page.wait_for_timeout(200)
-    check("…and none after a restart from the device copy", no_trash_tasks(page) and row(page, "Sneaky").count() == 0 and page.evaluate("__todo.all().map(t => t.file)") == ["two.md"],
+    check("…and none after a restart from the device copy", no_trash_tasks(page) and row(page, "Sneaky").count() == 0 and sorted(page.evaluate("__todo.all().map(t => t.file)")) == ["Archive/three.md", "two.md"],
           page.evaluate("__todo.all().map(t => t.file)"))
     recently_deleted(page)
     page.locator("#modal .rd-item", has_text="One").locator("button").click(); page.wait_for_timeout(700)
@@ -2114,7 +2121,7 @@ def test_r28_phase1(browser):
     check("…and doDemote itself never deletes a due-dated task (kept, archived)", "status: archived" in gate and "demoted_into: t-s05" in gate, gate[:200])
     check("Hidden D: the badge hides when nothing is overdue", not page.locator("#od-head").is_visible())
     # Checked off D: second tap
-    page.click("#list-name"); page.locator("#modal .pick .go", has_text="Inbox").click(); page.wait_for_timeout(200)
+    page.click("#list-name"); page.locator("#modal .pick .go", has_text="/ (root)").click(); page.wait_for_timeout(200)
     before = files_of(page)["try-the-list.md"]
     row(page, "Tap a title").locator(".ck").click(); page.wait_for_selector("#modal [data-a=all]")
     page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
@@ -2140,7 +2147,7 @@ def test_r28_phase1(browser):
     page.click("#modal [data-a=all]"); page.wait_for_timeout(100)
     armed = page.inner_text("#modal [data-a=all]")
     page.wait_for_timeout(300); page.click("#modal [data-a=all]"); page.wait_for_timeout(500)
-    copies = [k for k in files_of(page) if k.startswith("weekly-review-")]
+    copies = [k for k in files_of(page) if k.split("/")[-1].startswith("weekly-review-")]
     check("…the recurring keep-copies path uses the same second tap", armed == "Tap again to check all 2 items" and len(copies) == 1 and "status: done" in files_of(page)["weekly-review.md"], (armed, copies))
     check("B (demo): no page errors", not errors, errors[:3])
     ctx.close()
@@ -2346,7 +2353,7 @@ def test_r28_phase1(browser):
     gfiles["s-sib.md"] = fm("t-gs", "S-sib", "parent: t-g0\n") + "\nsibling notes\n"
     gfiles["_todo.json"] = '{\n  "format": 3,\n  "lists": ["Inbox"]\n}\n'
     tasks8 = [k for k in gfiles if k.endswith(".md")]
-    fg = FakeGraph(FOLDER, dict(gfiles))
+    fg = FakeGraph(FOLDER, dict(gfiles)); gfiles = dict(fg.files())          # the fixture as stored (folder layout)
     ctx, page, errors = new_page(browser, phone=True, init=od_init(**{"todo.list": "Inbox"}))
     fg.install(page)
     page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
@@ -2448,19 +2455,19 @@ def test_r28_phase1(browser):
     ctx.close()
 
 def test_format_check(browser):
-    print("\n[24] R2-5 step 0: a folder from a newer data format opens read-only")
-    fm = lambda i, title: f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: Inbox\norder: 1\n---\n- [ ] a line\n"
-    cfg = lambda f: '{\n  "format": %d,\n  "lists": ["Inbox"]\n}\n' % f
-    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.everSignedIn": True, "todo.list": "Inbox", **kv})
+    print("\n[24] Data-format check: a newer folder, or an old flat one, opens read-only (R2-5 step 0, decision 14)")
+    fm = lambda i, title: f"---\nid: {i}\ntitle: {title}\nstatus: open\norder: 1\n---\n- [ ] a line\n"
+    cfg = lambda f: '{\n  "format": %d,\n  "folders": []\n}\n' % f
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.everSignedIn": True, "todo.list": "", **kv})
     ready = "__todo.S.store && __todo.S.store.ready === true"
-    # format 3 (and the older 2): normal
-    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(2)})
+    # format 4 (this build): normal
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(4)})
     ctx, page, errors = new_page(browser, phone=True, init=od_init())
     fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
-    check("format 2/3 folder: no read-only bar, quick-add on", not page.is_visible("#ro-bar") and page.is_enabled("#qa"))
-    # another device converts the folder mid-session → read-only from the next check
-    fg.ext_edit("_todo.json", cfg(4)); page.wait_for_selector("#ro-bar:not([hidden])", timeout=5000)
-    check("…the folder becomes format 4 elsewhere: the read-only bar appears on the next check", "data format 4" in page.inner_text("#ro-text") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
+    check("format 4 folder: no read-only bar, quick-add on", not page.is_visible("#ro-bar") and page.is_enabled("#qa"))
+    # another device's newer build updates the folder mid-session → read-only from the next check
+    fg.ext_edit("_todo.json", cfg(5)); page.wait_for_selector("#ro-bar:not([hidden])", timeout=5000)
+    check("…the folder becomes format 5 elsewhere: the read-only bar appears on the next check", "data format 5" in page.inner_text("#ro-text") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
     before = fg.files()["a.md"]
     row(page, "Alpha").locator(".ck").click(); page.wait_for_timeout(600)
     if page.locator("#modal [data-a=one]").count(): page.click("#modal [data-a=one]"); page.wait_for_timeout(600)
@@ -2469,25 +2476,196 @@ def test_format_check(browser):
     row(page, "Alpha").locator(".row-more").click(); page.locator("#pop button", has_text="Delete").click(); page.click("#modal [data-a=ok]"); page.wait_for_timeout(600)
     check("…a delete is refused too: the file stays, nothing written to .trash", "a.md" in fg.files() and not fg.trash())
     r = page.evaluate("async () => { __todo.S.lists.push('Sneaky'); try { await __todo.saveConfig(); return 'saved'; } catch (e) { return e.constructor.name; } }"); page.wait_for_timeout(300)
-    check("…and _todo.json is never rewritten with the older format (the write is refused)", '"format": 4' in fg.files()["_todo.json"] and "Sneaky" not in fg.files()["_todo.json"], (r, fg.files()["_todo.json"]))
+    check("…and _todo.json is never rewritten with the older format (the write is refused)", '"format": 5' in fg.files()["_todo.json"] and "Sneaky" not in fg.files()["_todo.json"], (r, fg.files()["_todo.json"]))
+    r = page.evaluate("async () => { try { await __todo.S.store.createFolder('Sneaky'); return 'made'; } catch (e) { return e.constructor.name; } }")
+    check("…folder changes are refused too (create folder)", r == "ReadOnlyError" and "Sneaky" not in fg.folders(), r)
     check("format check (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
     ctx.close()
-    # opened fresh on a format-4 folder (the device copy is per context, so this is a cold start)
-    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(4)})
+    # opened fresh on a format-5 folder (the device copy is per context, so this is a cold start)
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(5)})
     ctx, page, errors2 = new_page(browser, phone=False, init=od_init())
     fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
-    check("opening a format-4 folder: read-only bar with a Reload button, tasks still shown", page.is_visible("#ro-bar") and page.is_visible("#ro-reload") and row(page, "Alpha").count() == 1)
-    page.fill("#qa", "x") if page.is_enabled("#qa") else None
+    check("opening a format-5 folder: read-only bar with a Reload button, tasks still shown", page.is_visible("#ro-bar") and page.is_visible("#ro-reload") and row(page, "Alpha").count() == 1)
     check("…quick-add is off", page.is_disabled("#qa"))
     check("…the Diagnostics log says why", "read-only" in page.evaluate("localStorage.getItem('todo.deviceLog') || ''"))
-    check("format check: no page errors", not errors and not errors2, (errors + errors2)[:3])
+    ctx.close()
+    # R2-5 decision 14: an old flat folder (format 3, list: lines) opens read-only until Claude converts it
+    old = {"b.md": "---\nid: t-b\ntitle: Beta\nstatus: open\nlist: Home\norder: 1\n---\n", "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox", "Home"]\n}\n'}
+    fg = FakeGraph(FOLDER, old, raw=True)
+    ctx, page, errors3 = new_page(browser, phone=True, init=od_init())
+    fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    check("old flat folder (format 3): read-only bar says it needs converting, no Reload button", page.is_visible("#ro-bar") and "old list layout" in page.inner_text("#ro-text")
+          and not page.is_visible("#ro-reload") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
+    before = fg.files()["b.md"]
+    row(page, "Beta").locator(".ck").click(); page.wait_for_timeout(600)
+    check("…its tasks show (in / (root)) but nothing is written", row(page, "Beta").count() == 1 and fg.files()["b.md"] == before and not fg.violations)
+    check("format check: no page errors", not errors and not errors2 and not errors3, (errors + errors2 + errors3)[:3])
+    ctx.close()
+
+
+def test_r25_folders(browser):
+    print("\n[25] R2-5: the folder is the list (data format 4)")
+    D = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
+    files_of = lambda page: Files(page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))"))
+    picks = lambda page: [x.strip() for x in page.locator("#modal .pick .go").all_inner_texts()]
+    def open_picker(page):
+        page.click("#list-name"); page.wait_for_selector("#modal .pick")
+    def go_folder(page, name):
+        open_picker(page); page.locator("#modal .pick .go", has_text=name).first.click(); page.wait_for_timeout(200)
+    def menu(page, title, label):
+        row(page, title).locator(".row-more").click(); page.locator("#pop button", has_text=label).click()
+
+    # ---------- A. demo store (MemStore), phone ----------
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    check("the header names the folder", page.inner_text("#list-label") == "Home")
+    check("demo data is in the folder layout: no list: lines, _todo.json format 4 with folders",
+          not any("\nlist:" in v for k, v in files_of(page).items() if k.endswith(".md")) and json.loads(files_of(page)["_todo.json"]) == {"format": 4, "folders": ["Home", "Rental", "School"]})
+    open_picker(page)
+    p0 = picks(page)
+    check("the picker is 'Folders': / (root) first, then the folders in their order, then Today", page.inner_text("#modal h3") == "Folders" and p0[:4] == ["/ (root)", "Home", "Rental", "School"] and "Today (all folders)" in p0[4], p0)
+    check("/ (root) can't be renamed or deleted (no ✎)", page.locator("#modal .pick").first.locator("button.ren").count() == 0)
+    page.click("#modal [data-a=new]"); page.wait_for_selector("#m-name")
+    errs = {}
+    for bad in ["a/b", "back\\slash", ".hidden", "_sys", "trail.", "con", "HOME", ""]:
+        page.fill("#m-name", bad); page.click("#modal [data-a=ok]"); page.wait_for_timeout(80); errs[bad] = page.inner_text("#m-err")
+    check("folder-name rules: no / or \\, no leading . or _, no trailing dot, no Windows reserved names, unique ignoring case", all(errs.values()) and page.locator("#m-name").count() == 1, errs)
+    page.fill("#m-name", "Errands"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(300)
+    cfg = json.loads(files_of(page)["_todo.json"])
+    check("New folder: made in the store, added to _todo.json's folders, and opened", page.inner_text("#list-label") == "Errands"
+          and "Errands" in page.evaluate("__todo.S.store.folders()") and cfg.get("folders") == ["Home", "Rental", "School", "Errands"] and cfg.get("format") == 4, cfg)
+    check("…an empty folder says so", "No open tasks in “Errands”" in page.inner_text("#rows"))
+    page.fill("#qa", "Buy stamps"); page.press("#qa", "Enter"); page.wait_for_timeout(300)
+    check("quick-add in a folder saves the file in that folder", "Errands/buy-stamps.md" in dict(files_of(page)) and "\nlist:" not in files_of(page)["Errands/buy-stamps.md"])
+
+    go_folder(page, "Home")
+    fam = ["solar-panel-cleaning.md", "get-quotes.md", "compare-inverter-readings.md", "export-readings-csv.md"]
+    before = {n: files_of(page)["Home/" + n] for n in fam}
+    menu(page, "Solar panel cleaning", "Move to folder"); page.wait_for_selector("#modal .pick")
+    check("Move to folder… lists / (root) and every folder", picks(page)[:5] == ["/ (root)", "Home", "Rental", "School", "Errands"], picks(page))
+    page.locator("#modal .pick .go", has_text="Errands").click(); page.wait_for_timeout(500)
+    fs = dict(files_of(page))
+    check("Move to folder… moves the task and its whole family (every level) into the folder", all(("Errands/" + n) in fs and ("Home/" + n) not in fs for n in fam), [k for k in fs if "solar" in k or "quotes" in k or "inverter" in k or "csv" in k])
+    check("…subtask files are moved unchanged (byte for byte)", all(fs["Errands/" + n] == before[n] for n in fam[1:]))
+    check("…and the family left the Home view", row(page, "Solar panel cleaning").count() == 0)
+    go_folder(page, "Errands")
+    row(page, "Solar panel cleaning").locator("[data-act=expand]").click(); page.wait_for_timeout(150)
+    menu(page, "Get three cleaning quotes", "Move to folder"); page.locator("#modal .pick .go", has_text="Home").click(); page.wait_for_selector("#modal [data-a=ok]")
+    txt = page.inner_text("#modal")
+    check("a subtask alone: asks — Cancel / Make it a top-level task in Home", "A subtask stays in its parent's folder" in txt and "Make it a top-level task in Home" in txt and page.locator("#modal [data-a=cancel]").count() == 1, txt)
+    page.click("#modal [data-a=cancel]"); page.wait_for_timeout(200)
+    check("…Cancel moves nothing", "Errands/get-quotes.md" in dict(files_of(page)))
+    menu(page, "Get three cleaning quotes", "Move to folder"); page.locator("#modal .pick .go", has_text="Home").click(); page.wait_for_selector("#modal [data-a=ok]")
+    page.click("#modal [data-a=ok]"); page.wait_for_timeout(400)
+    q = files_of(page).get("Home/get-quotes.md") or ""
+    check("…Make it top-level: moved to Home, no parent any more", "Home/get-quotes.md" in dict(files_of(page)) and "parent:" not in q, q[:160])
+
+    # rename and delete
+    open_picker(page); page.click("#modal [data-a='r:Errands']"); page.wait_for_selector("#m-name")
+    check("a folder with tasks can't be deleted (no Delete button)", page.locator("#modal [data-a=remove]").count() == 0 and "Only an empty folder can be deleted" in page.inner_text("#modal"))
+    page.fill("#m-name", "rental"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(100)
+    check("Rename refuses a name another folder has (any case)", "exists" in page.inner_text("#m-err"))
+    page.fill("#m-name", "Chores"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(600)
+    fs = dict(files_of(page))
+    check("Rename: the folder's files follow (same names), the view follows, _todo.json keeps its place", page.inner_text("#list-label") == "Chores"
+          and "Chores/solar-panel-cleaning.md" in fs and not any(k.startswith("Errands/") for k in fs)
+          and json.loads(fs["_todo.json"])["folders"] == ["Home", "Rental", "School", "Chores"], (page.inner_text("#list-label"), json.loads(fs["_todo.json"])))
+    open_picker(page); page.click("#modal [data-a=new]"); page.fill("#m-name", "Temp"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(300)
+    open_picker(page); page.click("#modal [data-a='r:Temp']"); page.wait_for_selector("#modal [data-a=remove]")
+    page.click("#modal [data-a=remove]"); page.wait_for_timeout(300)
+    open_picker(page)
+    check("an empty folder can be deleted: gone from the picker, the store and _todo.json", "Temp" not in picks(page) and "Temp" not in page.evaluate("__todo.S.store.folders()")
+          and "Temp" not in json.loads(files_of(page)["_todo.json"])["folders"], picks(page))
+    page.click("#modal [data-a=cancel]")
+
+    # the editor's Folder field
+    go_folder(page, "Home")
+    row(page, "Fix gate latch").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    opts = page.locator("#f-list option").all_inner_texts()
+    check("the editor's field is 'Folder' with / (root), the folders and New folder…", "Folder" in page.inner_text("label:has(#f-list)") and opts[0] == "/ (root)" and opts[-1] == "＋ New folder…", opts)
+    page.select_option("#f-list", "Rental"); page.click("#d-saveclose"); page.wait_for_timeout(500)
+    fs = dict(files_of(page))
+    check("changing the Folder moves the file, with its subtasks (incl. archived ones)", "Rental/fix-gate-latch.md" in fs and "Rental/buy-replacement-hinge.md" in fs and "Home/fix-gate-latch.md" not in fs)
+
+    # Today view: quick-add goes to / (root) by default (decision 9)
+    open_picker(page); page.locator("#modal .pick .go", has_text="Today").click(); page.wait_for_timeout(200)
+    check("Today view's folder chip starts at / (root)", page.inner_text("#qa-list") == "/ (root)", page.inner_text("#qa-list"))
+    page.fill("#qa", "Root level task"); page.press("#qa", "Enter"); page.wait_for_timeout(300)
+    check("…and the task is saved at the top of the task folder", "root-level-task.md" in dict(files_of(page)))
+
+    # demote across folders: the kept file moves into the target's folder; promote finds it again
+    page.evaluate("async () => { await __todo.doDemote(__todo.get('t-s01'), __todo.get('t-s15'), { keep:true, kids:'move', level:2 }); }"); page.wait_for_timeout(500)
+    fs = dict(files_of(page)); arch = fs.get("School/call-insurance-agent.md", "")
+    check("demote (keep) across folders: the archived file moves into the target's folder", "status: archived" in arch and "call-insurance-agent.md" not in fs, [k for k in fs if "insurance" in k])
+    check("…and the line links it by name within that folder", "[↗](call-insurance-agent.md)" in fs.get("School/research-paper-outline.md", ""))
+    page.evaluate("() => __todo.openDrawer('t-s15')"); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(300)
+    page.locator("#d-checklist .ck-item", has_text="Call insurance agent").locator("button").click(); page.wait_for_timeout(600)
+    t = page.evaluate("() => { const t = __todo.get('t-s01'); return t && [t.file, t.status, t.demoted_into]; }")
+    check("promote finds the archived file in the folder and restores it (same task)", t and t[0] == "School/call-insurance-agent.md" and t[1] == "open" and t[2] == "", t)
+    page.click("#d-close"); page.wait_for_timeout(200)
+    check("A (demo): no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # ---------- B. fake OneDrive, phone: real moves, strays, folders changed elsewhere, the device copy ----------
+    fm = lambda i, title, lst, extra="": f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: {lst}\norder: 1\n{extra}---\n"
+    ofiles = {"p.md": fm("t-p", "Parent", "Work"), "c1.md": fm("t-c1", "Child one", "Work", "parent: t-p\n"), "c2.md": fm("t-c2", "Child two", "Work", "parent: t-p\n"),
+              "solo.md": fm("t-solo", "Solo", "Inbox"), "due1.md": fm("t-d1", "Pay the bill", "Gone", f"due: {D(3)}\n"), "x.md": fm("t-x", "Gone task", "Gone"),
+              "_todo.json": '{\n  "format": 3,\n  "lists": ["Inbox", "Work", "Gone"]\n}\n'}
+    fg = FakeGraph(FOLDER, ofiles)
+    od = TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 86400000, "todo.everSignedIn": True, "todo.list": ""})
+    ctx, page, errors = new_page(browser, phone=True, init=od)
+    fg.install(page)
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    poll = lambda: (page.evaluate("() => __todo.poll(true)"), page.wait_for_timeout(500))
+    open_picker(page)
+    check("OneDrive: the picker shows / (root) and the folders", picks(page)[:3] == ["/ (root)", "Work", "Gone"], picks(page))
+    page.click("#modal [data-a=cancel]")
+    sid = fg.by_path("solo.md")["id"]
+    menu(page, "Solo", "Move to folder"); page.locator("#modal .pick .go", has_text="Work").click(); page.wait_for_timeout(500)
+    it = fg.by_path("Work/solo.md")
+    check("a move is one OneDrive move (PATCH with If-Match): same item, so its history stays", it is not None and it["id"] == sid and fg.by_path("solo.md") is None
+          and any(m == "PATCH" and im for m, _, im in fg.requests), [r for r in fg.requests if r[0] == "PATCH"])
+    fg.ext_edit("Gone/solo.md", fm("t-other", "Other solo", "Gone"))
+    go_folder(page, "Work"); poll()
+    menu(page, "Solo", "Move to folder"); page.locator("#modal .pick .go", has_text="Gone").click(); page.wait_for_timeout(600)
+    check("moving onto a taken name gives the unique-name rule (solo-2.md)", fg.by_path("Gone/solo-2.md") is not None and fg.by_path("Gone/solo-2.md")["id"] == sid, fg.folders() and [k for k in fg.files() if "solo" in k])
+    fg.ext_move("Work/p.md", "Gone"); poll()
+    go_folder(page, "Gone")
+    sb = row(page, "Parent").locator("[data-act=strays]")
+    check("a parent moved in Explorer without its subtasks: ⚠ 2 on the parent (they still show under it)", sb.count() == 1 and sb.inner_text().strip() == "⚠ 2", row(page, "Parent").inner_text())
+    sb.click(); page.wait_for_selector("#modal [data-a=ok]")
+    check("…one tap explains and offers 'Move them to Gone'", "in Work, not in Gone" in page.inner_text("#modal") and "Move them to Gone" in page.inner_text("#modal [data-a=ok]"), page.inner_text("#modal"))
+    page.click("#modal [data-a=ok]"); page.wait_for_timeout(700)
+    check("…which moves them; nothing moves until then", fg.by_path("Gone/c1.md") is not None and fg.by_path("Gone/c2.md") is not None and row(page, "Parent").locator("[data-act=strays]").count() == 0)
+    fg.ext_mkdir("Made elsewhere"); fg.ext_rename_folder("Work", "Job"); poll()
+    open_picker(page); p1 = picks(page); page.click("#modal [data-a=cancel]")
+    check("a folder made elsewhere shows up; a renamed folder shows its new name", "Made elsewhere" in p1 and "Job" in p1 and "Work" not in p1, p1)
+    fg.ext_edit("Job/late.md", fm("t-late", "Late arrival", "Job")); poll()
+    fg.ext_rename_folder("Job", "Work2"); poll()
+    check("…after a rename, its files (not sent again by OneDrive) are found at their new paths", page.evaluate("__todo.get('t-late')?.file") == "Work2/late.md", page.evaluate("__todo.get('t-late')?.file"))
+    tst = page.inner_text("#toast")
+    check("…and the app says it was renamed", "renamed to “Work2”" in tst, tst)
+    check("…and _todo.json follows the new name", "Work2" in json.loads(fg.files()["_todo.json"]).get("folders", []), fg.files()["_todo.json"])
+    page.reload(); page.wait_for_function(ready); page.wait_for_timeout(200)     # (the test's start settings open / (root), empty by now)
+    check("after a restart from the device copy, tasks in folders are there", page.evaluate("__todo.get('t-late')?.file") == "Work2/late.md")
+    fg.ext_edit("Work2/late.md", fm("t-late", "Late arrival (edited)", "Work2")); poll()
+    check("after a restart from the device copy, a change inside a folder is still picked up", page.evaluate("__todo.get('t-late')?.title") == "Late arrival (edited)", page.evaluate("__todo.get('t-late')?.title"))
+    fg.ext_delete_folder("Gone"); poll(); page.wait_for_timeout(300)
+    txt = page.inner_text("#modal") if page.locator("#modal-bg.on").count() else ""
+    check("a folder deleted elsewhere: 'The folder “Gone” is gone', its tasks listed, due-dated first, and where to restore",
+          "The folder “Gone” is gone" in txt and "Pay the bill" in txt and txt.index("Pay the bill") < txt.index("Gone task") and "Recycle bin" in txt, txt[:300])
+    if page.locator("#modal [data-a=ok]").count(): page.click("#modal [data-a=ok]")
+    check("…and its tasks are gone from the app", page.evaluate("__todo.get('t-d1')") is None and page.evaluate("__todo.get('t-p')") is None)
+    check("B (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("B (OneDrive): no page errors", not errors, errors[:3])
     ctx.close()
 
 
 def test_r211_fast_entry(browser):
     print("\n[23] R2-11 to R2-15: Enter = next task, inline add line, Save & close subdued, clear due, Delete all colour")
     D = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
-    files = lambda page: page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))")
+    files = lambda page: Files(page.evaluate("() => Object.fromEntries([...__todo.S.store.files].map(([k, v]) => [k, v.text]))"))
     task = lambda page, title: page.evaluate("ti => { const t = __todo.all().find(x => x.title === ti); return t ? { id:t.id, parent:t.parent, list:t.list, order:t.order, file:t.file, due:t.due, isNew:!!t.isNew } : null; }", title)
     focused_line = lambda page: page.evaluate("() => { const a = document.activeElement; return a && a.classList.contains('addsub-in') ? a.closest('.addsub').dataset.parent : null; }")
     ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "Home"}))
@@ -2600,7 +2778,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry), ("fmtcheck", test_format_check)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry), ("fmtcheck", test_format_check), ("r25", test_r25_folders)]
         for name, fn in tests:
             if not only or name in only:
                 try:

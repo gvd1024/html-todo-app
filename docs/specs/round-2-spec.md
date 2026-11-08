@@ -24,7 +24,7 @@ Same as round 1:
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: verified on PC** (build 2026-11-07a, on `main` since 2026-11-07) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
-| R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
+| R2-5 | A folder per list (file-explorer model) | **Built** (2026-11-08b, data format 4, branch `r2-5-folders`); awaiting Geoff's test, then the real-folder migration | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
 | R2-11 | Enter tasks and subtasks one after another | **Built** (2026-11-07c; verified on PC and phone) | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
@@ -536,6 +536,87 @@ Full suite: 637 checks pass.
 
 **Status:** Built; pushed to `main` as 2026-11-08a.
 
+### The folder build — as built (approved 2026-11-08: "yes, start the folder build"; build 2026-11-08b, data format 4, branch `r2-5-folders`)
+**Before building:**
+- **Microsoft's docs:**
+    - **A move** is `PATCH` of `parentReference` (+ `name`) and honours `If-Match` (412).
+    - **The change feed** has no paths ("track items by id").
+    - **A folder rename** doesn't resend the folder's files.
+    - **Not stated in the docs:** a move onto a taken name, and whether a deleted folder's files are tombstoned. Both are handled defensively (unique name and retry; everything under a deleted folder is dropped).
+- **Chrome's `move()` on picked folders:** feature-detected at run time, and checked after it runs. Otherwise copy, then delete; an interruption leaves a duplicate (flagged ⚠), never a loss.
+
+**Storage (all three stores and the device copy):**
+- **Listing:** covers one level of folders.
+- **New operations:** `move()`, `folders()`, `createFolder()`, `renameFolder()`, `removeFolder()` (empty only, and only when there are no files at all).
+- **OneDrive:**
+    - a move is one `PATCH`, so the item, and its history, stays
+    - folders are tracked by item id; their ids are saved with the device copy's bookmark (device-copy format 2)
+    - a renamed folder's files are re-pathed by the app
+    - a deleted folder takes everything under it
+- **Local folder:** checks folder names ignoring case.
+- **The read-only guard** (Step 0) covers the new operations.
+
+**App:**
+- **`t.list` is the folder path**, from where the file is; `list:` is no longer read or written. `saveTask` moves the file when the folder changed (`moveFile`: same name when free, otherwise the unique-name rule).
+- **"List" → "Folder" in the UI:**
+    - the Folders picker: "/ (root)" first, counts, ✎ Rename / Delete (empty only), "＋ New folder", "Today (all folders)"
+    - ⋯ → **Move to folder…**
+    - the editor's **Folder** field with "＋ New folder…"
+    - "Add a task to *Folder*…"
+    - the quick-add folder chip, which starts at / (root)
+- **The decisions, as built:**
+    - **4:** Move to folder… moves the whole family.
+    - **5:** a subtask alone: "Move a subtask?", with **Cancel / Make it a top-level task in *Folder***.
+    - **6:** a family split outside the app: **⚠ N** on the parent opens "Subtasks in another folder", with **Move them to *Folder*** (nothing moves without a tap).
+    - **8:** the folder-name rules, checked when a folder is created or renamed.
+    - **11:** a folder gone outside the app:
+        - **Deleted:** "The folder *X* is gone", listing its tasks (due-dated first) and where to restore.
+        - **Renamed:** "renamed to …", and `_todo.json` follows.
+    - **14:** a flat format ≤ 3 folder opens read-only: "still uses the old list layout … has to be converted to folders first (Claude does this)". No Reload button.
+- **Folder changes made elsewhere** (made, renamed, deleted) show on the next check, even when no task changed.
+- **`_todo.json`:** `{"format": 4, "folders": [...]}`, the order only; `lists` is dropped.
+- **Demote (keep):** the archived file moves into the target's folder; the link is its name there. **Promote** finds it in the target's folder, then anywhere, then by `demoted_into`.
+- **Restore** from Recently deleted puts a task back into its folder and on screen.
+- **Recurring copies** are named `<slug>-YYYYMMDD.md` in the task's folder.
+- **Demo data** is in folders (Home, Rental, School; Inbox tasks at the root).
+
+**Migration tool:** `tools/migrate_to_folders.py`.
+- **Preview** by default.
+- **`--apply`:**
+    - zips the folder into `private/backups/` first
+    - moves each file into its list's folder (Inbox → root; a family follows its top parent) with a real move
+    - removes only the `list:` line, byte for byte otherwise (CRLF kept)
+    - re-checks each file before touching it
+    - writes `_todo.json` last, so a re-run continues
+- **Tried on a copy of the real data (42 tasks):**
+    - every file landed in the right folder, identical except for the `list:` line
+    - a re-run says "already uses the folder layout"
+    - edge cases checked: CRLF, unknown keys, a child whose `list:` disagreed with its parent's
+
+**Tools:** `feedback_check.py` reads `<task folder>/Feedback/` (or `list: Feedback` in an old flat folder).
+
+**Tests:**
+- **The shared store suite:** +17 checks per store: folder paths listed, depth limit, `folders()`, move keeps text, a stale move and a taken name refused, create/rename/remove folder, case-insensitive names.
+- **New group `r25`** (43 checks: demo, plus fake OneDrive with moves, strays, folders made/renamed/deleted elsewhere, and a restart from the device copy).
+- **`fmtcheck`:** format 5 and old-layout folders.
+- **Old flat fixtures:** `fake_graph.py` converts them (`to_v4`).
+- **Full suite:** **725 checks pass**.
+
+**Real bugs found by the tests and fixed:**
+- A restored task inside a folder didn't reappear until a refresh.
+- A recurring "keep copies" copy lost its dated name inside a folder.
+- Folder changes alone (no task changed) didn't refresh the picker.
+- The local folder treated "Empty" and "empty" as different.
+- The chosen folder was reset to "/ (root)" before the folder list had loaded.
+
+**Next:**
+1. Convert the `HTML-ToDo-App-Test` copy folder with the tool.
+2. Geoff tests at `localhost:8000`.
+3. With his OK: back up and convert the real folder.
+4. Merge, then a phone check.
+
+**Status:** Built, awaiting Geoff's test.
+
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
 - **Done 2026-11-08, before any migration:**
     - **Backup:** a zip of the whole folder (559 files, verified) in `private/backups/` (local, git-ignored).
@@ -544,7 +625,7 @@ Full suite: 637 checks pass.
 - **Remaining:** 42 tasks (Real Todo 33, Feedback 5, Entertainment 4). No family crossed lists.
 - **After the migration:** `/ (root)` (empty) plus the folders `Real Todo`, `Feedback`, `Entertainment`.
 
-**Status:** **Decided (B)**; implementation discussion in progress (above). Not approved for build.
+**Status:** **Built** (2026-11-08b, branch `r2-5-folders`), awaiting Geoff's test on the copy folder; the real folder is converted only with his OK.
 
 ---
 
@@ -1341,6 +1422,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-08 | R2-5 | **Folder build approved** ("yes, start the folder build") **and built** (2026-11-08b, data format 4) | 725 checks pass; migration tool tried on a copy of the real data |
 | 2026-11-08 | R2-5 | **Decisions 9–16:** new tasks → / (root); folders: create, rename, delete-if-empty; a vanished folder → warn and explain; format check first as its own build; migration by Claude's script (no in-app converter); flat folders read-only in the folder build; shared-with-me folders out; work PC starts fresh | Step 0 (format check) built as 2026-11-08a |
 | 2026-11-08 | R2-5 | **Implementation decisions 1–8:** one level (tree-ready); List → Folder everywhere; no folder field (path is the truth, `list:` removed); same-folder rule enforced; subtask alone → Cancel / top-level there; left behind → ask, one tap; top = "/ (root)", no Home/Inbox; folder-name rules | Real folder cleaned: 516 test files deleted (backup kept); 42 tasks in 3 lists remain |
 | 2026-11-07 | R2-11–15 | **Verified on the phone** (keyboard Enter in the add line and the editor, due ✕, ↑ ↓ ● tap size) | |
@@ -1384,6 +1466,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-08 — v41: R2-5 folder build (format 4) built: storage, UI, rules, migration tool, tests.
 - 2026-11-08 — v40: R2-5 decisions 9–16; Step 0 (data-format check) approved and built (2026-11-08a).
 - 2026-11-08 — v39: R2-5 implementation discussion started (decisions 1–8); real-folder cleanup recorded.
 - 2026-11-07 — v38: R2-11 to R2-15 verified on the phone.

@@ -7,20 +7,97 @@ Installed into a Playwright page with `FakeGraph.install(page)`. It is deliberat
 - R2-8: items live in folders (the task folder and subfolders such as .trash). Like real Graph, a PUT by path creates
   missing folders, the change feed covers the whole subtree and leaves parentReference.path out (items must be
   tracked by parentReference.id), and :/children lists one folder's direct children (files and folders).
+- R2-5: PATCH moves a file (parentReference.id, name; If-Match → 412, a taken name → 409) or renames a folder; like real
+  Graph, a folder's files are NOT sent again by delta after the folder is renamed. POST …/children creates a folder
+  (409 with conflictBehavior=fail). A folder deleted elsewhere is tombstoned alone (its files vanish without entries).
 Test-only endpoints under https://graph.microsoft.com/v1.0/__test/ simulate edits from another device.
 """
 import datetime
 import json
+import re
 from urllib.parse import urlparse, unquote, parse_qs
 
 GRAPH = "https://graph.microsoft.com/v1.0"
 DL = "https://fake-dl.test/"
 
 
+LIST_RE = re.compile(r"^list:[ \t]*(.*?)[ \t]*\r?\n", re.M)
+
+
+def to_v4(files):
+    """R2-5: a fixture written in the old flat layout (list: lines, format 2/3) -> the folder layout (data format 4):
+    each task file goes into its list's folder (Inbox -> the root) without the list: line; _todo.json gets "folders".
+    A fixture that already says format 4 or more is left alone."""
+    cfg = files.get("_todo.json")
+    c = None
+    if cfg:
+        try:
+            c = json.loads(cfg)
+        except ValueError:
+            c = None
+        if isinstance(c, dict) and (c.get("format") or 0) >= 4:
+            return dict(files)
+    out, folders = {}, []
+    for name, text in files.items():
+        if name.endswith(".md") and "/" not in name and not name.startswith((".", "_")):
+            head = text.split("\n---", 1)[0] + "\n" if text.startswith("---") else ""
+            m = LIST_RE.search(head) if head else None
+            lst = m.group(1).strip("'\"") if m else ""
+            text = LIST_RE.sub("", text, count=1) if m else text
+            d = "" if lst in ("", "Inbox") else lst
+            if d and d not in folders:
+                folders.append(d)
+            out[f"{d}/{name}" if d else name] = text
+        elif name != "_todo.json":
+            out[name] = text
+    if cfg is not None:
+        if isinstance(c, dict):
+            order = [l for l in c.pop("lists", []) if l != "Inbox"]
+            c["format"] = 4
+            c["folders"] = order + [f for f in folders if f not in order]
+            out["_todo.json"] = json.dumps(c, indent=2) + "\n"
+        else:
+            out["_todo.json"] = cfg
+    return out
+
+
+class Files(dict):
+    """A {relative path: text} dict where a file inside a folder can also be found by its bare name, when only one
+    file has that name (tests written before R2-5 folders look files up by name). Keys stay the real paths."""
+    def _alias(self, k):
+        if isinstance(k, str) and "/" not in k:
+            hits = [p for p in dict.keys(self) if not p.startswith(".") and p.rsplit("/", 1)[-1] == k]
+            if len(hits) == 1:
+                return hits[0]
+        return None
+
+    def __missing__(self, k):
+        a = self._alias(k)
+        if a is None:
+            raise KeyError(k)
+        return dict.__getitem__(self, a)
+
+    def __contains__(self, k):
+        return dict.__contains__(self, k) or self._alias(k) is not None
+
+    def get(self, k, default=None):
+        return self[k] if k in self else default
+
+
+def strip_list(text):
+    """An edit from 'another device' written in the old style: drop its list: line (the folder decides now)."""
+    if not text.startswith("---"):
+        return text
+    head, sep, rest = text.partition("\n---")
+    if not sep:
+        return text
+    return LIST_RE.sub("", head + "\n", count=1).rstrip("\n") + sep + rest
+
+
 class FakeGraph:
     ROOT = "ROOTFOLDER"
 
-    def __init__(self, folder, files):
+    def __init__(self, folder, files, raw=False):
         self.folder = folder
         self.items = {}          # id -> dict(id, name, parent, folder, content, n, seq, deleted, mod, by)
         self.seq = 0             # change sequence for delta
@@ -30,7 +107,8 @@ class FakeGraph:
         self.urls = []           # full request URLs (with query), for checks on how the app asked
         self.expire_before = 0   # delta tokens below this return 410 (simulates an expired change feed)
         self.who = "Test User"   # lastModifiedBy for writes made by the app
-        for name, text in files.items():
+        self.raw = raw            # raw=True: keep the fixture exactly as given (e.g. an old flat-layout folder)
+        for name, text in (files if raw else to_v4(files)).items():
             self._create(name, text)
 
     # ---------- state helpers ----------
@@ -81,20 +159,26 @@ class FakeGraph:
         return None
 
     def by_name(self, name):
-        return self.by_path(name)
+        """A file by its relative path; a bare name also finds a file inside a folder when only one has that name
+        (test helpers written before R2-5 folders, like ext_edit("sub-2.md", …))."""
+        it = self.by_path(name)
+        if it or "/" in name:
+            return it
+        hits = [x for x in self.live() if x["name"].lower() == name.lower() and not x["parent"].startswith(".")]
+        return hits[0] if len(hits) == 1 else None
 
     def live(self):
         return [it for it in self.items.values() if not it["deleted"] and not it["folder"]]
 
     def files(self):
         """Every file, keyed by its relative path (trash entries as ".trash/…")."""
-        return {self._rel(it): it["content"] for it in self.live()}
+        return Files({self._rel(it): it["content"] for it in self.live()})
 
     def top_files(self):
-        return {k: v for k, v in self.files().items() if "/" not in k}
+        return Files({k: v for k, v in self.files().items() if "/" not in k})
 
     def trash(self):
-        return {k: v for k, v in self.files().items() if k.startswith(".trash/")}
+        return Files({k: v for k, v in self.files().items() if k.startswith(".trash/")})
 
     def item_json(self, it, delta=False):
         # Real Graph leaves parentReference.path out of delta responses: items must be tracked by parent id.
@@ -122,6 +206,8 @@ class FakeGraph:
 
     # ---------- simulated other device ----------
     def ext_edit(self, name, text, by="Other device"):
+        if not self.raw and name.endswith(".md") and not name.startswith("."):
+            text = strip_list(text)
         it = self.by_name(name)
         if it is None:
             return self._create(name, text, by)
@@ -134,6 +220,40 @@ class FakeGraph:
         if it:
             it["deleted"] = True
             self._touch(it, "Other device")
+
+    # R2-5: moves and folder changes made elsewhere (Explorer, the OneDrive app)
+    def ext_move(self, rel, to_dir):
+        it = self.by_path(rel)
+        self._folder_id(to_dir, create=True)
+        it["parent"] = to_dir
+        self._touch(it, "Other device")
+        return it
+
+    def ext_mkdir(self, rel):
+        return self._folder_id(rel, create=True)
+
+    def ext_rename_folder(self, old, new):
+        f = self.by_path(old, folder=True)
+        self._rename_folder(f, new)
+
+    def _rename_folder(self, f, new):
+        old = self._rel(f)
+        f["name"] = new.rpartition("/")[2]
+        self._touch(f, "Other device")
+        for it in self.items.values():          # children keep their ids and eTags and are not touched (no delta entries)
+            if it is not f and (it["parent"] == old or it["parent"].startswith(old + "/")):
+                it["parent"] = new + it["parent"][len(old):]
+
+    def ext_delete_folder(self, rel):
+        f = self.by_path(rel, folder=True)
+        f["deleted"] = True
+        self._touch(f, "Other device")
+        for it in self.items.values():          # its files go silently (worst case: no tombstones for them)
+            if it is not f and (it["parent"] == rel or it["parent"].startswith(rel + "/")):
+                it["deleted"] = True
+
+    def folders(self):
+        return sorted(self._rel(it) for it in self.items.values() if it["folder"] and not it["deleted"])
 
     # ---------- routing ----------
     def full_checks(self):
@@ -177,7 +297,7 @@ class FakeGraph:
     def _handle(self, route, request):
         if request.method == "OPTIONS":
             return route.fulfill(status=204, headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*",
-                                                      "Access-Control-Allow-Methods": "GET,PUT,DELETE,POST"})
+                                                      "Access-Control-Allow-Methods": "GET,PUT,DELETE,POST,PATCH"})
         u = urlparse(request.url)
         path = u.path[len("/v1.0"):] if u.path.startswith("/v1.0") else u.path
         q = parse_qs(u.query)
@@ -225,7 +345,7 @@ class FakeGraph:
                 behavior = q.get("@microsoft.graph.conflictBehavior", [""])[0]
                 if behavior != "fail":
                     self.violations.append(("create without conflictBehavior=fail", name))
-                if self.by_name(name):
+                if self.by_path(name):
                     return self._error(route, 409, "nameAlreadyExists")
                 it = self._create(name, request.post_data or "")
                 return self._reply(route, 201, self.item_json(it))
@@ -241,11 +361,54 @@ class FakeGraph:
         if path.startswith("/me/drive/items/"):
             rest = path[len("/me/drive/items/"):]
             iid, _, tail = rest.partition("/")
-            it = self.items.get(iid)
+            it = self.items.get(iid) if iid != self.ROOT else dict(id=self.ROOT, name=self.folder, parent="", folder=True, deleted=False, n=0)
             if not it or it["deleted"]:
                 return self._error(route, 404, "itemNotFound")
             if tail == "" and method == "GET":
                 return self._reply(route, 200, self.item_json(it))
+            if tail == "" and method == "PATCH":
+                body = json.loads(request.post_data or "{}")
+                if if_match is not None and if_match != self._etag(it):
+                    return self._error(route, 412, "preconditionFailed")
+                if it["folder"]:
+                    new_name = body.get("name", it["name"])
+                    target = f'{it["parent"]}/{new_name}' if it["parent"] else new_name
+                    if new_name.lower() != it["name"].lower() and (self.by_path(target, folder=True) or self.by_path(target)):
+                        return self._error(route, 409, "nameAlreadyExists")
+                    self._rename_folder(it, target)
+                    it["by"] = self.who
+                    return self._reply(route, 200, self.item_json(it))
+                if if_match is None:
+                    self.violations.append(("PATCH (move) without If-Match", self._rel(it)))
+                pid = (body.get("parentReference") or {}).get("id")
+                dest = it["parent"]
+                if pid:
+                    if pid == self.ROOT:
+                        dest = ""
+                    else:
+                        f = self.items.get(pid)
+                        if not f or f["deleted"] or not f["folder"]:
+                            return self._error(route, 404, "itemNotFound")
+                        dest = self._rel(f)
+                name = body.get("name", it["name"])
+                target = f"{dest}/{name}" if dest else name
+                other = self.by_path(target)
+                if other and other is not it:
+                    return self._error(route, 409, "nameAlreadyExists")
+                it["parent"], it["name"] = dest, name
+                self._touch(it)
+                return self._reply(route, 200, self.item_json(it))
+            if tail == "children" and method == "POST" and it["folder"]:
+                body = json.loads(request.post_data or "{}")
+                rel = f'{self._rel(it)}/{body["name"]}' if it["id"] != self.ROOT and self._rel(it) else body["name"]
+                if self.by_path(rel, folder=True) or self.by_path(rel):
+                    return self._error(route, 409, "nameAlreadyExists")
+                fid = self._folder_id(rel, create=True)
+                return self._reply(route, 201, self.item_json(self.items[fid]))
+            if tail.startswith("children") and method == "GET" and it["folder"]:
+                rel = "" if it["id"] == self.ROOT else self._rel(it)
+                kids = [x for x in self.items.values() if not x["deleted"] and x["parent"] == rel]
+                return self._reply(route, 200, {"value": [self.item_json(x) for x in kids]})
             if tail == "" and method == "DELETE":
                 if if_match is None:
                     self.violations.append(("DELETE without If-Match", self._rel(it)))
