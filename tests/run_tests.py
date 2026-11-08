@@ -2447,6 +2447,43 @@ def test_r28_phase1(browser):
     check("G (restore tree, OneDrive): no page errors", not [e for e in errors if "test: connection lost" not in e], errors[:3])
     ctx.close()
 
+def test_format_check(browser):
+    print("\n[24] R2-5 step 0: a folder from a newer data format opens read-only")
+    fm = lambda i, title: f"---\nid: {i}\ntitle: {title}\nstatus: open\nlist: Inbox\norder: 1\n---\n- [ ] a line\n"
+    cfg = lambda f: '{\n  "format": %d,\n  "lists": ["Inbox"]\n}\n' % f
+    od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.everSignedIn": True, "todo.list": "Inbox", **kv})
+    ready = "__todo.S.store && __todo.S.store.ready === true"
+    # format 3 (and the older 2): normal
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(2)})
+    ctx, page, errors = new_page(browser, phone=True, init=od_init())
+    fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    check("format 2/3 folder: no read-only bar, quick-add on", not page.is_visible("#ro-bar") and page.is_enabled("#qa"))
+    # another device converts the folder mid-session → read-only from the next check
+    fg.ext_edit("_todo.json", cfg(4)); page.wait_for_selector("#ro-bar:not([hidden])", timeout=5000)
+    check("…the folder becomes format 4 elsewhere: the read-only bar appears on the next check", "data format 4" in page.inner_text("#ro-text") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
+    before = fg.files()["a.md"]
+    row(page, "Alpha").locator(".ck").click(); page.wait_for_timeout(600)
+    if page.locator("#modal [data-a=one]").count(): page.click("#modal [data-a=one]"); page.wait_for_timeout(600)
+    check("…a check-off is refused and undone on screen; the file is unchanged", fg.files()["a.md"] == before and page.evaluate("__todo.all().find(t => t.id === 't-a').status") == "open"
+          and "Read-only" in page.inner_text("#toast"), page.inner_text("#toast"))
+    row(page, "Alpha").locator(".row-more").click(); page.locator("#pop button", has_text="Delete").click(); page.click("#modal [data-a=ok]"); page.wait_for_timeout(600)
+    check("…a delete is refused too: the file stays, nothing written to .trash", "a.md" in fg.files() and not fg.trash())
+    r = page.evaluate("async () => { __todo.S.lists.push('Sneaky'); try { await __todo.saveConfig(); return 'saved'; } catch (e) { return e.constructor.name; } }"); page.wait_for_timeout(300)
+    check("…and _todo.json is never rewritten with the older format (the write is refused)", '"format": 4' in fg.files()["_todo.json"] and "Sneaky" not in fg.files()["_todo.json"], (r, fg.files()["_todo.json"]))
+    check("format check (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
+    ctx.close()
+    # opened fresh on a format-4 folder (the device copy is per context, so this is a cold start)
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(4)})
+    ctx, page, errors2 = new_page(browser, phone=False, init=od_init())
+    fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
+    check("opening a format-4 folder: read-only bar with a Reload button, tasks still shown", page.is_visible("#ro-bar") and page.is_visible("#ro-reload") and row(page, "Alpha").count() == 1)
+    page.fill("#qa", "x") if page.is_enabled("#qa") else None
+    check("…quick-add is off", page.is_disabled("#qa"))
+    check("…the Diagnostics log says why", "read-only" in page.evaluate("localStorage.getItem('todo.deviceLog') || ''"))
+    check("format check: no page errors", not errors and not errors2, (errors + errors2)[:3])
+    ctx.close()
+
+
 def test_r211_fast_entry(browser):
     print("\n[23] R2-11 to R2-15: Enter = next task, inline add line, Save & close subdued, clear due, Delete all colour")
     D = lambda n: (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
@@ -2563,7 +2600,7 @@ def main():
         browser = p.chromium.launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry), ("fmtcheck", test_format_check)]
         for name, fn in tests:
             if not only or name in only:
                 try:

@@ -257,6 +257,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 .od-badge[hidden]{display:none}
 .srch-bar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:2px 4px 2px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);color:var(--accent);font-size:calc(14px*var(--z))}
 .srch-bar[hidden]{display:none}
+.ro-bar{background:rgba(255,107,107,.14);color:var(--danger)} .ro-bar button{color:var(--danger)} .ro-bar span{white-space:normal}
 .srch-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .srch-bar button{border:0;background:none;color:var(--accent);min-height:calc(40px*var(--z));white-space:nowrap}
 .dl-subs{margin:4px 0 8px;padding-left:20px;font-size:calc(13px*var(--z))} .dl-subs li{margin:2px 0;overflow-wrap:anywhere}
@@ -314,6 +315,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
   <button id="stat" class="stat off" title="">○</button>
   <button id="app-menu" class="icon" title="Menu">⋯</button>
 </header>
+<div id="ro-bar" class="srch-bar ro-bar" hidden><span id="ro-text"></span><button id="ro-reload" title="Reload to get the latest version">Reload</button></div>
 <div id="srch-bar" class="srch-bar" hidden><span id="srch-text"></span><button id="srch-clear" title="Clear the search">✕ Clear</button></div>
 
 <main>
@@ -383,7 +385,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-07c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-08a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -450,7 +452,7 @@ function applyTextSize(pct){ document.documentElement.style.setProperty('--z', S
 applyTextSize(textSize());
 
 const S = {
-  tasks: new Map(), lists: [], cfgVersion: null, cfgExtra: {}, store: null, auth: null,
+  tasks: new Map(), lists: [], tooNew: 0, cfgVersion: null, cfgExtra: {}, store: null, auth: null,
   view: ls.get('todo.view2', 'list'), list: ls.get('todo.list', ''), showDone: ls.get('todo.showDone', false), showArchived: false, q: '',
   expanded: new Set(ls.get('todo.expanded', [])), editing: null, snapshot: null, addSub: null,
   busy: 0, syncing: false, offline: false, conflict: false, signedOut: false, redirecting: false, editor: null,
@@ -463,6 +465,7 @@ class NotFoundError extends Error { constructor(path){ super('Not found: ' + pat
 class OfflineError extends Error {}
 class AuthError extends Error {}
 class FolderError extends Error {}
+class ReadOnlyError extends Error {}               // R2-5 step 0: the folder needs a newer build
 
 /* ---------------- storage connectors (storage-spec S-2) ----------------
    Every store: list() → [{path, version}], read(path) → {text, version},
@@ -963,6 +966,7 @@ function storeError(e, what){
   if (e instanceof OfflineError){ S.offline = true; setStat(); toast(`You're offline — ${what || 'change'} not saved.`); return; }
   if (e instanceof AuthError){ reauth(); return; }
   if (e instanceof FolderError){ toast(e.message); return; }
+  if (e instanceof ReadOnlyError){ toast(`Read-only: this folder needs a newer version of the app — ${what || 'change'} not saved. Tap Reload.`); return; }
   toast(`${what ? what[0].toUpperCase() + what.slice(1) : 'That'} failed: ${e.message}`); console.error(e);
 }
 window.addEventListener('online', () => { S.offline = false; setStat(); poll(); });
@@ -1016,6 +1020,24 @@ function buildFrom(recs){                           // task map + lists from fil
   S.tasks = map;
   if (cfg && typeof cfg === 'object'){ const { lists, ...rest } = cfg; S.cfgExtra = rest; S.lists = Array.isArray(lists) ? lists.map(String) : []; }
   else S.lists = [];
+  checkFormat(cfg);
+}
+/* R2-5 step 0: _todo.json says which data format the folder uses. A folder from a newer format (e.g. 4 = folders) is
+   opened read-only: every write, create and delete is refused, so this build can't damage what it doesn't understand. */
+function checkFormat(cfg){
+  const f = Number(cfg && typeof cfg === 'object' ? cfg.format : 0) || 0;
+  const was = S.tooNew; S.tooNew = f > DATA_FORMAT ? f : 0;
+  $('#ro-bar').hidden = !S.tooNew;
+  $('#ro-text').textContent = S.tooNew ? `Read-only: this folder was updated by a newer version of HTML-ToDo-App (data format ${S.tooNew}; this one knows ${DATA_FORMAT}). Reload to update the app.` : '';
+  if (S.tooNew && !was) logDevice(`folder data format ${S.tooNew} is newer than ${DATA_FORMAT}: read-only`);
+}
+function guardWrites(store){                       // R2-5 step 0: no writes while the folder is from a newer format
+  for (const st of [store, store?.src]) if (st && !st.roGuard){
+    st.roGuard = true;
+    for (const m of ['write', 'create', 'remove']) if (typeof st[m] === 'function'){
+      const f = st[m].bind(st); st[m] = async (...a) => { if (S.tooNew) throw new ReadOnlyError(); return f(...a); };
+    }
+  }
 }
 function addParsed(map, t){
   if (map.has(t.id) && map.get(t.id).file !== t.file){ t.dupOf = t.id; t.id = t.id + '~' + t.file; }
@@ -1032,6 +1054,7 @@ async function mergeConfigFromDisk(){
   const { lists, ...rest } = remote; const rl = Array.isArray(lists) ? lists.map(String) : [];
   S.lists = [...rl, ...S.lists.filter(l => !rl.includes(l))];      // their order wins; keep lists only we have
   S.cfgExtra = rest; S.cfgVersion = r.version;
+  checkFormat(remote);
 }
 async function saveConfig(){
   if (!S.store) return false;
@@ -1342,7 +1365,7 @@ function render(){
   fitListName();
   $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${S.list}…`;
   qaChips();
-  $('#qa').disabled = !S.store || !!S.firstFill;
+  $('#qa').disabled = !S.store || !!S.firstFill || !!S.tooNew;
   setStat();
   const sb = $('#srch-bar'); sb.hidden = !(S.store && S.q); $('#srch-text').textContent = S.q ? `Filtering: “${S.q}”` : '';   // R2-8 Hidden C
   const od = S.store && !S.firstFill ? overdueCount() : 0, oh = $('#od-head');                                             // R2-8 Hidden D
@@ -2551,6 +2574,7 @@ function searchDialog(){
   setTimeout(() => $('#m-q')?.focus(), 0);
   $('#m-q').addEventListener('keydown', e => { if (e.key === 'Enter'){ S.q = $('#m-q').value.trim(); closeModal(); render(); } });
 }
+$('#ro-reload').onclick = () => location.reload();
 $('#srch-clear').onclick = () => { S.q = ''; render(); toast('Search cleared'); };          // R2-8 Hidden C
 
 /* R2-8 restore follow-up: how trash entries hang together, by task id and parent: (not by when they were deleted).
@@ -2729,6 +2753,7 @@ async function useStore(store){
     store = new CachedStore(store, scope);
     navigator.storage?.persist?.().catch(() => {});
   }
+  guardWrites(store); S.tooNew = 0; $('#ro-bar').hidden = true;
   S.store = store; S.signedOut = false; S.list = ls.get('todo.list', '');
   S.draftScope = scope || (store.kind === 'demo' ? 'demo' : store.kind === 'onedrive' ? `onedrive|${S.auth?.user?.() || ''}|${store.folder.toLowerCase()}` : `local|${store.name}`);   // R2-8 Overwritten C
   let fromCopy = false;
@@ -2953,7 +2978,7 @@ function sampleFiles(){
 /* ---------------- boot ---------------- */
 window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  trashPut, trashEntries, trashRestore, trashDrop, recentlyDeleted, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
+  trashPut, trashEntries, trashRestore, trashDrop, saveConfig, recentlyDeleted, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')

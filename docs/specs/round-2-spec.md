@@ -499,6 +499,43 @@ Same as round 1:
 
     So no folder can ever be named "/ (root)".
 
+9. **New tasks outside a folder** (e.g. quick-add in the Today view) go to **/ (root)**. The folder chip still picks another and remembers the last pick.
+10. **Managing folders in the app:** create, rename, and delete **only when empty**, so one tap can never wipe out a folder of tasks.
+11. **A whole folder disappears** (deleted or renamed outside the app): **warn and explain**.
+    - **Deleted:** "The folder *X* (N tasks, M with due dates) is gone", with the task names and where to restore (OneDrive's recycle bin).
+    - **Renamed:** shows up as the same task ids in a new folder, so the app says "renamed to …" instead.
+12. **The data-format check ships first, as its own small build** ("Small build now"). See *Step 0* below.
+13. **Migration:** "Claude runs a script, you convert my OneDrive folder from this PC. I don't have any .md files on my work pc to perserve."
+    - So there's **no in-app converter**.
+    - Claude converts `HTML-ToDo-App` with a script after a fresh backup, once the folder build is on the phone and the PC.
+14. **An unconverted (flat, format ≤ 3) folder in the folder build:** read-only until converted. Only one layout to support.
+15. **Folders shared with Geoff by others:** not in this build. Sharing one of his own folders works anyway, since it's a OneDrive folder.
+16. **The work PC:** "I will delete everything from my work version of the app, nothing was important or used. but after this build I will start using at my work for real."
+    - No work-PC migration; it starts empty, in the folder layout.
+    - The work pack with the folder build is what goes there.
+
+### Step 0 — the data-format check (approved 2026-11-08, built as 2026-11-08a)
+**What:** `_todo.json`'s `format` is now read on load and whenever the file changes.
+- **If it's newer than the build knows** (`DATA_FORMAT`, still 3), the folder opens **read-only**: every write, create and delete is refused. That covers task files, the trash and `_todo.json` itself.
+- **On screen:** a red bar ("Read-only: this folder was updated by a newer version of HTML-ToDo-App (data format 4; this one knows 3). Reload to update the app.") with **Reload**. Quick-add is off.
+- **A refused change** (e.g. a check-off) is undone on screen, with a toast.
+- **Diagnostics:** the log records it.
+- **Format 2 and 3 folders** are unaffected.
+
+**Why first:** every device must run this before any folder is converted. Otherwise an older build would treat the folder layout as an empty or partial folder and could write into it.
+
+**Tests:** group `fmtcheck` (10 checks, fake OneDrive):
+- a format-2 folder is normal
+- a format-4 change arriving mid-session turns the app read-only on the next check
+- a check-off and a delete are refused, and the file and the trash are untouched
+- `_todo.json` is never rewritten
+- a cold start on a format-4 folder shows the bar, tasks still visible
+- no writes without If-Match; no page errors
+
+Full suite: 637 checks pass.
+
+**Status:** Built; pushed to `main` as 2026-11-08a.
+
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
 - **Done 2026-11-08, before any migration:**
     - **Backup:** a zip of the whole folder (559 files, verified) in `private/backups/` (local, git-ignored).
@@ -1304,6 +1341,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-08 | R2-5 | **Decisions 9–16:** new tasks → / (root); folders: create, rename, delete-if-empty; a vanished folder → warn and explain; format check first as its own build; migration by Claude's script (no in-app converter); flat folders read-only in the folder build; shared-with-me folders out; work PC starts fresh | Step 0 (format check) built as 2026-11-08a |
 | 2026-11-08 | R2-5 | **Implementation decisions 1–8:** one level (tree-ready); List → Folder everywhere; no folder field (path is the truth, `list:` removed); same-folder rule enforced; subtask alone → Cancel / top-level there; left behind → ask, one tap; top = "/ (root)", no Home/Inbox; folder-name rules | Real folder cleaned: 516 test files deleted (backup kept); 42 tasks in 3 lists remain |
 | 2026-11-07 | R2-11–15 | **Verified on the phone** (keyboard Enter in the add line and the editor, due ✕, ↑ ↓ ● tap size) | |
 | 2026-11-07 | R2-11–15 | **Verified on PC and merged to `main`** (build 2026-11-07c) at Geoff's request ("it all looks good merge") | Phone check passed the same day |
@@ -1346,6 +1384,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-08 — v40: R2-5 decisions 9–16; Step 0 (data-format check) approved and built (2026-11-08a).
 - 2026-11-08 — v39: R2-5 implementation discussion started (decisions 1–8); real-folder cleanup recorded.
 - 2026-11-07 — v38: R2-11 to R2-15 verified on the phone.
 - 2026-11-07 — v37: R2-11 to R2-15 verified on PC and merged (2026-11-07c).
