@@ -2661,6 +2661,15 @@ def test_r25_folders(browser):
           "The folder “Gone” is gone" in txt and "Pay the bill" in txt and txt.index("Pay the bill") < txt.index("Gone task") and "Recycle bin" in txt, txt[:300])
     if page.locator("#modal [data-a=ok]").count(): page.click("#modal [data-a=ok]")
     check("…and its tasks are gone from the app", page.evaluate("__todo.get('t-d1')") is None and page.evaluate("__todo.get('t-p')") is None)
+    # a device copy from an older build (before folders) must not come back: its files were moved long ago
+    scope = page.evaluate("__todo.S.store.scope")
+    page.evaluate("""async sc => { await __todo.devCache.dropScopes(s => s === sc);
+        await __todo.devCache.commit(sc, [{ path:'stale-old.md', text:'---\\nid: t-stale\\ntitle: Stale from an old copy\\nstatus: open\\nlist: Inbox\\norder: 1\\n---\\n', version:'old' }], [], { format:1, token:null, savedAt:1 }); }""", scope)
+    page.reload(); page.wait_for_function(ready); page.wait_for_timeout(300)
+    check("an old-format device copy is thrown away: its files don't reappear", page.evaluate("__todo.get('t-stale')") is None)
+    page.reload(); page.wait_for_function(ready); page.wait_for_timeout(300)
+    check("…nor on the start after that", page.evaluate("__todo.get('t-stale')") is None
+          and not page.evaluate("async sc => (await __todo.devCache.load(sc)).files.some(f => f.path === 'stale-old.md')", scope))
     check("B (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
     check("B (OneDrive): no page errors", not errors, errors[:3])
     ctx.close()

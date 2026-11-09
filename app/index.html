@@ -388,7 +388,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-08c';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-08d';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -880,7 +880,9 @@ class CachedStore {
   async warm(){                                        // the saved copy, for drawing at once (not yet checked)
     try {
       const { files, state } = await devCache.load(this.scope);
-      if (!state || state.format !== CACHE_FORMAT) return [];
+      /* a copy from another version (or a half-saved one) is thrown away, not just skipped: its files would otherwise
+         come back on the next start (e.g. a task folder from before R2-5 folders showing every task twice) */
+      if (!state || state.format !== CACHE_FORMAT){ if (files.length) await devCache.dropScopes(s => s === this.scope); return []; }
       for (const r of files) this.mem.set(r.path.toLowerCase(), r);
       this.token = state.token || null; this.src.restore?.(files, state.dirs); this.stats.warm = files.length;
       return files;

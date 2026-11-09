@@ -617,6 +617,8 @@ Full suite: 637 checks pass.
 
 **Follow-up (Geoff's test, 2026-11-08):** after dragging a parent in Explorer, its subtasks looked moved (they show under the parent) though their files hadn't moved; ⚠ 4 on the parent moved them. Geoff: "add the per-row marker". **Built (2026-11-08c):** each subtask row whose file is in another folder than its parent's shows "⚠ in *Folder*".
 
+**Bug found in Geoff's test (2026-11-08), fixed in 2026-11-08d:** a second, stale T1/T2/T3 "in / (root)" with `list: "Test List"`. OneDrive and Explorer were correct (the conversion moved the files); the **device copy** in the browser still held the pre-conversion files. The new build skipped an old-format copy but didn't delete it, so its files came back on the next start (no change feed reports files deleted before the bookmark). Fix: a device copy from another format is deleted, then everything downloads fresh. Without it, every device would have shown all tasks twice after the real conversion. Test added (fails without the fix). Claude first blamed OneDrive sync, wrongly; decision 13 (script conversion) stays.
+
 **Status:** Built, being tested by Geoff (all tested steps passed so far).
 
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
