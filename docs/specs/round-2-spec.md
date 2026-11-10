@@ -1370,7 +1370,7 @@ Explained to Geoff with a sketch:
 - **Catch up:** the next date after the old due date, even if it's still in the past, so every missed one comes up in turn → Nov 5.
 - **From completion:** counted from the day it's checked off → Nov 15. Good for "every N days since I last did it".
 
-**Note:** tooltips appear on hover, so on the PC only; phones don't show them. Geoff decides whether the phone gets a visible line under the field.
+**Note:** tooltips appear on hover, so on the PC only; phones don't show them. **Decided (2026-11-09):** no visible line under the field on phones ("no need to add the line under the field for the phone").
 
 **Status:** Built.
 
