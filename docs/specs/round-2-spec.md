@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
 | R2-18 | Show that files are being changed (busy indicator) | Open | Spinning status icon + progress toast for multi-file actions (recommended) |
 | R2-17 | Review the repeat options; month-end dates drift | Open | Plain `monthly` from the 29th–31st drifts to the 28th; Geoff to review |
 | R2-16 | Explain the repeat "Next date" choices | **Built** (2026-11-09a, branch) | Tooltips (PC only) |
@@ -1454,6 +1455,35 @@ During that time the screen gives little feedback. The only sign is the header s
 
 ---
 
+## R2-19 — A way to hide the "Add subtask…" lines
+
+**Asked** (Geoff, 2026-11-09, during the folder tests): "add some way to hide the "Add subtask..." input box from the main list view (now I guess called the Folder view?)".
+
+**Background:** R2-11 (build 2026-11-07c) puts an inline "+ Add subtask…" line under **every expanded parent** in the folder view (the list view; with R2-5 each list is a folder). It's fast for entering several subtasks, but with many expanded parents it adds a full-width empty row under each family, which is visual clutter when only reading the list. The other ways to add a subtask stay:
+- ⋯ → Add subtask (focuses that line)
+- the editor's **+ Subtask** button
+- Enter-chaining in a new subtask's title
+
+**Options:**
+- **A. A setting:** Settings → "Show Add subtask lines" (on/off).
+  - Pros: simple; each device chooses.
+  - Cons: all or nothing; when off, the fast path is only through ⋯.
+- **B. Show the line only on demand** *(recommended)*. Hidden by default; **⋯ → Add subtask** (and the editor's + Subtask, if wanted) opens it under that parent. It stays while you keep entering subtasks and disappears when you leave it empty.
+  - Pros: a clean list by default; the fast multi-entry from R2-11 is still one tap away; no setting to manage.
+  - Cons: one extra tap compared with today when you want to add a subtask.
+- **C. Shrink it to a small "+" at the end of each parent row** that opens the line.
+  - Pros: always visible, low clutter.
+  - Cons: another small target on already-busy rows, especially on the phone (the ⋯ column is there).
+- **D. Show it only on hover** (PC).
+  - Pros: no clutter on the PC.
+  - Cons: phones have no hover, so it would need another rule there.
+
+**Option:** B can be combined with A, so "always show" stays available for anyone who prefers today's behavior.
+
+**Status:** Open (not approved for build).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1520,6 +1550,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |
 | 2026-11-09 | R2-18 | **Added (Open):** busy indicator while files are being changed; options A–D | Not approved for build |
 | 2026-11-09 | R2-17 | **Added (Open):** Geoff to review the repeat options; month-end drift of a plain `monthly`/`yearly` recorded with options A–D | Not approved for build |
 | 2026-11-09 | R2-16 | No visible hint line on phones (Geoff) | — |
@@ -1568,6 +1599,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
 - 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
 - 2026-11-09 — v43: R2-17 (review repeat options; month-end drift) added, Open. R2-16 phone-line decision logged.
 - 2026-11-09 — v42: R2-16 (repeat Next date tooltips) added and built.
