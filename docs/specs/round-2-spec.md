@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-16 | Explain the repeat "Next date" choices | **Built** (2026-11-09a, branch) | Tooltips (PC only) |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -1360,6 +1361,21 @@ Explained to Geoff with a sketch:
 
 ---
 
+## R2-16 — Explain the repeat "Next date" choices
+
+**Asked** (Geoff, 2026-11-09): "for the repeat next date options, please add a tooltip that explains what the differences are".
+
+**Built (build 2026-11-09a, on branch `r2-5-folders`):** the editor's **Next date** field has a tooltip explaining all three choices, and each choice has its own. Example used: a task every 3 days, due Nov 2, checked off Nov 12.
+- **Skip missed** (default): stays on the original rhythm but skips the dates already missed; the next date is the first one on the schedule after today → Nov 14.
+- **Catch up:** the next date after the old due date, even if it's still in the past, so every missed one comes up in turn → Nov 5.
+- **From completion:** counted from the day it's checked off → Nov 15. Good for "every N days since I last did it".
+
+**Note:** tooltips appear on hover, so on the PC only; phones don't show them. Geoff decides whether the phone gets a visible line under the field.
+
+**Status:** Built.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1426,6 +1442,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-09 | R2-16 | **Added and built:** tooltips on the repeat "Next date" choices | On the folder branch |
 | 2026-11-08 | R2-5 | **Folder build approved** ("yes, start the folder build") **and built** (2026-11-08b, data format 4) | 725 checks pass; migration tool tried on a copy of the real data |
 | 2026-11-08 | R2-5 | **Decisions 9–16:** new tasks → / (root); folders: create, rename, delete-if-empty; a vanished folder → warn and explain; format check first as its own build; migration by Claude's script (no in-app converter); flat folders read-only in the folder build; shared-with-me folders out; work PC starts fresh | Step 0 (format check) built as 2026-11-08a |
 | 2026-11-08 | R2-5 | **Implementation decisions 1–8:** one level (tree-ready); List → Folder everywhere; no folder field (path is the truth, `list:` removed); same-folder rule enforced; subtask alone → Cancel / top-level there; left behind → ask, one tap; top = "/ (root)", no Home/Inbox; folder-name rules | Real folder cleaned: 516 test files deleted (backup kept); 42 tasks in 3 lists remain |
@@ -1470,6 +1487,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-09 — v42: R2-16 (repeat Next date tooltips) added and built.
 - 2026-11-08 — v41: R2-5 folder build (format 4) built: storage, UI, rules, migration tool, tests.
 - 2026-11-08 — v40: R2-5 decisions 9–16; Step 0 (data-format check) approved and built (2026-11-08a).
 - 2026-11-08 — v39: R2-5 implementation discussion started (decisions 1–8); real-folder cleanup recorded.

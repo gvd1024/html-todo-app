@@ -350,7 +350,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
       <option value="yearly">Yearly</option><option value="custom">Custom…</option></select>
       <input type="text" id="f-rep-custom" placeholder="e.g. every 3 days · weekly on mon, thu · monthly on last day" style="flex:1;min-width:0;display:none"></span></label>
     <label class="rep-opt">Mode<select id="f-rep-mode"><option value="recycle">Recycle (same file)</option><option value="copy">Copy (keep a record)</option></select></label>
-    <label class="rep-opt">Next date<select id="f-rep-next"><option value="skip">Skip missed</option><option value="catchup">Catch up</option><option value="afterdone">From completion</option></select></label>
+    <label class="rep-opt" title="Skip missed (default): stays on the original rhythm but skips dates already missed — the next date is the first one on the schedule after today. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 14.&#10;&#10;Catch up: the next date on the schedule after the old due date, even if it's still in the past, so every missed one comes up in turn. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 5.&#10;&#10;From completion: counted from the day you check it off. E.g. every 3 days, checked off Nov 12 → Nov 15. Good for 'every N days since I last did it'.">Next date<select id="f-rep-next"><option value="skip" title="Skip missed (default): stays on the original rhythm but skips dates already missed — the next date is the first one on the schedule after today. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 14.">Skip missed</option><option value="catchup" title="Catch up: the next date on the schedule after the old due date, even if it's still in the past, so every missed one comes up in turn. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 5.">Catch up</option><option value="afterdone" title="From completion: counted from the day you check it off. E.g. every 3 days, checked off Nov 12 → Nov 15. Good for 'every N days since I last did it'.">From completion</option></select></label>   <!-- R2-16: tooltips -->
     <div class="wide d-note rep-opt" id="f-rep-hint"></div>
     <label class="wide">Collections<input type="text" id="f-coll" placeholder="a, b"></label>
   </div>
@@ -388,7 +388,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-08d';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-09a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];

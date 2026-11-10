@@ -1112,6 +1112,9 @@ def test_recurring(browser):
     page.evaluate("""async () => { const t = __todo.all().find(x => (x.file === 'tenant-lease-renewal.md' || x.file.endsWith('/tenant-lease-renewal.md'))); t.repeat = 'every blue moon'; t.unknown = ['repeat: every blue moon']; await __todo.saveTask(t); __todo.render(); }""")
     check("unknown phrase → ⚠ on the row, no ↻", row(page, "Tenant lease renewal").locator(".wflag").count() == 1 and row(page, "Tenant lease renewal").locator(".rep-ico").count() == 0)
     check("data format 4 (folders) recognized", page.evaluate("__todo.DATA_FORMAT") == 4)
+    tips = page.evaluate("() => [document.querySelector('label:has(#f-rep-next)').title, ...[...document.querySelectorAll('#f-rep-next option')].map(o => o.title)]")
+    check("R2-16: 'Next date' has a tooltip explaining all three, and each choice its own",
+          all(w in tips[0] for w in ["Skip missed", "Catch up", "From completion"]) and tips[1].startswith("Skip missed") and tips[2].startswith("Catch up") and tips[3].startswith("From completion"), tips)
     check("recurring: no page errors", not errors, errors[:3])
     ctx.close()
 
