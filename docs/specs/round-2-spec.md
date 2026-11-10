@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-18 | Show that files are being changed (busy indicator) | Open | Spinning status icon + progress toast for multi-file actions (recommended) |
 | R2-17 | Review the repeat options; month-end dates drift | Open | Plain `monthly` from the 29th–31st drifts to the 28th; Geoff to review |
 | R2-16 | Explain the repeat "Next date" choices | **Built** (2026-11-09a, branch) | Tooltips (PC only) |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
@@ -1418,6 +1419,41 @@ This affects only days 29–31; days 1–28 are fine.
 
 ---
 
+## R2-18 — Show that files are being changed (busy indicator)
+
+**Asked** (Geoff, 2026-11-09, during the folder tests, after moving a family of 6 files): "add to the list of things to work on some kind of spinner icon or something letting the user know that files are being changed".
+
+**Problem:** some actions change many files one after another, and in OneDrive each file is a separate round trip:
+- moving a family to another folder (R2-5)
+- deleting or restoring a task tree (R2-8; deep trees noticeably slower, see R2-8 restore notes A–C)
+- Check all, recurring copies with subtasks, Delete all in Recently deleted
+
+During that time the screen gives little feedback. The only sign is the header status icon, which turns to a static **⟳** "Syncing…" (`setStat`, `S.busy`/`S.syncing`). It is small, doesn't move, is covered by the editor on phones, and doesn't say what's happening or how far along it is. So it's unclear whether a tap worked, and the user may tap again or close the app halfway.
+
+**Options:**
+- **A. Animate the existing status icon.** The ⟳ spins whenever a write is in flight.
+  - Pros: tiny change; the icon is always in the same place.
+  - Cons: still small; says nothing about what or how much; hidden under the phone editor.
+- **B. A progress toast for multi-file actions** *(recommended, together with A)*. A bottom toast such as "Moving 6 files… 3 of 6", then "Moved 6 files" (with Undo where one exists).
+  - Pros: clear; shows progress; the same toast area the app already uses; works on phone and PC.
+  - Cons: each multi-file action needs a counter hooked in.
+- **C. A thin progress bar under the header** (like a browser's loading bar) for any store activity.
+  - Pros: visible without words; generic.
+  - Cons: no detail; another moving element.
+- **D. Block the screen with a spinner overlay** until the action finishes.
+  - Pros: impossible to miss; prevents double taps.
+  - Cons: heavy-handed; blocks reading the list for seconds on slow connections; a stuck request looks like a frozen app.
+
+**Recommendation:** A + B. Also, while a multi-file action runs, disable a second start of the same action. Add a warning when the app or tab is closed mid-action (`beforeunload`).
+
+**To decide:**
+- Which actions count (any write, or only multi-file ones)?
+- Should a single-file save also show anything beyond the spinning icon?
+
+**Status:** Open (not approved for build).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1484,6 +1520,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-09 | R2-18 | **Added (Open):** busy indicator while files are being changed; options A–D | Not approved for build |
 | 2026-11-09 | R2-17 | **Added (Open):** Geoff to review the repeat options; month-end drift of a plain `monthly`/`yearly` recorded with options A–D | Not approved for build |
 | 2026-11-09 | R2-16 | No visible hint line on phones (Geoff) | — |
 | 2026-11-09 | R2-16 | **Added and built:** tooltips on the repeat "Next date" choices | On the folder branch |
@@ -1531,6 +1568,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
 - 2026-11-09 — v43: R2-17 (review repeat options; month-end drift) added, Open. R2-16 phone-line decision logged.
 - 2026-11-09 — v42: R2-16 (repeat Next date tooltips) added and built.
 - 2026-11-08 — v41: R2-5 folder build (format 4) built: storage, UI, rules, migration tool, tests.
