@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-17 | Review the repeat options; month-end dates drift | Open | Plain `monthly` from the 29th–31st drifts to the 28th; Geoff to review |
 | R2-16 | Explain the repeat "Next date" choices | **Built** (2026-11-09a, branch) | Tooltips (PC only) |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
@@ -1376,6 +1377,47 @@ Explained to Geoff with a sketch:
 
 ---
 
+## R2-17 — Review the repeat options; month-end dates drift
+
+**Asked** (Geoff, 2026-11-09): "add R2-17 that I need to look more closely at the repeat options and capture the issue we found just now". It started from: "for all these repeat option, what happen if its a monthly repeat and the date starts as the 31 day of the month? What happens on days when there is no 31st day?"
+
+**Part 1: Geoff reviews the repeat options.** Geoff wants to look more closely at the repeat choices (schedules, Recycle / Keep copies, Skip missed / Catch up / From completion) before anything changes. To discuss when he raises it.
+
+**Part 2: the issue found (checked by running the app's own `nextDue`/`stepAfter`, build 2026-11-09a).**
+
+*What works:* the editor's **Monthly** writes `monthly on day N` (`repBase`), so the day is kept. A short month uses its last day, then the day comes back: Jan 31 → Feb 28 → Mar 31 → Apr 30 → May 31. `monthly on last day` also works (Feb 28, Mar 31, Apr 30, …). Due Jan 31, missed until Apr 10, with `on day 31`:
+- Skip missed → Apr 30, then May 31.
+- Catch up → Feb 28 → Mar 31 → Apr 30.
+
+*The bug:* a plain `monthly` (typed in Custom, or written by Claude) or `every N months` takes its day from the **current** due date (`want = r.mday ?? anchor.getDate()`, with the anchor being the current due). After one short month the day shrinks for good. All three Next date choices drift:
+- `monthly`: Jan 31 → Feb 28 → **Mar 28 → Apr 28 → May 28 …**
+- `every 2 months`: Dec 31 → Feb 28 → **Apr 28 → Jun 28 …**
+- `yearly` from Feb 29: → Feb 28 every year after, even in leap years (2032).
+
+This affects only days 29–31; days 1–28 are fine.
+
+*A quirk (not a bug, but surprising):* **From completion** with `monthly on day 31` means "the next 31st (or month end) after I check it off", not "a month after I check it off". For example, checked off Feb 10 → Feb 28 (18 days later).
+
+**Options for the drift:**
+- **A. Write the day into the file on the first roll** *(recommended)*. When a plain `monthly` / `every N months` / `yearly` rolls forward, the app rewrites the phrase as `monthly on day 31` (yearly: an equivalent form), so the file says what it does.
+  - Pros: self-describing; works for Claude edits too.
+  - Cons: the app changes the `repeat:` text on its own (a small exception to "never rewrites on its own").
+- **B. Keep the start day in a new key** (e.g. `repeat_day: 31`).
+  - Pros: the phrase stays untouched.
+  - Cons: a new frontmatter key and data-format change, for a small problem.
+- **C. Use `series` / history to find the original day.**
+  - Pros: no file change.
+  - Cons: Recycle mode keeps no history, so this doesn't work there.
+- **D. Leave it, and only warn (⚠)** on a plain `monthly` whose due is the 29th–31st.
+  - Pros: no behavior change.
+  - Cons: the drift still happens if the warning is ignored.
+
+**Also to decide:** whether From completion with `on day N` should instead mean "one month after completion".
+
+**Status:** Open (Geoff to review the repeat options; not approved for build).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1442,6 +1484,8 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-09 | R2-17 | **Added (Open):** Geoff to review the repeat options; month-end drift of a plain `monthly`/`yearly` recorded with options A–D | Not approved for build |
+| 2026-11-09 | R2-16 | No visible hint line on phones (Geoff) | — |
 | 2026-11-09 | R2-16 | **Added and built:** tooltips on the repeat "Next date" choices | On the folder branch |
 | 2026-11-08 | R2-5 | **Folder build approved** ("yes, start the folder build") **and built** (2026-11-08b, data format 4) | 725 checks pass; migration tool tried on a copy of the real data |
 | 2026-11-08 | R2-5 | **Decisions 9–16:** new tasks → / (root); folders: create, rename, delete-if-empty; a vanished folder → warn and explain; format check first as its own build; migration by Claude's script (no in-app converter); flat folders read-only in the folder build; shared-with-me folders out; work PC starts fresh | Step 0 (format check) built as 2026-11-08a |
@@ -1487,6 +1531,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-09 — v43: R2-17 (review repeat options; month-end drift) added, Open. R2-16 phone-line decision logged.
 - 2026-11-09 — v42: R2-16 (repeat Next date tooltips) added and built.
 - 2026-11-08 — v41: R2-5 folder build (format 4) built: storage, UI, rules, migration tool, tests.
 - 2026-11-08 — v40: R2-5 decisions 9–16; Step 0 (data-format check) approved and built (2026-11-08a).
