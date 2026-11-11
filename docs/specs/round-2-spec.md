@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
 | R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
 | R2-18 | Show that files are being changed (busy indicator) | Open | Spinning status icon + progress toast for multi-file actions (recommended) |
 | R2-17 | Review the repeat options; month-end dates drift | Open | Plain `monthly` from the 29th–31st drifts to the 28th; Geoff to review |
@@ -1496,6 +1497,42 @@ During that time the screen gives little feedback. The only sign is the header s
 
 ---
 
+## R2-20 — Work PC: open the local folder without "Reconnect" every start; sharing with coworkers
+
+**Asked** (Geoff, 2026-11-11, work-PC simulation W9): "i keep having to choose reconnect "Data". Is there any way to make it so I don't have to keep doing that every time I start the app up?" Also: "I would like to share this app with my coworkers so they can use it too on their system". And: "What is the best way to make this behave like a real applications that remembers where the data folder is on start up?"
+
+**Problem:** the work pack opens as a `file:///` page. Chrome forgets the folder permission when the page closes, so every start shows **Reconnect "data"**. The app can't skip it: asking for access needs a click. Windows file permissions don't matter here (it's Chrome's permission), and no Chrome policy grants folder access.
+
+**Experiment (2026-11-11):**
+- Setup: the 11a pack served at `http://localhost:8001/app/`, installed as an app, `data` picked once, app closed and restarted.
+- **Result: it opened straight to the tasks, with no Reconnect screen.**
+- So a normal web address plus an installed app keeps the folder permission (Chrome's persistent permissions).
+
+**Options for the work PC:**
+- **A. Install from GitHub Pages** *(recommended)*: `https://gvd1024.github.io/html-todo-app/app/`, picking the local `data` folder once (Geoff can reach github.io at work).
+  - Pros: no server to run; updates itself.
+  - Pros: tasks stay in the local folder; nothing is sent in local-folder mode, with no sign-in.
+  - Cons: always runs the live `main` build, not the nightly pack.
+  - Cons: needs internet to start (the service worker caches nothing; S-8 offline is a later item).
+- **B. A local server for the pack** (`localhost`), as in the experiment.
+  - Pros: keeps the nightly pack.
+  - Cons: a server must be running (Python or similar, started at login) before the app starts.
+- **C. A real desktop app** (Tauri/Electron wrapper around the same `index.html`).
+  - Pros: opens a fixed path with no prompts.
+  - Cons: an installer per PC, much more setup, likely IT approval.
+- **D. Keep `file:///`**, and make the one click easier (e.g. Enter or any tap reconnects).
+
+**Sharing with coworkers (with A):** each person installs from the same link and picks their own folder. Their tasks stay on their own PC. Before sharing:
+- **A "stable" address** that only gets builds Geoff has used for a while, so test builds don't reach coworkers. For example, a `stable` branch or a `/stable/` copy published from a tagged release.
+- **Check the employer's policy** on outside web apps, even with local data.
+- Work OneDrive mode would need the employer's IT to approve the Azure app; local folder needs nothing.
+- The repo is public, so the code and specs are visible.
+- **Offline start** (cache the app shell, S-8) becomes more useful once others depend on it.
+
+**Status:** Open (experiment done; Geoff to decide A/B/C/D and the stable address).
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1562,6 +1599,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
 | 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |
 | 2026-11-09 | R2-18 | **Added (Open):** busy indicator while files are being changed; options A–D | Not approved for build |
 | 2026-11-09 | R2-17 | **Added (Open):** Geoff to review the repeat options; month-end drift of a plain `monthly`/`yearly` recorded with options A–D | Not approved for build |
@@ -1611,6 +1649,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
 - 2026-11-11 — v46: R2-5 bug from W6 (Explorer move in a local folder split the family's ids) fixed in 2026-11-11a.
 - 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
 - 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
