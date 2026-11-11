@@ -623,6 +623,18 @@ Full suite: 637 checks pass.
 
 **Bug found in Geoff's test (2026-11-08), fixed in 2026-11-08d:** a second, stale T1/T2/T3 "in / (root)" with `list: "Test List"`. OneDrive and Explorer were correct (the conversion moved the files); the **device copy** in the browser still held the pre-conversion files. The new build skipped an old-format copy but didn't delete it, so its files came back on the next start (no change feed reports files deleted before the bookmark). Fix: a device copy from another format is deleted, then everything downloads fresh. Without it, every device would have shown all tasks twice after the real conversion. Test added (fails without the fix). Claude first blamed OneDrive sync, wrongly; decision 13 (script conversion) stays.
 
+**Bug found in the work-PC simulation (W6, 2026-11-11), fixed in 2026-11-11a:**
+- **What happened:** in a local folder, the parent was dragged alone in Explorer (Home Stuff → Work). The app then showed:
+    - "Project A ⚠" with the tip "two files share id"
+    - no ⚠ 2 button
+    - its subtasks as top-level tasks in Home Stuff
+- **Cause:** a local folder (and work OneDrive's listing) reports a move as "new at B" before "gone from A". The new file was taken for a second file with the same id, and the app gave it a temporary id. The deletion then removed the real id, so the subtasks had no parent.
+- **Fix:**
+    - `applyChanges` handles deletions first.
+    - `healTwin` gives the id back to a same-id twin when the other file is confirmed gone.
+- **Test:** r25 section C (local folder). It fails without the fix.
+- **Not affected:** OneDrive, where a move is one item.
+
 **Status:** Built, being tested by Geoff (all tested steps passed so far).
 
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
@@ -1599,6 +1611,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-11 — v46: R2-5 bug from W6 (Explorer move in a local folder split the family's ids) fixed in 2026-11-11a.
 - 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
 - 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
 - 2026-11-09 — v43: R2-17 (review repeat options; month-end drift) added, Open. R2-16 phone-line decision logged.

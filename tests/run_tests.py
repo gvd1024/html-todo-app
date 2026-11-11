@@ -2677,6 +2677,43 @@ def test_r25_folders(browser):
     check("B (OneDrive): no page errors", not errors, errors[:3])
     ctx.close()
 
+    # ---------- C. local folder (FsStore on OPFS), PC: a parent dragged alone in Explorer (W6, 2026-11-11) ----------
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "local", "todo.pollMs": 86400000, "todo.list": "Work"}))
+    page.goto(APP)
+    page.evaluate("""async () => {
+        const root = await navigator.storage.getDirectory(); try { await root.removeEntry('r25w', { recursive:true }); } catch {}
+        const d = await root.getDirectoryHandle('r25w', { create:true });
+        const put = async (dir, n, s) => { const h = await d.getDirectoryHandle(dir, { create:true }); const w = await (await h.getFileHandle(n, { create:true })).createWritable(); await w.write(s); await w.close(); };
+        const fm = (i, t, extra) => '---\\nid: ' + i + '\\ntitle: ' + t + '\\nstatus: open\\n' + extra + 'order: 1\\n---\\n';
+        await put('Home Stuff', 'project-a.md', fm('t-pa', 'Project A', ''));
+        await put('Home Stuff', 'sub-1.md', fm('t-s1', 'Sub 1', 'parent: t-pa\\n'));
+        await put('Home Stuff', 'sub-2.md', fm('t-s2', 'Sub 2', 'parent: t-pa\\n'));
+        await put('Work', 'sub-3.md', fm('t-s3', 'Sub 3', ''));
+        const w = await (await d.getFileHandle('_todo.json', { create:true })).createWritable(); await w.write('{"format":4,"folders":["Work","Home Stuff"]}'); await w.close();
+        await __todo.useStore(new __todo.FsStore(d)); }""")
+    page.wait_for_function("__todo.get('t-pa')")
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(300)        # baseline the listing
+    # "Explorer": the parent's file alone goes from Home Stuff to Work
+    page.evaluate("""async () => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('r25w');
+        const from = await d.getDirectoryHandle('Home Stuff'), to = await d.getDirectoryHandle('Work');
+        const text = await (await (await from.getFileHandle('project-a.md')).getFile()).text();
+        const w = await (await to.getFileHandle('project-a.md', { create:true })).createWritable(); await w.write(text); await w.close();
+        await from.removeEntry('project-a.md'); }""")
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(500)
+    pa = page.evaluate("() => { const t = __todo.get('t-pa'); return t && { file: t.file, dup: !!t.dupOf }; }")
+    check("local folder: a parent moved in Explorer keeps its id (no 'two files share id' ⚠)", pa == {"file": "Work/project-a.md", "dup": False}, pa)
+    go_folder(page, "Work")
+    sb = row(page, "Project A").locator("[data-act=strays]")
+    check("…and shows ⚠ 2 for its subtasks left in Home Stuff", sb.count() == 1 and sb.inner_text().strip() == "⚠ 2", row(page, "Project A").inner_text())
+    check("…with no ⚠ flag on its title", row(page, "Project A").locator(".wflag").count() == 0)
+    sb.click(); page.wait_for_selector("#modal [data-a=ok]"); page.click("#modal [data-a=ok]"); page.wait_for_timeout(700)
+    on_disk = page.evaluate("""async () => { const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('r25w'); const out = [];
+        const walk = async (h, pre) => { for await (const [n, x] of h.entries()){ if (x.kind === 'file') out.push(pre + n); else await walk(x, pre + n + '/'); } };
+        await walk(d, ''); return out.sort(); }""")
+    check("…one tap moves them into Work on disk", "Work/sub-1.md" in on_disk and "Work/sub-2.md" in on_disk and not any(p.startswith("Home Stuff/") for p in on_disk), on_disk)
+    check("C (local folder): no page errors", not errors, errors[:3])
+    ctx.close()
+
 
 def test_r211_fast_entry(browser):
     print("\n[23] R2-11 to R2-15: Enter = next task, inline add line, Save & close subdued, clear due, Delete all colour")

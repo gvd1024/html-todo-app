@@ -388,7 +388,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-09a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const BUILD = '2026-11-11a';            // bump on every build — shown in Settings so we can tell which version a device runs
 const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
 const CONFIG_FILE = '_todo.json';
 const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];
@@ -1210,6 +1210,11 @@ function addParsed(map, t){
   if (map.has(t.id) && map.get(t.id).file !== t.file){ t.dupOf = t.id; t.id = t.id + '~' + t.file; }
   map.set(t.id, t);
 }
+function healTwin(id){                             // the file that held this id is gone: a same-id twin (⚠) takes the id back
+  const twin = [...S.tasks.values()].find(x => x.dupOf === id); if (!twin || S.tasks.has(id)) return;
+  S.tasks.delete(twin.id); if (S.editing === twin.id) S.editing = id;
+  twin.id = id; delete twin.dupOf; S.tasks.set(id, twin);
+}
 function syncLists(){                               // R2-5: the root, the folders in _todo.json's order, then any others that exist
   const live = S.store?.folders?.() || null;
   const known = new Set(all().map(t => t.list));
@@ -1501,6 +1506,10 @@ async function applyChanges(ch){
   }
   let changed = false;
   const seen = new Set();
+  /* deletions first: a file moved outside the app (Explorer, local folder or work OneDrive's listing) arrives as
+     "new at B" + "gone from A". Seen in the other order, the new file looked like a second file with the same id (⚠,
+     id renamed), and the deletion then dropped the real id, so its subtasks lost their parent (2026-11-11, W6). */
+  ch = [...ch.filter(c => c.deleted), ...ch.filter(c => !c.deleted)];
   for (const c of ch){
     const key = c.path.toLowerCase(); if (seen.has(key)) continue; seen.add(key);     // bursts → one reload
     if (c.path === CONFIG_FILE){
@@ -1515,7 +1524,7 @@ async function applyChanges(ch){
       try { fresh = await S.store.read(c.path); }                  // confirm before treating as deleted
       catch (e){ if (e instanceof NotFoundError){
           if (S.editing === t.id){ t.diskChanged = true; $('#d-banner').classList.add('on'); }
-          else { S.tasks.delete(t.id); changed = true; }
+          else { S.tasks.delete(t.id); healTwin(t.id); changed = true; }
           continue; } throw e; }
     }
     if (t && t.version === (fresh ? fresh.version : c.version)) continue;      // our own write, or no real change
