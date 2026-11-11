@@ -35,6 +35,12 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
     - `AI Brain/ToDo App/` belongs to a different, older app (Vue plus `server.js`). Don't modify it.
 11. **OneDrive is the committed datastore** (personal now, work later; decided 2026-10-16). The architecture lives in `docs/specs/storage-spec.md`.
 12. **Public repo hygiene:** never write the employer's name or work folder paths in committed files. Say "work OneDrive" / "work PC".
+13. **One code path for every storage mode** (Geoff, 2026-11-11: "I want to minimize situations where there is different code for the onedrive mode vs folder mode"):
+    - Fixes and features go in the shared layers: `applyChanges`, `saveTask`, the folder and family rules, trash and restore, `CachedStore`, the UI.
+    - A fix one mode needs goes in the shared code if it also works for the others.
+    - Connector code (`GraphStore`, `FsStore`, `MemStore`) holds only what that storage truly needs (sign-in, change feed, file handles), behind the shared store interface.
+    - When a store-specific change is unavoidable, tell Geoff and explain why.
+    - Test changes against every connector (the store suite).
 
 ## Feedback review (Geoff's standing pattern, 2026-10-21) — do this at the start of every session
 Geoff writes app feedback as tasks in the **Feedback** folder of his real task folder (OneDrive `HTML-ToDo-App`; before the R2-5 migration, the tasks with `list: Feedback`).
