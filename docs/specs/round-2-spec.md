@@ -1622,6 +1622,11 @@ This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A,
   - **Handling:** the packager builds from an **allow-list** (app, tools, tests, docs, specs), never from a whole folder.
   - It refuses any `.md` with task frontmatter outside test fixtures, and any path named `data`, `.trash` or `private`.
   - It **scans for blocked words**: the home side scans for Geoff's personal info; the work side keeps its own local list (the employer name, work paths), which is never committed or shipped.
+- **P4b. Fixed, separate folders (Geoff, 2026-11-11):** "I will keep both the app and data folders on separate unrelated filepaths that don't change until development is done":
+    - `C:\HTA\App`: the root of everything but the data (code, apps, setup, docs, specs).
+    - `C:\HTA\Data`: the task files only.
+
+  The packager only ever reads from the App root, and refuses to run if the Data folder is inside it (or the reverse). The setup tool (R2-20) prefills these two paths, replacing the earlier `C:\HTA\app\` and `C:\HTA\data\` suggestions.
 - **P5. Feedback without real data.** The work Claude writes feedback with **made-up examples** ("a task with 3 subtasks"), never real titles or text, and no screenshots of real tasks.
 - **P6. Build names.** Work-side builds use their own suffix (e.g. `2026-11-12w1`) so they never clash with home builds; the home Claude assigns the final build number on merge.
 - **P7. Integrity.** The package keeps `SHA256SUMS.txt`, checked by the receiving side before use (it carries scripts that run, e.g. setup).
@@ -1762,6 +1767,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 ## Change history of this spec
 - 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
+- 2026-11-11 — v51: R2-21 P4b fixed separate folders C:HTAApp and C:HTAData.
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
 - 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
 - 2026-11-11 — v49: R2-20 setup warnings + manual-step instructions; work CLI md always in the pack; work↔home CLI coordination options A–E.
