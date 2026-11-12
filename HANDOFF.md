@@ -1,13 +1,23 @@
-# HANDOFF — current state (updated 2026-10-20)
+# HANDOFF — current state (updated 2026-11-12)
 
 ## Read in this order
-1. `CLAUDE.md`: rules, file contract (data format 3), code map, testing.
+1. `CLAUDE.md`: rules (incl. 13 one code path, 14 home↔work), file contract (**data format 4: folders**), code map, testing.
 2. This file: the current state and what's next. **If you're the Claude Code session on Geoff's WORK PC, read "WORK PC — read this first" below.**
 3. `docs/specs/storage-spec.md`: the architecture (S-1 to S-12) and the MVP build plan + build log (S-9).
 4. `docs/specs/round-1-spec.md`: round-1 items (R1-4 text size, R1-12 phone list view, R1-13 home-screen app).
 5. Optional background: `private/` (only on Geoff's home PC; local and git-ignored).
 
 ## Current state
+**Latest (2026-11-12):**
+- `main` = **build 2026-11-11a**, live on Pages: **R2-5 folders (data format 4)**, the folder is the list.
+- Geoff's real OneDrive folder is converted (Real Todo / Feedback / Entertainment), verified on PC and phone. The `r2-5-folders` branch was merged and deleted. 735 checks pass.
+- **Work PC:** layout `C:\HTA\App` (app + docs, no data) and `C:\HTA\Data` (tasks).
+    - **Home → work:** GitHub release `build-2026-11-11a` (`releases/latest`).
+    - **Work → home:** plain-text email body (`HTA to home: …` … `END HTA`).
+    - The work email quarantines zip attachments; never work around it. See CLAUDE.md rule 14 and spec R2-21.
+- **Open spec items:** R2-17 (repeat review, month-end drift), R2-18 (busy indicator), R2-19 (hide Add-subtask lines), R2-20 (work PC without Reconnect: installed app; **setup tool to build before the next work pack**), R2-21 (home↔work shuttle), R2-9 (Alexa).
+- The table below is older history.
+
 | Thing | State |
 |---|---|
 | App `app/index.html` | **v0.2.0-dev**, data format 3, live at `https://gvd1024.github.io/html-todo-app/app/`. **In daily use on Geoff's phone and home PC** against personal OneDrive `HTML-ToDo-App` (renamed from `HTML-ToDo-App-Test` on 2026-10-21). **Installed on the phone** as a home-screen app (R1-13: own window, no address bar). Restore point for v0.1.1: git tag `v0.1.1`. |
@@ -19,6 +29,8 @@
 | Repository / Pages | `https://github.com/gvd1024/html-todo-app` (public, `main`). On the home PC: `gh` CLI logged in as `gvd1024`, repo-local noreply identity. Pages serves `main`, root. |
 
 ## WORK PC — read this first (for Geoff's work Claude Code session)
+> **Update 2026-11-12: superseded.** The work PC now uses `C:\HTA\App` + `C:\HTA\Data` and the pack's own `CLAUDE.md`/`START-HERE.md`; see CLAUDE.md rule 14 and spec R2-20/R2-21. The notes below are history.
+>
 > **Update 2026-10-20:** Geoff now installs a **nightly build pack** at work (`tools/make_work_pack.py`; GitHub releases `build-<BUILD>`). Each build extracts to its own `html-todo-app-<BUILD>` folder beside the older ones and shares one persistent task folder (verified: pages opened from disk share settings and storage across folders in Chrome and Edge). The work session's instructions are the pack's own `CLAUDE.md` (`docs/work-pack/CLAUDE.template.md`); it logs feedback to `HTA-feedback.md` in the root folder. The pinned `work-test-*` steps below are the earlier setup.
 
 **Context (Geoff, 2026-10-18):**

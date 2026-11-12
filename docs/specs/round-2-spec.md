@@ -24,7 +24,7 @@ Same as round 1:
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: verified on PC** (build 2026-11-07a, on `main` since 2026-11-07) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
-| R2-5 | A folder per list (file-explorer model) | **Built** (2026-11-08b, data format 4, branch `r2-5-folders`); awaiting Geoff's test, then the real-folder migration | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
+| R2-5 | A folder per list (file-explorer model) | **Verified** (live 2026-11-11, build 2026-11-11a, data format 4; real folder converted; PC and phone checked 2026-11-12) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
 | R2-11 | Enter tasks and subtasks one after another | **Built** (2026-11-07c; verified on PC and phone) | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
@@ -637,7 +637,13 @@ Full suite: 637 checks pass.
 - **Test:** r25 section C (local folder). It fails without the fix.
 - **Not affected:** OneDrive, where a move is one item.
 
-**Status:** Built, being tested by Geoff (all tested steps passed so far).
+**Go-live (2026-11-11/12):**
+- Geoff's OneDrive tests F1–F9 and the work-PC simulation W1–W10 passed. The bug W6 found was fixed in 2026-11-11a.
+- The real folder was converted: Real Todo 41, Feedback 6, Entertainment 4, byte-verified against the zip backup in `private/backups/`.
+- `r2-5-folders` was merged to `main` (735 checks) and Pages serves 2026-11-11a.
+- Geoff checked PC and phone (2026-11-12).
+
+**Status:** Verified.
 
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
 - **Done 2026-11-08, before any migration:**
@@ -1721,6 +1727,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` deleted |
 | 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
 | 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
 | 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |
@@ -1772,6 +1779,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-12 — v53: R2-5 Verified (go-live done).
 - 2026-11-12 — v52: R2-21 P2 result: work email quarantined the zip; next option GitHub download (home→work) + plain-text email (work→home).
 - 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
 - 2026-11-11 — v51: R2-21 P4b fixed separate folders `C:\HTA\App` and `C:\HTA\Data`.
