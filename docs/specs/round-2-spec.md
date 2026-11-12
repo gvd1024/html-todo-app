@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-21 | Home ↔ work: shuttle one package by email (two Claude instances) | Roles decided | git bundle + hand-off .md; no data; only home pushes |
 | R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
 | R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
 | R2-18 | Show that files are being changed (busy indicator) | Open | Spinning status icon + progress toast for multi-file actions (recommended) |
@@ -1593,6 +1594,56 @@ The two machines share no folder or account today. The rule throughout: **only a
 
 ---
 
+## R2-21 — Home ↔ work: shuttle one package by email (two Claude instances)
+
+**Asked** (Geoff, 2026-11-11): "Lets start out just shuttling a package back and forth with the code, applications, install app, html files, .md files, specs, everything."
+
+**Roles (Geoff's words, condensed):**
+1. **Only the home Claude** (personal PC) commits and pushes development work to GitHub.
+2. **Either Claude may change the code, apps, etc.**, but every change is documented and coordinated with the other instance through `.md` files.
+3. **Either Claude packages the latest version** into a single zip that extracts on the other PC. **No data in the zip.**
+4. **The work Claude never uses actual data in feedback, and work data is never shared in any way.**
+5. The package travels by email: personal email → work email → back to personal email.
+
+This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A, extended to code).
+
+**Problems Claude sees, and the proposed handling:**
+- **P1. Both sides edit the same files.** A plain zip can't merge two sets of changes, so the newer zip would silently undo the other side's work.
+  - **Handling:** the package carries the **git history as a `git bundle`** (one file) next to the extracted files.
+  - The work Claude commits locally (never pushes) and packages its commits.
+  - The home Claude fetches the bundle, merges (conflicts are shown, not lost), runs the tests, and pushes.
+  - Each package names the build it was based on (`based-on`), so stale packages are detected.
+  - Simple rule for the start: **only one side changes code at a time**; the package is the baton.
+- **P2. Email filters.** Work email often blocks or strips `.zip` attachments, or ones containing `.html`, `.js` or `.ps1`.
+  - **Handling:** test once with a small pack. Fallbacks: rename to `.zip.txt`, a password-protected zip, or a OneDrive/Drive link instead of an attachment.
+- **P3. Company policy (data-loss prevention).** Sending files from work email to a personal address can be flagged or forbidden, even when it's only Geoff's own code.
+  - **Handling:** Geoff checks the policy. The package must never contain anything from work, so that it's clean if reviewed.
+- **P4. Accidental data in the zip.** Task files, `_todo.json`, `.trash`, the device copy, logs, `private/`, backups, the feedback ledger.
+  - **Handling:** the packager builds from an **allow-list** (app, tools, tests, docs, specs), never from a whole folder.
+  - It refuses any `.md` with task frontmatter outside test fixtures, and any path named `data`, `.trash` or `private`.
+  - It **scans for blocked words**: the home side scans for Geoff's personal info; the work side keeps its own local list (the employer name, work paths), which is never committed or shipped.
+- **P5. Feedback without real data.** The work Claude writes feedback with **made-up examples** ("a task with 3 subtasks"), never real titles or text, and no screenshots of real tasks.
+- **P6. Build names.** Work-side builds use their own suffix (e.g. `2026-11-12w1`) so they never clash with home builds; the home Claude assigns the final build number on merge.
+- **P7. Integrity.** The package keeps `SHA256SUMS.txt`, checked by the receiving side before use (it carries scripts that run, e.g. setup).
+- **P8. Instructions travel too.** The package contains a work-side `CLAUDE.md` and a home-side guide, so whichever Claude opens it knows the roles and routine.
+
+**Package contents (both directions):**
+- the full code tree, apps, setup tool (R2-20), tools, tests, specs, docs
+- `git bundle` (P1), `SHA256SUMS.txt`
+- `HANDOFF-<from>-<date>.md`: what changed, why, what was tested, open questions, `based-on` build
+- the running coordination log `docs/coordination/LOG.md`: one entry per hand-off, appended by each side
+- **never** any data (P4)
+
+**Routine when a package arrives:**
+1. Check the sums.
+2. Read the hand-off and the log.
+3. Merge the bundle (home: merge, test, push; work: fast-forward the local copy).
+4. Act on the open questions.
+
+**Status:** Decided by Geoff (roles); the process and P1–P8 handling are to be confirmed. Built together with the R2-20 setup tool before the next work pack.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1659,6 +1710,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
 | 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
 | 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |
 | 2026-11-09 | R2-18 | **Added (Open):** busy indicator while files are being changed; options A–D | Not approved for build |
@@ -1709,6 +1761,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
 - 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
 - 2026-11-11 — v49: R2-20 setup warnings + manual-step instructions; work CLI md always in the pack; work↔home CLI coordination options A–E.

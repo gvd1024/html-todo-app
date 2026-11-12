@@ -41,6 +41,12 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
     - Connector code (`GraphStore`, `FsStore`, `MemStore`) holds only what that storage truly needs (sign-in, change feed, file handles), behind the shared store interface.
     - When a store-specific change is unavoidable, tell Geoff and explain why.
     - Test changes against every connector (the store suite).
+14. **Home ↔ work: two Claude instances, one package** (Geoff, 2026-11-11; details and open problems in round-2 spec R2-21):
+    - **Only the home Claude pushes to GitHub.**
+    - Either Claude may change code, apps and docs. Every change is documented in the package's hand-off `.md` and `docs/coordination/LOG.md`.
+    - Either Claude packages the latest version as **one zip**, which Geoff emails between his personal and work email. **The zip never contains data** (task files, `_todo.json`, `.trash`, `private/`, backups, logs).
+    - **The work Claude never uses real work data in feedback, and work data is never shared in any way.** Use made-up examples.
+    - Until the git-bundle merge (R2-21 P1) is built, only one side changes code at a time: the package is the baton.
 
 ## Feedback review (Geoff's standing pattern, 2026-10-21) — do this at the start of every session
 Geoff writes app feedback as tasks in the **Feedback** folder of his real task folder (OneDrive `HTML-ToDo-App`; before the R2-5 migration, the tasks with `list: Feedback`).
