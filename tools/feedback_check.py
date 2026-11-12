@@ -50,12 +50,16 @@ def key(tid, text):
 
 
 def collect(folder, listname):
+    """The Feedback tasks: since R2-5 (data format 4) the folder <task folder>/Feedback/; in an older flat folder, the
+    files whose list: line says Feedback."""
     found = []
-    for f in sorted(folder.glob("*.md")):
+    sub = folder / listname
+    files = sorted(sub.glob("*.md")) if sub.is_dir() else [f for f in sorted(folder.glob("*.md"))]
+    for f in files:
         if f.name.startswith(("_", ".")) or f.name.lower() == "readme.md":
             continue
         fm, body = frontmatter(f.read_text(encoding="utf-8"))
-        if fm.get("list") != listname or fm.get("status") in ("archived",):
+        if (not sub.is_dir() and fm.get("list") != listname) or fm.get("status") in ("archived",):
             continue
         tid = fm.get("id", f.name)
         entries = [("title", "title: " + fm.get("title", ""))] + [("line", t) for t in items_of(body)]

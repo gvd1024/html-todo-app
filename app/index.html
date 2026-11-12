@@ -137,6 +137,8 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .empty-hint{color:var(--muted);padding:30px 18px;text-align:center;width:100vw;max-width:100vw;white-space:normal;position:sticky;left:0}
 .qbtn{border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:8px;font-size:calc(12px*var(--z));height:calc(32px*var(--z));padding:0 calc(7px*var(--z));margin:0 2px;white-space:nowrap;position:relative}
 /* T1-10 (R1-12 #8): compact buttons keep their look but get a 44 px tall tap area */
+.stray-chip{color:var(--warn);font-size:calc(12px*var(--z));margin-left:8px;white-space:nowrap}
+.stray-btn{border:1px solid var(--warn);color:var(--warn);background:transparent;border-radius:12px;font-size:calc(12px*var(--z));height:calc(30px*var(--z));padding:0 6px;margin:0 2px;white-space:nowrap}
 .qbtn.qarrow{min-width:calc(24px*var(--z));width:calc(24px*var(--z));padding:0;margin:0;border:0;background:none;font-size:calc(17px*var(--z));line-height:1}   /* R2-14: ↑ ↓ ●, plain icons; the tall tap area comes from .qbtn::after */
 .qbtn.qdot{font-size:calc(12px*var(--z))} .qgap{flex:0 0 calc(24px*var(--z))}   /* keeps ↑ ↓ lined up on today's rows */
 /* R2-11: the inline "+ Add subtask…" line under an expanded parent (not a .row: no long-press move) */
@@ -257,6 +259,7 @@ html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z
 .od-badge[hidden]{display:none}
 .srch-bar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:2px 4px 2px 12px;background:var(--accent-soft);border-bottom:1px solid var(--line);color:var(--accent);font-size:calc(14px*var(--z))}
 .srch-bar[hidden]{display:none}
+.m-err{color:var(--danger);font-size:calc(13px*var(--z));margin:4px 0 0;min-height:1em}
 .ro-bar{background:rgba(255,107,107,.14);color:var(--danger)} .ro-bar button{color:var(--danger)} .ro-bar span{white-space:normal}
 .srch-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .srch-bar button{border:0;background:none;color:var(--accent);min-height:calc(40px*var(--z));white-space:nowrap}
@@ -323,7 +326,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
   <div id="scroller"><div id="rows"></div></div>
   <button id="snap" hidden title="Back to the start of the titles">⇤</button>
 </main>
-<footer id="quick"><input id="qa" type="text" placeholder="Add a task…" enterkeyhint="done" autocomplete="off"><button id="qa-list" class="qa-chip" title="List for new tasks" hidden></button><button id="qa-date" class="qa-chip" title="Due date for new tasks" hidden></button></footer>
+<footer id="quick"><input id="qa" type="text" placeholder="Add a task…" enterkeyhint="done" autocomplete="off"><button id="qa-list" class="qa-chip" title="Folder for new tasks" hidden></button><button id="qa-date" class="qa-chip" title="Due date for new tasks" hidden></button></footer>
 
 <aside id="drawer" aria-label="Task editor">
   <div class="d-head">
@@ -339,7 +342,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
     <label>Prefix<select id="f-prefix">
       <option value="checkbox">☐ checkbox</option><option value="bullet">• bullet</option><option value="none">none</option></select></label>
     <label>Status<select id="f-status"></select></label>
-    <label>List<select id="f-list"></select></label>
+    <label>Folder<select id="f-list"></select></label>
     <label>Due<span class="due-wrap"><input type="date" id="f-due"><button type="button" id="f-due-clear" title="Clear the due date" aria-label="Clear the due date" hidden>✕</button></span></label>
     <label class="wide">Repeat<span style="display:flex;gap:6px"><select id="f-rep" style="flex:0 0 auto">
       <option value="">Doesn't repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option>
@@ -347,7 +350,7 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
       <option value="yearly">Yearly</option><option value="custom">Custom…</option></select>
       <input type="text" id="f-rep-custom" placeholder="e.g. every 3 days · weekly on mon, thu · monthly on last day" style="flex:1;min-width:0;display:none"></span></label>
     <label class="rep-opt">Mode<select id="f-rep-mode"><option value="recycle">Recycle (same file)</option><option value="copy">Copy (keep a record)</option></select></label>
-    <label class="rep-opt">Next date<select id="f-rep-next"><option value="skip">Skip missed</option><option value="catchup">Catch up</option><option value="afterdone">From completion</option></select></label>
+    <label class="rep-opt" title="Skip missed (default): stays on the original rhythm but skips dates already missed — the next date is the first one on the schedule after today. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 14.&#10;&#10;Catch up: the next date on the schedule after the old due date, even if it's still in the past, so every missed one comes up in turn. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 5.&#10;&#10;From completion: counted from the day you check it off. E.g. every 3 days, checked off Nov 12 → Nov 15. Good for 'every N days since I last did it'.">Next date<select id="f-rep-next"><option value="skip" title="Skip missed (default): stays on the original rhythm but skips dates already missed — the next date is the first one on the schedule after today. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 14.">Skip missed</option><option value="catchup" title="Catch up: the next date on the schedule after the old due date, even if it's still in the past, so every missed one comes up in turn. E.g. every 3 days, due Nov 2, checked off Nov 12 → Nov 5.">Catch up</option><option value="afterdone" title="From completion: counted from the day you check it off. E.g. every 3 days, checked off Nov 12 → Nov 15. Good for 'every N days since I last did it'.">From completion</option></select></label>   <!-- R2-16: tooltips -->
     <div class="wide d-note rep-opt" id="f-rep-hint"></div>
     <label class="wide">Collections<input type="text" id="f-coll" placeholder="a, b"></label>
   </div>
@@ -385,10 +388,10 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-08a';            // bump on every build — shown in Settings so we can tell which version a device runs
-const DATA_FORMAT = 3;   // 3 adds repeat + series (round 2, R2-1)
+const BUILD = '2026-11-11a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
 const CONFIG_FILE = '_todo.json';
-const KNOWN = ['id','title','status','prefix','list','collections','parent','order','due','repeat','series','completed','demoted_into'];
+const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];
 const STATUSES = ['open','active','done','archived'];
 const PREFIXES = ['checkbox','bullet','none'];
 const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';   // Azure registration "HTML-ToDo-App PoC" (not a secret)
@@ -472,13 +475,24 @@ class ReadOnlyError extends Error {}               // R2-5 step 0: the folder ne
    write(path, text, expected) → version (ConflictError if the file moved on or vanished),
    create(path, text) → version (ExistsError if taken), remove(path, expected),
    changes() → [{path, version?, deleted?}] since the previous call (first call = baseline).
-   `path` is relative to the location's folder; `version` is opaque (compare for equality only). */
+   `path` is relative to the location's folder; `version` is opaque (compare for equality only).
+   R2-5 folders: move(from, to, expected) → version (ConflictError / ExistsError), folders() → folder paths known from
+   the last listing or check (null = not known yet), createFolder(path), renameFolder(path, newPath), removeFolder(path)
+   (only when empty). */
 function baseName(p){ return String(p).split('/').pop(); }
 const TRASH = '.trash';                       // R2-8 Deleted A: the hidden trash folder inside the task folder (every store)
-/* A task file: .md, not _/. named, not README — and never inside a hidden folder such as .trash (R2-8: checked per
-   path segment, so it stays right when R2-5 folders put tasks in subfolders) */
+/* R2-5 folders: a task's folder is the folder its file is in ('' = the task folder itself, shown as "/ (root)").
+   Paths use '/', so a tree of folders only needs MAX_DEPTH raised; one level for now. Names starting with . or _ are
+   hidden/system (e.g. .trash) and never folders of tasks. */
+const MAX_DEPTH = 1;
+function dirOf(p){ const s = String(p), i = s.lastIndexOf('/'); return i < 0 ? '' : s.slice(0, i); }
+const joinPath = (dir, name) => dir ? dir + '/' + name : name;
+const hiddenSeg = s => /^[._]/.test(s);
+function isFolderPath(d){ const segs = String(d).split('/'); return !!d && segs.length <= MAX_DEPTH && !segs.some(s => !s || hiddenSeg(s)); }
+/* A task file: .md, not _/. named, not README, at most MAX_DEPTH folders down, and never inside a hidden folder such as
+   .trash (checked per path segment) */
 function isTaskPath(p){ const segs = String(p).split('/'), n = segs.pop();
-  return /\.md$/i.test(n) && !/^[_.]/.test(n) && !/^readme\.md$/i.test(n) && !segs.some(s => /^\./.test(s)); }
+  return /\.md$/i.test(n) && !/^[_.]/.test(n) && !/^readme\.md$/i.test(n) && segs.length <= MAX_DEPTH && !segs.some(s => !s || hiddenSeg(s)); }
 function isStorePath(p){ return p === CONFIG_FILE || isTaskPath(p); }
 async function listDiff(store){             // changes() for stores without a native change feed
   const now = new Map((await store.list()).map(e => [e.path, e.version]));
@@ -493,8 +507,19 @@ class MemStore {
   constructor(files){ this.name = 'Demo data'; this.kind = 'demo'; this.demo = true; this.tick = 1; this.files = new Map();
     this.caps = { trueConditionalWrite:true, recoverableDelete:true, trash:TRASH, watch:'list' };
     for (const [n, t] of Object.entries(files)) this.files.set(n, { text:t, version:'m' + this.tick++ }); }
-  // the top folder only, like the other stores (R2-5 folders come in R2-8 Phase 2)
-  async list(){ return [...this.files].filter(([p]) => !p.includes('/') && isStorePath(p)).map(([path, f]) => ({ path, version:f.version })); }
+  async list(){ return [...this.files].filter(([p]) => isStorePath(p)).map(([path, f]) => ({ path, version:f.version })); }
+  allDirs(){ const s = new Set(this.dirs || []); for (const p of this.files.keys()){ let d = dirOf(p); while (d){ s.add(d); d = dirOf(d); } } return s; }
+  hasDir(d){ const l = d.toLowerCase(); return [...this.allDirs()].some(x => x.toLowerCase() === l); }
+  folders(){ return [...this.allDirs()].filter(isFolderPath); }
+  async move(from, to, expected){ const f = this.files.get(from);
+    if (!f || (expected != null && f.version !== expected)) throw new ConflictError(from);
+    if ([...this.files.keys()].some(k => k.toLowerCase() === to.toLowerCase())) throw new ExistsError(to);
+    const version = 'm' + this.tick++; this.files.delete(from); this.files.set(to, { text:f.text, version }); return version; }
+  async createFolder(d){ if (this.hasDir(d)) throw new ExistsError(d); (this.dirs ||= new Set()).add(d); }
+  async renameFolder(d, n){ if (this.hasDir(n)) throw new ExistsError(n);
+    for (const [k, f] of [...this.files]) if (k.startsWith(d + '/')){ this.files.delete(k); this.files.set(n + k.slice(d.length), f); }
+    this.dirs?.delete(d); (this.dirs ||= new Set()).add(n); }
+  async removeFolder(d){ if ([...this.files.keys()].some(k => k.startsWith(d + '/'))) throw new FolderError(`“${d}” isn't empty.`); this.dirs?.delete(d); }
   async trashList(){ return [...this.files].filter(([p]) => p.startsWith(TRASH + '/') && !p.slice(TRASH.length + 1).includes('/')).map(([path, f]) => ({ path, version:f.version })); }
   async read(path){ const f = this.files.get(path); if (!f) throw new NotFoundError(path); return { text:f.text, version:f.version }; }
   async write(path, text, expected){ const f = this.files.get(path);
@@ -514,11 +539,51 @@ class FsStore {                               // a local folder (desktop Chrome/
   async _dir(path, create){ let d = this.dir; const parts = path.split('/'); parts.pop();
     for (const p of parts) d = await d.getDirectoryHandle(p, { create }); return d; }
   async _handle(path){ try { return await (await this._dir(path, false)).getFileHandle(baseName(path)); } catch { return null; } }
-  async list(){ const out = [];
-    for await (const [name, h] of this.dir.entries()){
-      if (h.kind !== 'file' || !isStorePath(name)) continue;
-      try { out.push({ path:name, version:FsStore.ver(await h.getFile()) }); } catch {}
-    } return out; }
+  async list(){ const out = [], dirs = [];
+    const walk = async (d, prefix, depth) => {
+      for await (const [name, h] of d.entries()){
+        const rel = joinPath(prefix, name);
+        if (h.kind === 'directory'){ if (depth < MAX_DEPTH && !hiddenSeg(name)){ dirs.push(rel); await walk(h, rel, depth + 1); } continue; }
+        if (!isStorePath(rel)) continue;
+        try { out.push({ path:rel, version:FsStore.ver(await h.getFile()) }); } catch {}
+      } };
+    await walk(this.dir, '', 0); this._folders = dirs; return out; }
+  folders(){ return this._folders ? [...this._folders] : null; }
+  async _dirHandle(d){ let h = this.dir; for (const s of d.split('/').filter(Boolean)) h = await h.getDirectoryHandle(s); return h; }
+  async _hasDir(d){                                   // ignoring case, as Windows does (folder names are unique ignoring case)
+    let h = this.dir;
+    for (const seg of d.split('/').filter(Boolean)){ let next = null;
+      for await (const [name, x] of h.entries()) if (x.kind === 'directory' && name.toLowerCase() === seg.toLowerCase()){ next = x; break; }
+      if (!next) return false; h = next; }
+    return true; }
+  /* a move: the file system's own move() when this browser has it for picked folders (feature-detected, then checked),
+     otherwise copy, then delete — an interruption can leave a duplicate (same id, flagged ⚠), never a loss */
+  async move(from, to, expected){
+    const h = await this._handle(from); if (!h) throw new ConflictError(from);
+    const f = await h.getFile(); if (expected != null && FsStore.ver(f) !== expected) throw new ConflictError(from);
+    if (await this._handle(to)) throw new ExistsError(to);
+    const dest = await this._dir(to, true);
+    if (typeof h.move === 'function'){
+      try { await h.move(dest, baseName(to)); const nh = await this._handle(to);
+        if (nh && !(await this._handle(from))) return FsStore.ver(await nh.getFile()); } catch {}
+    }
+    const v = await this.create(to, await f.text());
+    await this.remove(from, FsStore.ver(f));
+    return v;
+  }
+  async createFolder(d){ if (await this._hasDir(d)) throw new ExistsError(d); await this._dir(d + '/x', true); }
+  async removeFolder(d){ const h = await this._dirHandle(d);
+    for await (const _ of h.entries()) throw new FolderError(`“${d}” isn't empty.`);
+    await (await this._dirHandle(dirOf(d))).removeEntry(baseName(d)); }
+  async renameFolder(d, n){
+    if (await this._hasDir(n)) throw new ExistsError(n);
+    const h = await this._dirHandle(d);
+    if (typeof h.move === 'function'){ try { await h.move(baseName(n)); if (await this._hasDir(n) && !(await this._hasDir(d))) return; } catch {} }
+    for await (const [, x] of h.entries()) if (x.kind === 'directory') throw new FolderError(`“${d}” has folders inside — rename it in Explorer.`);
+    for await (const [name, x] of h.entries()){ const f = await x.getFile(); await this.create(n + '/' + name, await f.text()); }
+    for (const [name] of [...await (async () => { const a = []; for await (const e of h.entries()) a.push(e); return a; })()]) await h.removeEntry(name);
+    await (await this._dirHandle(dirOf(d))).removeEntry(baseName(d));
+  }
   async read(path){ const h = await this._handle(path); if (!h) throw new NotFoundError(path);
     const f = await h.getFile(); return { text: await f.text(), version: FsStore.ver(f), modified: f.lastModified }; }   // modified: R2-8 Overwritten A
   async trashList(){ let d; try { d = await this.dir.getDirectoryHandle(TRASH); } catch { return []; }
@@ -544,6 +609,7 @@ class FsStore {                               // a local folder (desktop Chrome/
 class GraphStore {                            // OneDrive through Microsoft Graph (proven by the PoC, R1-10 step 1)
   constructor(auth, folder){ this.auth = auth; this.folder = folder.replace(/^\/+|\/+$/g, ''); this.kind = 'onedrive'; this.demo = false;
     this.name = 'OneDrive · ' + this.folder; this.items = new Map(); this.byId = new Map(); this.deltaLink = null; this.deltaOk = true;
+    this.dirs = new Map(); this.dirsKnown = false;   // R2-5: folder item id → its path in the task folder ('' = the folder itself)
     this.caps = { trueConditionalWrite:true, recoverableDelete:true, watch:'delta' }; }
   fp(){ return this.folder.split('/').filter(Boolean).map(encodeURIComponent).join('/'); }
   pp(path){ return path.split('/').map(encodeURIComponent).join('/'); }
@@ -570,21 +636,70 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     this.items.set(key, { id:it.id, path:rel, eTag:it.eTag, dl:it['@microsoft.graph.downloadUrl'] || null,
       modified:it.lastModifiedDateTime || null, by:it.lastModifiedBy?.user?.displayName || null }); this.byId.set(it.id, key); }   // modified/by: R2-8 Overwritten A
   forget(key){ const e = this.items.get(key); if (e){ this.byId.delete(e.id); this.items.delete(key); } }
-  inFolder(it){ const p = it.parentReference?.path; if (!p) return true;
-    try { return decodeURIComponent(p).replace(/^\/drive\/root:\/?/, '').replace(/\/+$/, '').toLowerCase() === this.folder.toLowerCase(); } catch { return true; } }
-  /* R2-8: the change feed covers subfolders (e.g. .trash) and, per Graph's docs, leaves parentReference.path out — so a
-     file is in the task folder itself only when its parent is the folder's own id. Without an id, fall back to the path. */
+  /* R2-8/R2-5: the change feed has no paths, so items are placed by their parent folder's id (see changes()) */
   async rootId(){ if (!this._rootId) this._rootId = (await this.req('GET', `/me/drive/root:/${this.fp()}`)).id; return this._rootId; }
-  isTop(it, root){ const pid = it.parentReference?.id; return root && pid ? pid === root : this.inFolder(it); }
-  async list(){
-    let url = `/me/drive/root:/${this.fp()}:/children?$top=200`; const out = [];
-    this.items.clear(); this.byId.clear();
-    try {
+  async list(){                               // the task folder and its folders (MAX_DEPTH), by listing
+    const out = []; this.items.clear(); this.byId.clear(); this.dirs = new Map();
+    const walk = async (rel, depth) => {
+      let url = `/me/drive/root:/${this.fp()}${rel ? '/' + this.pp(rel) : ''}:/children?$top=200`;
       while (url){ const r = await this.req('GET', url);
-        for (const it of r.value){ if (!it.file) continue; this.remember(it); if (isStorePath(it.name)) out.push({ path:it.name, version:it.eTag }); }
+        for (const it of r.value){
+          const p = joinPath(rel, it.name);
+          if (it.parentReference?.id && !this.dirs.has(it.parentReference.id)) this.dirs.set(it.parentReference.id, rel);
+          if (it.folder){ if (depth < MAX_DEPTH && !hiddenSeg(it.name)){ this.dirs.set(it.id, p); await walk(p, depth + 1); } continue; }
+          if (!it.file) continue;
+          this.remember(it, p); if (isStorePath(p)) out.push({ path:p, version:it.eTag });
+        }
         url = r['@odata.nextLink'] || null; }
-    } catch (e){ if (e.status === 404) throw new FolderError(`The folder "${this.folder}" wasn't found in your OneDrive.`); throw e; }
-    return out;
+    };
+    try { await walk('', 0); }
+    catch (e){ if (e.status === 404) throw new FolderError(`The folder "${this.folder}" wasn't found in your OneDrive.`); throw e; }
+    this.dirsKnown = true; return out;
+  }
+  folders(){ return this.dirsKnown ? [...new Set(this.dirs.values())].filter(isFolderPath) : null; }
+  dirState(){ return [...this.dirs]; }
+  async folderId(rel, create = false){        // a folder's item id ('' = the task folder), created when asked
+    if (!rel) return this.rootId();
+    for (const [id, p] of this.dirs) if (p && p.toLowerCase() === rel.toLowerCase()) return id;
+    try { const it = await this.req('GET', `/me/drive/root:/${this.fp()}/${this.pp(rel)}`);
+      if (!it.folder) throw new FolderError(`“${rel}” isn't a folder.`); this.dirs.set(it.id, rel); return it.id; }
+    catch (e){ if (e.status === 404 && create) return this.createFolder(rel); throw e; }
+  }
+  async createFolder(rel){
+    const parent = await this.folderId(dirOf(rel), true);
+    try { const r = await this.req('POST', `/me/drive/items/${parent}/children`, { headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ name: baseName(rel), folder: {}, '@microsoft.graph.conflictBehavior':'fail' }) });
+      this.dirs.set(r.id, rel); return r.id; }
+    catch (e){ if (e.status === 409) throw new ExistsError(rel); throw e; }
+  }
+  /* a folder rename is one request; its files get their new paths from the change feed (or the next listing) */
+  async renameFolder(rel, to){
+    const id = await this.folderId(rel);
+    try { await this.req('PATCH', `/me/drive/items/${id}`, { headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ name: baseName(to) }) }); }
+    catch (e){ if (e.status === 409) throw new ExistsError(to); throw e; }
+    if (!this.deltaOk) this.dirs.set(id, to);
+  }
+  async removeFolder(rel){                    // only an empty folder (any file at all, task or not, keeps it)
+    const id = await this.folderId(rel);
+    const kids = await this.req('GET', `/me/drive/items/${id}/children?$top=1`);
+    if (kids.value?.length) throw new FolderError(`“${rel}” isn't empty.`);
+    const it = await this.req('GET', `/me/drive/items/${id}`);
+    await this.req('DELETE', `/me/drive/items/${id}`, { headers:{ 'If-Match': it.eTag } });
+    this.dirs.delete(id);
+  }
+  /* a move is one request that keeps the file's OneDrive identity and history; If-Match → 412 if it changed meanwhile */
+  async move(from, to, expected){
+    let id; try { id = await this.idOf(from); } catch (e){ if (e instanceof NotFoundError) throw new ConflictError(from); throw e; }
+    const pid = await this.folderId(dirOf(to), true);
+    try {
+      const r = await this.req('PATCH', `/me/drive/items/${id}`, { body: JSON.stringify({ parentReference:{ id:pid }, name: baseName(to) }),
+        headers:{ 'Content-Type':'application/json', ...(expected != null ? { 'If-Match':expected } : {}) } });
+      this.forget(from.toLowerCase()); this.remember(r, to); return r.eTag;
+    } catch (e){
+      if (e.status === 412 || e.status === 404){ if (e.status === 404) this.forget(from.toLowerCase()); throw new ConflictError(from); }
+      if (e.status === 409) throw new ExistsError(to);
+      throw e;
+    }
   }
   async item(path){                           // fresh metadata (eTag + download URL) for one file
     try { const it = await this.req('GET', `/me/drive/root:/${this.fp()}/${this.pp(path)}`); const rel = this.relOf(it) || path;
@@ -633,10 +748,11 @@ class GraphStore {                            // OneDrive through Microsoft Grap
   }
   /* R2-7 source abilities: every file + a change bookmark (delta link), and only what changed since a bookmark */
   metaOf(path){ const e = this.items.get(path.toLowerCase()); return e ? { id:e.id } : null; }
-  restore(records){ for (const r of records) if (r.meta?.id) this.remember({ id:r.meta.id, name:r.path, eTag:r.version }); }
+  restore(records, dirs){ for (const r of records) if (r.meta?.id) this.remember({ id:r.meta.id, name:r.path, eTag:r.version });
+    if (Array.isArray(dirs)){ this.dirs = new Map(dirs); this.dirsKnown = true; } }
   async snapshot(){
     if (this.deltaOk){
-      this.items.clear(); this.byId.clear(); this.deltaLink = null; this.baselined = false;
+      this.items.clear(); this.byId.clear(); this.dirs = new Map(); this.deltaLink = null; this.baselined = false;
       try { await this.changes(); }
       catch (e){ if (e.status === 404) throw new FolderError(`The folder "${this.folder}" wasn't found in your OneDrive.`); throw e; }
       if (this.deltaOk) return { entries: [...this.items.values()].filter(e => isStorePath(e.path)).map(e => ({ path:e.path, version:e.eTag })), token: this.deltaLink };
@@ -656,21 +772,49 @@ class GraphStore {                            // OneDrive through Microsoft Grap
     if (!this.deltaOk) return listDiff(this);       // work OneDrive: folder delta unsupported → listing (S-4)
     let url = this.deltaLink || `/me/drive/root:/${this.fp()}:/delta`; const first = !this.deltaLink; const out = [];
     const resync = first && this.baselined;          // the feed was reset (e.g. token expired while asleep) → reload everything
+    /* R2-5: the feed has no paths (delta docs: "track items by id"), so every item's path comes from its parent folder's
+       id. Folders are tracked by id too. A renamed or moved folder comes alone — its files aren't sent again — so they
+       are re-pathed here. A deleted folder may come without its files, so everything under it goes. */
+    const emitDel = p => { if (!first && isStorePath(p)) out.push({ path:p, deleted:true }); };
+    const emitNew = (p, v) => { if (!first && isStorePath(p)) out.push({ path:p, version:v }); };
+    const under = (p, d) => p.toLowerCase() === d.toLowerCase() || p.toLowerCase().startsWith(d.toLowerCase() + '/');
+    const dropDir = d => {
+      for (const [id, x] of [...this.dirs]) if (x && under(x, d)) this.dirs.delete(id);
+      for (const [key, e] of [...this.items]) if (under(e.path, d) && e.path.toLowerCase() !== d.toLowerCase()){ this.forget(key); emitDel(e.path); }
+    };
+    const moveDir = (from, to) => {
+      for (const [id, x] of [...this.dirs]) if (x && under(x, from)) this.dirs.set(id, to + x.slice(from.length));
+      for (const [key, e] of [...this.items]) if (e.path.toLowerCase().startsWith(from.toLowerCase() + '/')){
+        const np = to + e.path.slice(from.length); this.forget(key);
+        this.remember({ id:e.id, name:baseName(np), eTag:e.eTag, '@microsoft.graph.downloadUrl':e.dl, lastModifiedDateTime:e.modified, lastModifiedBy:{ user:{ displayName:e.by } } }, np);
+        emitDel(e.path); emitNew(np, e.eTag);
+      }
+    };
+    const rank = it => it.deleted ? 2 : it.folder ? 0 : 1;    // per page: folders first, then files, deletions last
     try {
-      const root = await this.rootId();
+      const root = await this.rootId(); this.dirs.set(root, '');
       while (url){
         const r = await this.req('GET', url);
-        for (const it of r.value){
-          if (it.deleted){ const key = this.byId.get(it.id); if (key){ const p = this.items.get(key).path; this.forget(key); if (!first && isStorePath(p)) out.push({ path:p, deleted:true }); } continue; }
+        for (const it of [...r.value].sort((a, b) => rank(a) - rank(b))){
+          if (it.deleted){
+            if (this.dirs.has(it.id)){ const d = this.dirs.get(it.id); this.dirs.delete(it.id); if (d) dropDir(d); continue; }
+            const key = this.byId.get(it.id); if (key){ const p = this.items.get(key).path; this.forget(key); emitDel(p); } continue;
+          }
+          if (it.id === root) continue;
+          const pdir = this.dirs.get(it.parentReference?.id);
+          if (it.folder){
+            const old = this.dirs.get(it.id);
+            if (pdir == null){ if (old){ this.dirs.delete(it.id); dropDir(old); } continue; }      // moved out of the task folder
+            const np = joinPath(pdir, it.name);
+            if (old != null && old !== np) moveDir(old, np);
+            this.dirs.set(it.id, np); continue;
+          }
           if (!it.file) continue;
           const oldKey = this.byId.get(it.id); const old = oldKey && this.items.get(oldKey);
-          if (!this.isTop(it, root)){                // in a subfolder (.trash; R2-5 folders are Phase 2) — never a task here
-            if (old){ this.forget(oldKey); if (!first && isStorePath(old.path)) out.push({ path:old.path, deleted:true }); }   // a task moved out of the folder
-            continue;
-          }
-          if (old && old.path !== it.name && !first && isStorePath(old.path)) out.push({ path:old.path, deleted:true });   // renamed elsewhere
-          this.remember(it, it.name);
-          if (!first && isStorePath(it.name)) out.push({ path:it.name, version:it.eTag });
+          if (pdir == null){ if (old){ this.forget(oldKey); emitDel(old.path); } continue; }       // moved out of the task folder
+          const np = joinPath(pdir, it.name);
+          if (old && old.path !== np) emitDel(old.path);                                         // moved or renamed elsewhere
+          this.remember(it, np); emitNew(np, it.eTag);
         }
         if (r['@odata.nextLink']) url = r['@odata.nextLink']; else { this.deltaLink = r['@odata.deltaLink']; url = null; }
       }
@@ -678,7 +822,7 @@ class GraphStore {                            // OneDrive through Microsoft Grap
       if ([400, 403, 501].includes(e.status)){ this.deltaOk = false; this._snap = null; await listDiff(this); return [{ resync:true }]; }
       this.deltaLink = null; throw e;
     }
-    this.baselined = true;
+    this.baselined = true; this.dirsKnown = true;
     return resync ? [{ resync:true }] : out;
   }
 }
@@ -692,7 +836,7 @@ class GraphStore {                            // OneDrive through Microsoft Grap
    when its version equals the version the source reports. Files and the bookmark are saved in one transaction, so the
    bookmark never runs ahead of the files. If the copy can't be used, everything works as before, just slower. */
 class TokenExpired extends Error {}
-const CACHE_FORMAT = 1;
+const CACHE_FORMAT = 2;                 // 2 (R2-5): the bookmark is saved with the folder ids it needs
 const devCache = {
   db: null,
   open(){
@@ -730,15 +874,17 @@ class CachedStore {
   rec(path, f){ return { path, text:f.text, version:f.version, meta:this.src.metaOf?.(path) ?? null }; }
   async save(puts, dels, token){                       // token === undefined → leave the bookmark alone
     if (!this.usable) return;
-    try { await devCache.commit(this.scope, puts, dels, token === undefined ? null : { format:CACHE_FORMAT, token, savedAt:Date.now() }); }
+    try { await devCache.commit(this.scope, puts, dels, token === undefined ? null : { format:CACHE_FORMAT, token, savedAt:Date.now(), dirs:this.src.dirState?.() ?? null }); }
     catch (e){ console.warn('device copy: write failed, continuing without it', e); this.usable = false; }
   }
   async warm(){                                        // the saved copy, for drawing at once (not yet checked)
     try {
       const { files, state } = await devCache.load(this.scope);
-      if (!state || state.format !== CACHE_FORMAT) return [];
+      /* a copy from another version (or a half-saved one) is thrown away, not just skipped: its files would otherwise
+         come back on the next start (e.g. a task folder from before R2-5 folders showing every task twice) */
+      if (!state || state.format !== CACHE_FORMAT){ if (files.length) await devCache.dropScopes(s => s === this.scope); return []; }
       for (const r of files) this.mem.set(r.path.toLowerCase(), r);
-      this.token = state.token || null; this.src.restore?.(files); this.stats.warm = files.length;
+      this.token = state.token || null; this.src.restore?.(files, state.dirs); this.stats.warm = files.length;
       return files;
     } catch (e){ console.warn('device copy unavailable', e); this.usable = false; return []; }
   }
@@ -785,6 +931,12 @@ class CachedStore {
   async write(path, text, expected){ const version = await this.src.write(path, text, expected); this.keep(path, { text, version }); return version; }
   async create(path, text){ const version = await this.src.create(path, text); this.keep(path, { text, version }); return version; }
   async remove(path, expected){ await this.src.remove(path, expected); this.drop(path); }
+  async move(from, to, expected){ const version = await this.src.move(from, to, expected); const r = this.mem.get(from.toLowerCase());
+    this.drop(from); if (r) this.keep(to, { text:r.text, version }); return version; }
+  folders(){ return this.src.folders?.() ?? null; }
+  createFolder(d){ return this.src.createFolder(d); }
+  renameFolder(d, n){ return this.src.renameFolder(d, n); }
+  removeFolder(d){ return this.src.removeFolder(d); }
   async changes(){                                     // the background check
     if (!this.ready) return [{ resync:true }];         // never checked yet (e.g. opened offline)
     if (this.token && this.src.changesSince){
@@ -871,7 +1023,7 @@ function parseTask(path, text, version){
     id: String(fm.id ?? ('f-' + path.replace(/\.md$/,''))),
     title: fm.title != null ? String(fm.title) : titleFromName(path),
     status: String(fm.status || 'open'), prefix: fm.prefix != null ? String(fm.prefix) : '',
-    list: String(fm.list || 'Inbox'), collections: asArr(fm.collections), parent: fm.parent ? String(fm.parent) : '',
+    list: dirOf(path), collections: asArr(fm.collections), parent: fm.parent ? String(fm.parent) : '',      // R2-5: t.list is the folder ('' = root)
     order: Number.isFinite(+fm.order) && fm.order !== null && fm.order !== '' ? +fm.order : null,
     due: fm.due ? String(fm.due) : '', repeat: fm.repeat ? String(fm.repeat) : '', series: fm.series ? String(fm.series) : '',
     completed: fm.completed ? String(fm.completed) : '',
@@ -895,7 +1047,6 @@ function isYmd(s){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); 
 function serializeTask(t){
   const fm = { id:t.id, title:t.title, status:t.status };
   if (t.prefix) fm.prefix = t.prefix;
-  fm.list = t.list;
   if (t.collections.length) fm.collections = t.collections;
   if (t.parent) fm.parent = t.parent;
   fm.order = t.order ?? 1;
@@ -1018,23 +1169,39 @@ function buildFrom(recs){                           // task map + lists from fil
     addParsed(map, parseTask(r.path, r.text, r.version));
   }
   S.tasks = map;
-  if (cfg && typeof cfg === 'object'){ const { lists, ...rest } = cfg; S.cfgExtra = rest; S.lists = Array.isArray(lists) ? lists.map(String) : []; }
-  else S.lists = [];
+  if (cfg && typeof cfg === 'object'){ const { lists, folders, ...rest } = cfg; S.cfgExtra = rest; S.lists = ['', ...cfgFolders(folders)]; }
+  else S.lists = [''];
   checkFormat(cfg);
 }
 /* R2-5 step 0: _todo.json says which data format the folder uses. A folder from a newer format (e.g. 4 = folders) is
    opened read-only: every write, create and delete is refused, so this build can't damage what it doesn't understand. */
 function checkFormat(cfg){
-  const f = Number(cfg && typeof cfg === 'object' ? cfg.format : 0) || 0;
-  const was = S.tooNew; S.tooNew = f > DATA_FORMAT ? f : 0;
-  $('#ro-bar').hidden = !S.tooNew;
-  $('#ro-text').textContent = S.tooNew ? `Read-only: this folder was updated by a newer version of HTML-ToDo-App (data format ${S.tooNew}; this one knows ${DATA_FORMAT}). Reload to update the app.` : '';
-  if (S.tooNew && !was) logDevice(`folder data format ${S.tooNew} is newer than ${DATA_FORMAT}: read-only`);
+  const c = cfg && typeof cfg === 'object' ? cfg : null, f = Number(c ? c.format : 0) || 0;
+  const old = c && ((f && f < 4) || (!f && Array.isArray(c.lists) && !c.folders));       // R2-5 decision 14: the flat list layout
+  const was = S.tooNew; S.tooNew = f > DATA_FORMAT ? f : old ? -(f || 3) : 0;
+  $('#ro-bar').hidden = !S.tooNew; $('#ro-reload').hidden = S.tooNew < 0;
+  $('#ro-text').textContent = S.tooNew > 0 ? `Read-only: this folder was updated by a newer version of HTML-ToDo-App (data format ${S.tooNew}; this one knows ${DATA_FORMAT}). Reload to update the app.`
+    : S.tooNew < 0 ? `Read-only: this folder still uses the old list layout (data format ${-S.tooNew}). It has to be converted to folders first (Claude does this).` : '';
+  if (S.tooNew && !was) logDevice(S.tooNew > 0 ? `folder data format ${S.tooNew} is newer than ${DATA_FORMAT}: read-only` : `folder in the old list layout (format ${-S.tooNew}): read-only`);
+}
+/* R2-5: folders are named by path; _todo.json keeps only their order ("folders"). The root ('') is always first. */
+const fname = l => l ? l : '/ (root)';
+function cfgFolders(v){ return Array.isArray(v) ? [...new Set(v.map(String).filter(isFolderPath))] : []; }
+/* folder names: Windows-safe and never mistaken for a path, a hidden folder or the root */
+function folderNameError(n, except = null){
+  if (!n) return 'Give it a name.';
+  if (/[\/\\:*?"<>|]/.test(n)) return 'A folder name can\'t contain / \\ : * ? " < > |';
+  if (/^[._]/.test(n)) return 'A folder name can\'t start with . or _';
+  if (/[ .]$/.test(n)) return 'A folder name can\'t end with a space or a dot.';
+  if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i.test(n)) return `“${n}” is reserved by Windows.`;
+  if (n.length > 100) return 'That name is too long.';
+  if (S.lists.some(l => l && l !== except && l.toLowerCase() === n.toLowerCase())) return 'A folder with that name exists.';
+  return '';
 }
 function guardWrites(store){                       // R2-5 step 0: no writes while the folder is from a newer format
   for (const st of [store, store?.src]) if (st && !st.roGuard){
     st.roGuard = true;
-    for (const m of ['write', 'create', 'remove']) if (typeof st[m] === 'function'){
+    for (const m of ['write', 'create', 'remove', 'move', 'createFolder', 'renameFolder', 'removeFolder']) if (typeof st[m] === 'function'){
       const f = st[m].bind(st); st[m] = async (...a) => { if (S.tooNew) throw new ReadOnlyError(); return f(...a); };
     }
   }
@@ -1043,16 +1210,26 @@ function addParsed(map, t){
   if (map.has(t.id) && map.get(t.id).file !== t.file){ t.dupOf = t.id; t.id = t.id + '~' + t.file; }
   map.set(t.id, t);
 }
-function syncLists(){ for (const t of all()) if (t.status !== 'archived' && !S.lists.includes(t.list)) S.lists.push(t.list); if (!S.lists.length) S.lists.push('Inbox');
-  if (!S.lists.includes(S.list)) S.list = S.lists[0]; }
+function healTwin(id){                             // the file that held this id is gone: a same-id twin (⚠) takes the id back
+  const twin = [...S.tasks.values()].find(x => x.dupOf === id); if (!twin || S.tasks.has(id)) return;
+  S.tasks.delete(twin.id); if (S.editing === twin.id) S.editing = id;
+  twin.id = id; delete twin.dupOf; S.tasks.set(id, twin);
+}
+function syncLists(){                               // R2-5: the root, the folders in _todo.json's order, then any others that exist
+  const live = S.store?.folders?.() || null;
+  const known = new Set(all().map(t => t.list));
+  let ls2 = S.lists.filter(l => !l || known.has(l) || (live ? live.some(x => x.toLowerCase() === l.toLowerCase()) : true));
+  for (const l of [...(live || []), ...known]) if (l && !ls2.some(x => x.toLowerCase() === l.toLowerCase())) ls2.push(l);
+  S.lists = ['', ...ls2.filter(Boolean)];
+  if (!S.lists.includes(S.list)) S.list = ''; }
 
 /* _todo.json: version-checked, merged on conflict (S-3) */
-function cfgText(){ return JSON.stringify({ ...S.cfgExtra, format: DATA_FORMAT, lists: S.lists }, null, 2) + '\n'; }
+function cfgText(){ return JSON.stringify({ ...S.cfgExtra, format: DATA_FORMAT, folders: S.lists.filter(Boolean) }, null, 2) + '\n'; }
 async function mergeConfigFromDisk(){
   const r = await S.store.read(CONFIG_FILE); let remote = {};
   try { remote = JSON.parse(r.text) || {}; } catch {}
-  const { lists, ...rest } = remote; const rl = Array.isArray(lists) ? lists.map(String) : [];
-  S.lists = [...rl, ...S.lists.filter(l => !rl.includes(l))];      // their order wins; keep lists only we have
+  const { lists, folders, ...rest } = remote; const rl = cfgFolders(folders);
+  S.lists = ['', ...rl, ...S.lists.filter(l => l && !rl.includes(l))];      // their order wins; keep folders only we have
   S.cfgExtra = rest; S.cfgVersion = r.version;
   checkFormat(remote);
 }
@@ -1073,26 +1250,40 @@ async function saveConfig(){
         throw e;
       }
     }
-    toast('List order is changing on another device — try again.'); return false;
-  } catch (e){ storeError(e, 'list order'); return false; }
+    toast('Folder order is changing on another device — try again.'); return false;
+  } catch (e){ storeError(e, 'folder order'); return false; }
   finally { busy(-1); }
 }
 
+/* R2-5: put a task's file into folder `dir` with the store's own move (OneDrive keeps its identity and history).
+   The name stays when it's free there, otherwise the unique-name rule. */
+async function moveFile(t, dir){
+  const pre = dir ? dir + '/' : '', stem = baseName(t.file).replace(/\.md$/i, ''); const tried = [];
+  let to = pre + baseName(t.file);
+  if (all().some(x => x !== t && (x.file || '').toLowerCase() === to.toLowerCase())) to = uniqueFile(stem, pre);
+  for (let i = 0; ; i++){
+    try { t.version = await S.store.move(t.file, to, t.version); t.file = to; return; }
+    catch (e){ if (e instanceof ExistsError && i < 5){ tried.push(to); to = uniqueFile(stem, pre, tried); continue; } throw e; }
+  }
+}
 async function saveTask(t, { force = false } = {}){
   if (t.readonly){ toast(`"${t.title}" has unreadable frontmatter — fix the file by hand first.`); return false; }
   const text = serializeTask(t);
   busy(1);
   try {
+    const dir = t.list || '', pre = dir ? dir + '/' : '';
     if (t.isNew || !t.file){
+      if (t.file && dirOf(t.file) !== dir) t.file = pre + baseName(t.file);
       for (let i = 0; ; i++){
-        t.file = t.file || uniqueFile(t.title);
+        t.file = t.file || uniqueFile(t.title, pre);
         try { t.version = await S.store.create(t.file, text); break; }
-        catch (e){ if (e instanceof ExistsError && i < 5){ t.file = uniqueFile(t.title, '', [t.file]); continue; } throw e; }
+        catch (e){ if (e instanceof ExistsError && i < 5){ t.file = uniqueFile(t.title, pre, [t.file]); continue; } throw e; }
       }
     } else {
       let expected = t.version;
       if (force){ try { expected = (await S.store.read(t.file)).version; } catch (e){ if (!(e instanceof NotFoundError)) throw e; t.version = await S.store.create(t.file, text); expected = undefined; } }
-      if (expected !== undefined) t.version = await S.store.write(t.file, text, expected);
+      if (expected !== undefined && (force || text !== t.raw)) t.version = await S.store.write(t.file, text, expected);   // a pure move writes nothing
+      if (dirOf(t.file) !== dir) await moveFile(t, dir);
     }
     t.raw = text; t.isNew = false; t.diskChanged = false; t.unknown = unknownBits(t);
     S.offline = false; return true;
@@ -1175,7 +1366,7 @@ async function trashRestore(e){
   const orig = String(e.meta.path || baseName(e.md.path)); const dir = orig.includes('/') ? orig.slice(0, orig.lastIndexOf('/') + 1) : '';
   let file = orig;
   for (let i = 0; ; i++){
-    try { const v = await S.store.create(file, text); if (!file.includes('/') && isTaskPath(file)) addParsed(S.tasks, parseTask(file, text, v)); break; }
+    try { const v = await S.store.create(file, text); if (isTaskPath(file)) addParsed(S.tasks, parseTask(file, text, v)); break; }   // R2-5: also inside a folder
     catch (err){ if (err instanceof ExistsError && i < 5){ file = uniqueFile(baseName(orig).replace(/\.md$/i, ''), dir, [file]); continue; } throw err; }
   }
   await trashDrop(e);
@@ -1268,13 +1459,39 @@ function schedulePoll(){ clearTimeout(pollTimer); pollTimer = setTimeout(async (
 function newDayCheck(){ if (S.renderDay && S.renderDay !== today() && !S.moving) render(); }
 setInterval(newDayCheck, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) newDayCheck(); });
+/* R2-5 decision 11: a folder that disappears outside the app. Its tasks showing up together in another folder means it
+   was renamed (or moved); otherwise it was deleted — say which tasks went, due-dated ones first, and where to restore. */
+function folderSnap(){ const m = new Map(); for (const t of all()) if (t.list && !t.isNew) m.set(t.id, { list:t.list, title:t.title, due:t.due }); return { tasks:m, lists:[...S.lists] }; }
+function folderGone(before){
+  for (const l of before.lists){
+    if (!l || S.lists.includes(l)) continue;
+    const was = [...before.tasks].filter(([, x]) => x.list === l); if (!was.length) continue;
+    const now = was.map(([id]) => get(id)).filter(Boolean), to = [...new Set(now.map(x => x.list))];
+    if (now.length === was.length && to.length === 1 && to[0] !== l){
+      S.lists = S.lists.map(x => x === l ? to[0] : x).filter((x, i, a) => a.indexOf(x) === i);
+      if (S.list === l){ S.list = to[0]; ls.set('todo.list', to[0]); }
+      saveConfig(); render(); toast(`The folder “${l}” was renamed to “${fname(to[0])}” outside the app.`); continue;
+    }
+    const gone = was.filter(([id]) => !get(id)).map(([, x]) => x).sort((a, b) => (b.due ? 1 : 0) - (a.due ? 1 : 0));
+    if (!gone.length) continue;
+    const dated = gone.filter(x => x.due).length;
+    logDevice(`folder "${l}" disappeared (${gone.length} tasks)`);
+    modal(`<h3>The folder “${esc(l)}” is gone</h3><p>It was deleted or moved outside the app, with <b>${gone.length} task${gone.length > 1 ? 's' : ''}</b>${dated ? ` (${dated} with a due date)` : ''}:</p>
+      <ul class="dl-subs">${gone.slice(0, 10).map(x => `<li>${esc(x.title)}${x.due ? ` <span class="dl-sdue">· due ${esc(dueText(x.due))}</span>` : ''}</li>`).join('')}${gone.length > 10 ? `<li class="dl-more">and ${gone.length - 10} more</li>` : ''}</ul>
+      <p style="font-size:13px;color:var(--muted)">${S.store?.kind === 'onedrive' ? 'To get it back: OneDrive → Recycle bin (on the web or in the OneDrive app) → restore the folder. It comes back here on its own.' : 'To get it back: restore the folder from the Recycle Bin (Windows) and it comes back here on its own.'}</p>
+      <div class="btns"><button class="primary" data-a="ok">OK</button></div>`, () => closeModal());
+  }
+}
 async function poll(force){
   if (!S.store || polling || document.hidden || S.moving || (!force && S.busy)) return;   // never redraw mid-drag
   polling = true; S.syncing = true; setStat();
   try {
     const ch = await S.store.changes();
     S.offline = false;
+    const before = folderSnap();
     if (ch && ch.length) await applyChanges(ch);
+    const was = S.lists.join('\n'); syncLists(); if (S.lists.join('\n') !== was) render();   // R2-5: a folder made, renamed or deleted elsewhere (no task changed)
+    folderGone(before);
   } catch (e){
     if (e instanceof OfflineError){ S.offline = true; }
     else if (e instanceof AuthError){ reauth(); }
@@ -1289,6 +1506,10 @@ async function applyChanges(ch){
   }
   let changed = false;
   const seen = new Set();
+  /* deletions first: a file moved outside the app (Explorer, local folder or work OneDrive's listing) arrives as
+     "new at B" + "gone from A". Seen in the other order, the new file looked like a second file with the same id (⚠,
+     id renamed), and the deletion then dropped the real id, so its subtasks lost their parent (2026-11-11, W6). */
+  ch = [...ch.filter(c => c.deleted), ...ch.filter(c => !c.deleted)];
   for (const c of ch){
     const key = c.path.toLowerCase(); if (seen.has(key)) continue; seen.add(key);     // bursts → one reload
     if (c.path === CONFIG_FILE){
@@ -1303,7 +1524,7 @@ async function applyChanges(ch){
       try { fresh = await S.store.read(c.path); }                  // confirm before treating as deleted
       catch (e){ if (e instanceof NotFoundError){
           if (S.editing === t.id){ t.diskChanged = true; $('#d-banner').classList.add('on'); }
-          else { S.tasks.delete(t.id); changed = true; }
+          else { S.tasks.delete(t.id); healTwin(t.id); changed = true; }
           continue; } throw e; }
     }
     if (t && t.version === (fresh ? fresh.version : c.version)) continue;      // our own write, or no real change
@@ -1338,18 +1559,31 @@ function prefixHTML(t){
 }
 function rowHTML(t, depth, opts = {}){
   const subs = subtasksOf(t); const doneN = subs.filter(k => k.status === 'done').length; const open = subs.length - doneN;
+  const strays = opts.flat ? 0 : strayCount(t);
+  const par = depth && !opts.flat && hasParent(t) ? get(t.parent) : null, away = par && par.list !== t.list ? t.list : null;   // R2-5: this subtask's file is in another folder
   const expanded = S.expanded.has(t.id) && !opts.flat;
   const warn = t.unknown?.length || t.readonly || t.dupOf;
   const warnTip = t.readonly ? 'Unreadable frontmatter' : t.dupOf ? `Two files share id ${t.dupOf} — often a conflict copy` : 'Unrecognized frontmatter: ' + (t.unknown || []).join(', ');
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}</div>
-    <div class="act">${opts.arrows ? `<button class="qbtn qarrow" data-act="q-up" title="Move to the next day" aria-label="Move to the next day">↑</button><button class="qbtn qarrow" data-act="q-down" title="Move to the previous day" aria-label="Move to the previous day">↓</button>${t.due !== today() ? `<button class="qbtn qarrow qdot" data-act="q-dot" title="Move to today" aria-label="Move to today">●</button>` : '<span class="qgap" aria-hidden="true"></span>'}` : ''}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
+    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}${away != null ? `<span class="stray-chip" title="This subtask's file is in “${esc(fname(away))}”, not in its parent's folder — ⚠ on the parent moves it">⚠ in ${esc(fname(away))}</span>` : ''}</div>
+    <div class="act">${opts.arrows ? `<button class="qbtn qarrow" data-act="q-up" title="Move to the next day" aria-label="Move to the next day">↑</button><button class="qbtn qarrow" data-act="q-down" title="Move to the previous day" aria-label="Move to the previous day">↓</button>${t.due !== today() ? `<button class="qbtn qarrow qdot" data-act="q-dot" title="Move to today" aria-label="Move to today">●</button>` : '<span class="qgap" aria-hidden="true"></span>'}` : ''}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}${strays ? `<button class="stray-btn" data-act="strays" title="${strays} subtask${strays > 1 ? 's are' : ' is'} in another folder — tap to move ${strays > 1 ? 'them' : 'it'} here">⚠ ${strays}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
   if (!opts.flat && S.view === 'list' && ((expanded && subs.length) || S.addSub === t.id)) html += addSubHTML(t, depth + 1);
   return html;
+}
+/* R2-5 decision 6: a family must share one folder. Subtasks moved elsewhere outside the app (e.g. the parent dragged in
+   Explorer without them) are shown under the parent with ⚠; one tap moves them (and their own subtasks) here. */
+function strayCount(t){ return descendants(t.id).filter(d => d.list !== t.list && d.status !== 'archived').length; }
+function straysDialog(t){
+  const st = descendants(t.id).filter(d => d.list !== t.list);
+  const from = [...new Set(st.map(d => fname(d.list)))].join(', ');
+  modal(`<h3>Subtasks in another folder</h3><p>${st.length} subtask${st.length > 1 ? 's' : ''} of <b>${esc(t.title)}</b> ${st.length > 1 ? 'are' : 'is'} in <b>${esc(from)}</b>, not in <b>${esc(fname(t.list))}</b> — a task and its subtasks share one folder.</p>
+    <ul class="dl-subs">${st.slice(0, 10).map(d => `<li>${esc(d.title)}</li>`).join('')}${st.length > 10 ? `<li class="dl-more">and ${st.length - 10} more</li>` : ''}</ul>
+    <div class="btns"><button data-a="cancel">Not now</button><button class="primary" data-a="ok">Move ${st.length > 1 ? 'them' : 'it'} to ${esc(fname(t.list))}</button></div>`,
+    async a => { closeModal(); if (a !== 'ok') return; st.forEach(d => d.list = t.list); await saveMany(st.filter(d => !d.isNew)); syncLists(); render(); toast(`Moved ${st.length} to ${fname(t.list)}`); });
 }
 /* R2-11: "+ Add subtask…" — type, Enter, type, Enter; ⤢ continues in the full editor */
 function addSubHTML(t, depth){
@@ -1360,10 +1594,10 @@ function addSubHTML(t, depth){
 function render(){
   S.renderDay = today();
   syncListsQuiet();
-  $('#list-label').textContent = S.view === 'due' ? 'Today' : (S.list || '…');
+  $('#list-label').textContent = S.view === 'due' ? 'Today' : fname(S.list);
   $('#ver').textContent = BUILD;                     // R2-10: the build in the header; the version is in Settings
   fitListName();
-  $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${S.list}…`;
+  $('#qa').placeholder = !S.store ? 'Open a folder first' : S.view === 'due' ? 'Add a task…' : `Add a task to ${fname(S.list)}…`;
   qaChips();
   $('#qa').disabled = !S.store || !!S.firstFill || !!S.tooNew;
   setStat();
@@ -1378,7 +1612,7 @@ function render(){
   const top = all().filter(t => t.list === S.list && !hasParent(t)).sort(byOrder).filter(visible);
   const ae = document.activeElement, keep = ae?.classList?.contains('addsub-in') ? { parent: ae.closest('.addsub')?.dataset.parent, value: ae.value, at: ae.selectionStart } : null;
   rows.innerHTML = top.map(t => rowHTML(t, 0)).join('') ||
-    `<div class="empty-hint">No ${S.showDone ? '' : 'open '}tasks in “${esc(S.list)}”. Add one below.</div>`;
+    `<div class="empty-hint">No ${S.showDone ? '' : 'open '}tasks in “${esc(fname(S.list))}”. Add one below.</div>`;
   if (keep){ const inp = rows.querySelector(`.addsub[data-parent="${CSS.escape(keep.parent || '')}"] .addsub-in`);     // R2-11: a redraw keeps the typing line
     if (inp){ inp.value = keep.value; inp.focus({ preventScroll:true }); try { inp.setSelectionRange(keep.at, keep.at); } catch {} } }
   updateSnapBtn();
@@ -1390,7 +1624,7 @@ function fitListName(){
   while (el.scrollWidth > el.clientWidth + 1 && size > 18){ size -= 1; el.style.fontSize = size + 'px'; }
 }
 window.addEventListener('resize', () => fitListName());
-function syncListsQuiet(){ if (S.list && !S.lists.includes(S.list) && S.lists.length) S.list = S.lists[0]; }
+function syncListsQuiet(){ if (S.list && S.lists.length && !S.lists.includes(S.list)) S.list = ''; }   // (not before anything has loaded)
 /* R2-2 Today view: time runs upward. Upcoming (collapsed; furthest first, "+ N later" on top) · Today (always open) ·
    Overdue (collapsed; most recent first). Collapse state lasts for this app session only. */
 const TODAY_OPEN = { up:false, over:false, later:false };
@@ -1641,6 +1875,7 @@ $('#rows').addEventListener('click', async e => {
   const tg = e.target.closest('[data-tday]'); if (tg){ todayToggle(tg.dataset.tday); return; }
   const actEl = e.target.closest('[data-act]'); if (!actEl) return;
   if (actEl.dataset.act === 'addsub-ed') return addSubToEditor(actEl.closest('.addsub'));
+  if (actEl.dataset.act === 'strays'){ const r = actEl.closest('.row'), x = r && get(r.dataset.id); if (x) straysDialog(x); return; }
   const act = actEl.dataset.act; const row = actEl.closest('.row'); const t = row && get(row.dataset.id); if (!t) return;
   if (act === 'open') openDrawer(t.id);
   else if (act === 'expand'){ S.expanded.has(t.id) ? S.expanded.delete(t.id) : S.expanded.add(t.id); persistExpanded(); render(); }
@@ -1780,9 +2015,9 @@ async function recycleTask(t, r){
   });
 }
 /* Copy (keep a record): the original is completed like any task and stops repeating; a copy carries the series */
-function datedFile(title, ymd, taken){
+function datedFile(title, ymd, taken, dir = ''){                // R2-5: in the task's own folder
   const used = new Set([...all().map(x => (x.file || '').toLowerCase()), ...taken]);
-  const base = slug(title) + '-' + ymdCompact(ymd); let n = 1, f = base + '.md';
+  const base = (dir ? dir + '/' : '') + slug(title) + '-' + ymdCompact(ymd); let n = 1, f = base + '.md';
   while (used.has(f.toLowerCase())) f = `${base}-${++n}.md`;
   taken.push(f.toLowerCase()); return f;
 }
@@ -1799,7 +2034,7 @@ async function copyTask(t, r, { checkAll = false } = {}){
     idMap.set(x.id, c.id);
     if (x === t){ c.due = next; c.repeat = t.repeat; c.series = series; }
     c.parent = x === t ? t.parent : (idMap.get(x.parent) || x.parent);
-    c.file = datedFile(x.title, x === t ? next : (x.due || next), taken);
+    c.file = datedFile(x.title, x === t ? next : (x.due || next), taken, x.list);
     c.unknown = unknownBits(c);
     copies.push(c);
   }
@@ -1901,21 +2136,28 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('#pop') &&
 function rowMenu(t, anchor){
   const items = [ { label:'Edit', fn:() => openDrawer(t.id) },
     { label:'Change due date…', fn:() => dueDialog(t) },
-    { label:'Move to list…', fn:() => moveToListDialog(t) },
+    { label:'Move to folder…', fn:() => moveToListDialog(t) },
     { label:'Change prefix…', fn:() => prefixDialog(t) },
     { label:'Add subtask', fn:() => addSubtask(t) } ];
   if (t.parent) items.push({ label:'Move to top level', fn: async () => { t.parent = ''; t.order = nextOrder(all().filter(x => x.list === t.list && !hasParent(x))); await saveTask(t); render(); } });
   items.push({ sep:true }, { label:'Delete…', danger:true, fn:() => deleteDialog(t) });
   popover(anchor, items);
 }
+/* R2-5: Move to folder… moves the task's file and its whole family's (decision 4). A subtask on its own can't leave its
+   parent's folder: Cancel, or make it a top-level task there (decision 5). */
 function moveToListDialog(t){
-  if (hasParent(t)) return toast('Subtasks follow their parent — move the parent, or move this to the top level first.');
-  modal(`<h3>Move “${esc(t.title)}” to list</h3>${S.lists.map(l => `<div class="pick ${l===t.list?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button></div>`).join('')}
+  modal(`<h3>Move “${esc(t.title)}” to folder</h3>${S.lists.map(l => `<div class="pick ${l===t.list?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(fname(l))}</button></div>`).join('')}
     <div class="btns"><button data-a="cancel">Cancel</button></div>`,
     async a => { closeModal(); if (!a.startsWith('l:')) return; const l = a.slice(2); if (l === t.list) return;
-      const changed = [t, ...descendants(t.id)]; changed.forEach(x => x.list = l);
-      t.order = nextOrder(all().filter(x => x.list === l && !hasParent(x) && x.id !== t.id));
-      await saveMany(changed.filter(x => !x.isNew)); render(); toast(`Moved to “${l}”`); }, { sheet:true });
+      if (hasParent(t)) return modal(`<h3>Move a subtask?</h3><p>A subtask stays in its parent's folder. Move <b>${esc(t.title)}</b> to <b>${esc(fname(l))}</b> as a top-level task there${descendants(t.id).length ? ', with its own subtasks' : ''}?</p>
+          <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Make it a top-level task in ${esc(fname(l))}</button></div>`,
+        async b => { closeModal(); if (b !== 'ok') return; t.parent = ''; await moveFamily(t, l); });
+      await moveFamily(t, l); }, { sheet:true });
+}
+async function moveFamily(t, l){
+  const changed = [t, ...descendants(t.id)]; changed.forEach(x => x.list = l);
+  t.order = nextOrder(all().filter(x => x.list === l && !hasParent(x) && x.id !== t.id));
+  const ok = await saveMany(changed.filter(x => !x.isNew)); syncLists(); render(); if (ok) toast(`Moved to “${fname(l)}”`);
 }
 function prefixDialog(t){
   const cur = prefixOf(t);
@@ -1969,10 +2211,10 @@ function openCount(l){ return all().filter(t => t.list === l && t.status !== 'ar
 function listPicker(){
   if (!S.store) return;
   if (S.firstFill) return toast('Still downloading your tasks — one moment.');
-  modal(`<h3>Lists</h3>${S.lists.map(l => `<div class="pick ${l===S.list && S.view==='list'?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button>
-      <span class="cnt">${openCount(l)}</span><button class="ren" data-a="r:${esc(l)}" title="Rename or remove">✎</button></div>`).join('')}
-    <div class="pick ${S.view==='due'?'on':''}"><button class="go" data-a="due">📅 Today (all lists)${odBadge(overdueCount())}</button></div>
-    <div class="btns"><button data-a="new">＋ New list</button><button data-a="cancel">Close</button></div>`,
+  modal(`<h3>Folders</h3>${S.lists.map(l => `<div class="pick ${l===S.list && S.view==='list'?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(fname(l))}</button>
+      <span class="cnt">${openCount(l)}</span>${l ? `<button class="ren" data-a="r:${esc(l)}" title="Rename or delete">✎</button>` : '<span class="ren"></span>'}</div>`).join('')}
+    <div class="pick ${S.view==='due'?'on':''}"><button class="go" data-a="due">📅 Today (all folders)${odBadge(overdueCount())}</button></div>
+    <div class="btns"><button data-a="new">＋ New folder</button><button data-a="cancel">Close</button></div>`,
     a => {
       if (a.startsWith('l:')){ closeModal(); S.list = a.slice(2); S.view = 'list'; ls.set('todo.list', S.list); ls.set('todo.view2', 'list'); snapBack(false); render(); $('#scroller').scrollTop = 0; }
       else if (a === 'due'){ closeModal(); S.view = 'due'; ls.set('todo.view2', 'due'); snapBack(false); render(); }
@@ -1981,25 +2223,37 @@ function listPicker(){
       else closeModal();
     }, { sheet:true });
 }
+/* R2-5 decision 10: rename a folder (one store operation; the files keep their names), or delete it only when empty */
 function renameListDialog(l){
   const empty = !all().some(t => t.list === l);
-  modal(`<h3>Rename list</h3><input type="text" id="m-name" value="${esc(l)}">
-    <p style="font-size:12px;color:var(--muted)">Updates the <code>list:</code> field in every task file in this list.</p>
-    <div class="btns">${empty ? '<button class="danger" data-a="remove">Remove (empty)</button>' : ''}<button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Rename</button></div>`,
+  modal(`<h3>Folder “${esc(l)}”</h3><input type="text" id="m-name" value="${esc(l)}"><p class="m-err" id="m-err"></p>
+    <p style="font-size:12px;color:var(--muted)">${empty ? 'Empty — it can be deleted.' : 'Only an empty folder can be deleted: move or delete its tasks first.'}</p>
+    <div class="btns">${empty ? '<button class="danger" data-a="remove">Delete folder</button>' : ''}<button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Rename</button></div>`,
     async a => {
-      if (a === 'remove'){ closeModal(); S.lists = S.lists.filter(x => x !== l); await saveConfig(); render(); return; }
+      if (a === 'remove'){ closeModal(); if (all().some(t => t.list === l)) return toast('It isn\'t empty any more.');
+        busy(1); try { await S.store.removeFolder(l); } catch (e){ if (!(e instanceof NotFoundError) && e.status !== 404){ busy(-1); return storeError(e, 'delete folder'); } } busy(-1);
+        S.lists = S.lists.filter(x => x !== l); if (S.list === l){ S.list = ''; ls.set('todo.list', ''); } await saveConfig(); render(); toast(`Deleted the folder “${l}”`); return; }
       if (a !== 'ok') return closeModal(); const n = $('#m-name').value.trim(); if (!n || n === l) return closeModal();
-      if (S.lists.includes(n)) return toast('A list with that name exists.');
-      closeModal(); const ts = all().filter(t => t.list === l); ts.forEach(t => t.list = n);
+      const err = folderNameError(n, l); if (err){ $('#m-err').textContent = err; return; }
+      closeModal(); busy(1);
+      try { await S.store.renameFolder(l, n); }
+      catch (e){ busy(-1); return e instanceof ExistsError ? toast('A folder with that name exists.') : storeError(e, 'rename folder'); }
+      busy(-1);
       S.lists = S.lists.map(x => x === l ? n : x); if (S.list === l){ S.list = n; ls.set('todo.list', n); }
-      await saveConfig(); await saveMany(ts.filter(t => !t.isNew)); render(); });
+      if (S.editing) closeDrawer(true);
+      await loadAll(); await saveConfig(); render(); toast(`Renamed to “${n}”`); });
   setTimeout(() => $('#m-name')?.select(), 0);
 }
-function addListDialog(){
-  modal(`<h3>New list</h3><input type="text" id="m-name" placeholder="e.g. Errands">
+function addListDialog(after){
+  modal(`<h3>New folder</h3><input type="text" id="m-name" placeholder="e.g. Errands"><p class="m-err" id="m-err"></p>
     <div class="btns"><button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Add</button></div>`,
-    async a => { if (a !== 'ok') return closeModal(); const n = $('#m-name').value.trim(); closeModal();
-      if (!n || S.lists.includes(n)) return; S.lists.push(n); S.list = n; S.view = 'list'; ls.set('todo.list', n); await saveConfig(); render(); });
+    async a => { if (a !== 'ok') return closeModal(); const n = $('#m-name').value.trim();
+      const err = folderNameError(n); if (err){ $('#m-err').textContent = err; return; }
+      closeModal(); busy(1);
+      try { await S.store.createFolder(n); } catch (e){ if (!(e instanceof ExistsError)){ busy(-1); return storeError(e, 'new folder'); } }
+      busy(-1); S.lists.push(n); await saveConfig();
+      if (after) return after(n);
+      S.list = n; S.view = 'list'; ls.set('todo.list', n); ls.set('todo.view2', 'list'); render(); });
   setTimeout(() => $('#m-name')?.focus(), 0);
 }
 
@@ -2007,7 +2261,7 @@ function addListDialog(){
    List chip: remembers the last choice per device. Date chip: Today by default; a change sticks while you stay
    in the Today view and resets when you leave it or restart. */
 const QA = { date: null, inToday: false };                     // date: null = today, '' = no date, else YYYY-MM-DD
-function qaList(){ const l = ls.get('todo.qaList', ''); return S.lists.includes(l) ? l : (S.lists[0] || 'Inbox'); }
+function qaList(){ const l = ls.get('todo.qaList', ''); return S.lists.includes(l) ? l : ''; }   // R2-5 decision 9: the root by default
 function qaDate(){ return QA.date === null ? today() : QA.date; }
 function shortDate(d){ if (!d) return 'No date'; if (d === today()) return 'Today'; if (d === addDays(1)) return 'Tmrw';
   return pd(d).toLocaleDateString(undefined, { weekday:'short', day:'numeric' }); }
@@ -2016,11 +2270,11 @@ function qaChips(){
   if (!on && QA.inToday) QA.date = null;                        // left the Today view → back to the default
   QA.inToday = on;
   $('#qa-list').hidden = $('#qa-date').hidden = !on; if (!on) return;
-  $('#qa-list').textContent = qaList(); $('#qa-date').textContent = shortDate(qaDate());
+  $('#qa-list').textContent = fname(qaList()); $('#qa-date').textContent = shortDate(qaDate());
 }
 $('#qa-list').onclick = () => {
   const cur = qaList();
-  modal(`<h3>Add new tasks to</h3>${S.lists.map(l => `<div class="pick ${l===cur?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(l)}</button></div>`).join('')}
+  modal(`<h3>Add new tasks to</h3>${S.lists.map(l => `<div class="pick ${l===cur?'on':''}"><button class="go" data-a="l:${esc(l)}">${esc(fname(l))}</button></div>`).join('')}
     <div class="btns"><button data-a="cancel">Cancel</button></div>`,
     a => { closeModal(); if (a.startsWith('l:')){ ls.set('todo.qaList', a.slice(2)); qaChips(); } }, { sheet:true });
 };
@@ -2048,7 +2302,7 @@ $('#qa').addEventListener('keydown', async e => {
   const row = document.querySelector(`.row[data-id="${CSS.escape(t.id)}"]`); row?.scrollIntoView({ block:'nearest' });
   if (!(await saveTask(t))){ S.tasks.delete(t.id); $('#qa').value = title; }
   else if (inToday && due !== today())                          // it landed out of sight: say where
-    toast(!due ? `Added to ${list}, no date` : `Added to ${list} — ${niceDate(due)}, in ${due > today() ? 'Upcoming' : 'Overdue'}`);
+    toast(!due ? `Added to ${fname(list)}, no date` : `Added to ${fname(list)} — ${niceDate(due)}, in ${due > today() ? 'Upcoming' : 'Overdue'}`);
   render();
   $('#qa').focus();
 });
@@ -2056,7 +2310,7 @@ $('#qa').addEventListener('keydown', async e => {
 /* ---------------- new task (from menus) ---------------- */
 function newTask({ list, parent } = {}){
   const p = parent ? get(parent) : null;
-  const l = p ? p.list : (list || S.list || S.lists[0] || 'Inbox');
+  const l = p ? p.list : (list != null ? list : S.view === 'list' ? S.list : '');
   const siblings = p ? kids(p.id) : all().filter(x => x.list === l && !hasParent(x));
   const t = { file:'', version:null, id:newId(), title:'', status:'open', prefix:'', list:l, collections:[], parent: p ? p.id : '',
     order: nextOrder(siblings), due:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
@@ -2219,9 +2473,9 @@ function fillRepeat(t){
   S.repKey = repControlsKey(); repUI();
 }
 $('#f-list').addEventListener('change', () => { if ($('#f-list').value === '__new'){
-  const n = (prompt('New list name') || '').trim(); if (n && !S.lists.includes(n)){ S.lists.push(n); saveConfig(); }
-  fillListSelect(n || get(S.editing).list); onDirtyCheck(); } });
-function fillListSelect(sel){ $('#f-list').innerHTML = S.lists.map(l => `<option ${l===sel?'selected':''}>${esc(l)}</option>`).join('') + '<option value="__new">＋ New list…</option>'; }
+  const keep = get(S.editing)?.list ?? ''; fillListSelect(keep);
+  addListDialog(n => { fillListSelect(n); $('#f-list').value = n; onDirtyCheck(); }); } });
+function fillListSelect(sel){ $('#f-list').innerHTML = S.lists.map(l => `<option value="${esc(l)}" ${l===sel?'selected':''}>${esc(fname(l))}</option>`).join('') + '<option value="__new">＋ New folder…</option>'; }
 function fillStatusSelect(cur){
   const opts = ['open','active','done']; if (cur === 'archived') opts.push('archived');
   let html = opts.map(s => `<option value="${s}">${s}</option>`).join('');
@@ -2247,7 +2501,7 @@ function fillDrawer(t){
   fillRepeat(t);
   const p = hasParent(t) ? get(t.parent) : null;
   $('#f-list').disabled = !!p;
-  $('#d-parent').innerHTML = p ? `Subtask of <a href="#" data-open="${esc(p.id)}">${esc(p.title)}</a> — its list follows the parent.` :
+  $('#d-parent').innerHTML = p ? `Subtask of <a href="#" data-open="${esc(p.id)}">${esc(p.title)}</a> — its folder follows the parent.` :
     (t.demoted_into ? `Archived after being demoted into <a href="#" data-open="${esc(t.demoted_into)}">${esc(get(t.demoted_into)?.title || t.demoted_into)}</a>.` : '');
   $('#d-unknown').textContent = t.unknown?.length ? '⚠ Unrecognized frontmatter (kept as is): ' + t.unknown.join(' · ') : '';
   $('#d-file').textContent = t.file ? t.file : 'not saved yet — the file name comes from the title';
@@ -2386,7 +2640,7 @@ function offerDrafts(){
     a => { closeModal(); ls.del(k);
       if (a === 'discard'){ offerDrafts(); return; }
       let x = exists ? t : null;
-      if (!x){ const list = S.lists.includes(d.fields.list) ? d.fields.list : (S.list || S.lists[0] || 'Inbox'), parent = d.parent && get(d.parent) ? d.parent : '';
+      if (!x){ const list = S.lists.includes(d.fields.list) ? d.fields.list : (S.list || ''), parent = d.parent && get(d.parent) ? d.parent : '';
         x = { file:'', version:null, id:newId(), title:'', status:'open', prefix:'', list, collections:[], parent, order: nextOrder(parent ? kids(parent) : all().filter(y => y.list === list && !hasParent(y))),
           due:'', repeat:'', series:'', completed:'', demoted_into:'', body:'', extra:{}, unknown:[], isNew:true };
         S.tasks.set(x.id, x); render(); }
@@ -2443,7 +2697,8 @@ function dedent(lines){
 async function promote(i){
   const p = get(S.editing); const md = S.editor.getMarkdown(); const blocks = checklistBlocks(md); const b = blocks[i]; if (!b) return;
   const info = stripInline(b.text); const nestedMd = dedent(b.nested).join('\n').trim();
-  const file = linkedFile(b.text); const archived = file && byFile(file);
+  const file = linkedFile(b.text);
+  const archived = file && (byFile(joinPath(p.list, file)) || byFile(file) || all().find(x => x.demoted_into === p.id && baseName(x.file).toLowerCase() === baseName(file).toLowerCase()));
   let t;
   if (archived){
     t = archived; t.status = b.checked ? 'done' : 'open'; t.demoted_into = '';
@@ -2467,7 +2722,7 @@ function demoteLines(t, o, indent){
   const box = `${indent}- [${t.status === 'done' ? 'x' : ' '}] ${t.title.replace(/\n/g,' ')}`;
   let line = box;
   if (o.level >= 2){ if (t.due) line += ` 📅 ${t.due}`; for (const c of t.collections) line += ` #${c.replace(/\s+/g,'-')}`; }
-  if (o.keep) line += ` [↗](${linkTo(t.file)})`;
+  if (o.keep) line += ` [↗](${linkTo(baseName(t.file))})`;     // R2-5: the kept file moves into the target's folder, so the link is a name there
   const out = [line];
   if (o.level >= 3){
     const body = (t.body || '').trim();
@@ -2484,7 +2739,7 @@ function demoteDialog(t){
   const nk = descendants(t.id).length;
   modal(`<h3>Demote “${esc(t.title)}” to a checklist item</h3>
     <label style="font-size:12px;color:var(--muted)">Into task</label>
-    <select id="m-target">${targets.map(x => `<option value="${esc(x.id)}" ${x.id===defTarget?'selected':''}>${esc(x.list)} › ${esc(x.title)}</option>`).join('')}</select>
+    <select id="m-target">${targets.map(x => `<option value="${esc(x.id)}" ${x.id===defTarget?'selected':''}>${esc(fname(x.list))} › ${esc(x.title)}</option>`).join('')}</select>
     <fieldset class="opts"><legend>What to carry into the checklist line</legend>
       <label><input type="radio" name="lvl" value="1"> <span><b>Title only</b> — fastest; notes and fields are dropped from the line.</span></label>
       <label><input type="radio" name="lvl" value="2"> <span><b>Title + details</b> — due date and collections inline (<code>📅 2026-10-20 #rental</code>).</span></label>
@@ -2941,13 +3196,14 @@ function offerSeed(){
 /* ---------------- sample data (demo mode) ---------------- */
 function sampleFiles(){
   const f = {}; const d = addDays;
-  const mk = (file, fm, body = '') => { const t = { id:fm.id, title:fm.title, status:fm.status||'open', prefix:fm.prefix||'', list:fm.list, collections:fm.collections||[],
+  const mk = (file, fm, body = '') => { const dir = fm.list === 'Inbox' ? '' : fm.list;      // R2-5: Inbox tasks sit in the root
+    const t = { id:fm.id, title:fm.title, status:fm.status||'open', prefix:fm.prefix||'', list:dir, collections:fm.collections||[],
     parent:fm.parent||'', order:fm.order, due:fm.due||'', repeat:fm.repeat||'', series:fm.series||'', completed:fm.completed||'', demoted_into:fm.demoted_into||'', body: body ? '\n' + body.trim() + '\n' : '', extra:fm.extra||{} };
-    f[file] = serializeTask(t); };
-  f[CONFIG_FILE] = JSON.stringify({ format:DATA_FORMAT, lists:['Inbox','Home','Rental','School'] }, null, 2) + '\n';
+    f[joinPath(dir, file)] = serializeTask(t); };
+  f[CONFIG_FILE] = JSON.stringify({ format:DATA_FORMAT, folders:['Home','Rental','School'] }, null, 2) + '\n';
   mk('call-insurance-agent.md', { id:'t-s01', title:'Call insurance agent about renewal', list:'Inbox', order:1, due:d(1) }, 'Ask about bundling the rental policy.');
   mk('try-the-list.md', { id:'t-s02', title:'Tap a title to open it · tap the box to check it off · tap ⋯ for more', list:'Inbox', order:2, collections:['meta'] },
-     '## How this works\n\nEvery row is a `.md` file. Tap the list name at the top to switch lists.\n\n- [x] Open the editor\n- [ ] Toggle Raw Markdown\n- [ ] Promote one of these checklist items to its own task');
+     '## How this works\n\nEvery row is a `.md` file. Tap the folder name at the top to switch folders.\n\n- [x] Open the editor\n- [ ] Toggle Raw Markdown\n- [ ] Promote one of these checklist items to its own task');
   mk('grocery-ideas.md', { id:'t-s17', title:'Grocery ideas (a bullet: a note, not a to-do)', prefix:'bullet', list:'Inbox', order:3 });
   mk('fix-gate-latch.md', { id:'t-s03', title:'Fix gate latch', list:'Home', order:1, due:d(-1), collections:['repairs'] },
      'Latch sticks when it is hot out.\n\n- [x] Measure the gap\n- [ ] Buy replacement hinge 📅 ' + d(2) + ' #repairs [↗](buy-replacement-hinge.md)\n  Hardware store, aisle 12 — 3.5" galvanized.\n- [ ] Re-hang gate');
@@ -2976,9 +3232,9 @@ function sampleFiles(){
 }
 
 /* ---------------- boot ---------------- */
-window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError,
+window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError, FolderError, ReadOnlyError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
-  trashPut, trashEntries, trashRestore, trashDrop, saveConfig, recentlyDeleted, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
+  trashPut, trashEntries, trashRestore, trashDrop, recentlyDeleted, folderNameError, fname, isFolderPath, dirOf, moveFile, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
   openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')

@@ -61,6 +61,30 @@ window.storeSuite = async function (label, s, ext) {
     check('a trash entry reads back exactly', (await s.read(tp)).text.includes('Alpha (trashed)'));
     await s.remove(tp, tv);
     check('a trash entry can be removed', !(await s.trashList()).some(e => e.path === tp));
+
+    // R2-5 folders: files in a folder are listed by path; a move keeps the text; folders are listed and managed
+    const fv = await s.create('Work/gamma.md', '---\nid: t-g\ntitle: Gamma\nstatus: open\norder: 1\n---\ngamma body\n');
+    await s.create('Deep/deeper/delta.md', '---\nid: t-d\ntitle: Delta\nstatus: open\norder: 1\n---\n');
+    const l2 = await s.list();
+    check('a file in a folder is listed with its path', l2.some(e => e.path === 'Work/gamma.md' && e.version === fv), JSON.stringify(l2));
+    check('a file two folders down is not listed (one level of folders for now)', !l2.some(e => e.path.includes('deeper')), JSON.stringify(l2));
+    check('folders() lists the folders (not hidden ones like .trash)', (s.folders() || []).includes('Work') && !(s.folders() || []).some(f => f.startsWith('.')), JSON.stringify(s.folders()));
+    const mv = await s.move('Work/gamma.md', 'gamma.md', fv);
+    check('move() puts the file at its new path with the same text and a version', !!mv && (await s.read('gamma.md')).text.includes('gamma body'), mv);
+    check('…and it is gone from the old path', !(await s.list()).some(e => e.path === 'Work/gamma.md'));
+    await expectErr('move() with a version that is not the current one → ConflictError', () => s.move('gamma.md', 'Work/gamma.md', 'not-the-version'), T.ConflictError);
+    await expectErr('move() onto a taken name → ExistsError', () => s.move('gamma.md', 'alpha.md', mv), T.ExistsError);
+    const mv2 = await s.move('gamma.md', 'Work/gamma.md', mv);
+    check('move() into a folder', (await s.read('Work/gamma.md')).text.includes('gamma body') && !!mv2);
+    await s.createFolder('Empty'); await s.list();
+    check('createFolder() makes a folder that is listed', (s.folders() || []).includes('Empty'), JSON.stringify(s.folders()));
+    await expectErr('createFolder() refuses an existing name, any case', () => s.createFolder('empty'), T.ExistsError);
+    await s.renameFolder('Work', 'Job'); const l3 = await s.list();
+    check('renameFolder(): its files follow, with their text', l3.some(e => e.path === 'Job/gamma.md') && !l3.some(e => e.path.startsWith('Work/')) && (await s.read('Job/gamma.md')).text.includes('gamma body'), JSON.stringify(l3));
+    check('…and folders() has the new name only', (s.folders() || []).includes('Job') && !(s.folders() || []).includes('Work'), JSON.stringify(s.folders()));
+    await expectErr('removeFolder() refuses a folder with files', () => s.removeFolder('Job'), T.FolderError);
+    await s.removeFolder('Empty'); await s.list();
+    check('removeFolder() removes an empty folder', !(s.folders() || []).includes('Empty'), JSON.stringify(s.folders()));
   } catch (e) {
     check('suite crashed', false, e.stack || e.message);
   }

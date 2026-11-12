@@ -24,7 +24,7 @@ Same as round 1:
 | R2-6 | Phone still opens in desktop mode (R1-15 not holding) | **Built** (A 2026-10-24c; sign-in C + editor fix 2026-10-31a) | Sign-in no longer leaves the app window; editor fits a desktop-mode phone; ⤢ bigger notes. Awaiting Geoff's check |
 | R2-7 | Scale: support many more tasks | **A built** | **A** first (a copy on each device + change-only sync), then B; C only if needed |
 | R2-8 | Don't lose anything (data-safety review) | **Phase 1 verified** (PC and phone; build 2026-11-01b, on `main` since 2026-11-07) · **Restore with subtasks: verified on PC** (build 2026-11-07a, on `main` since 2026-11-07) · Phase 1 = Deleted A, C, D · Overwritten A–C · Checked off D · Hidden C, D · Phase 2 with R2-5 folders (Deleted B, Hidden A) · Moving tasks in: deferred | Phase 1 designed for folders from day one |
-| R2-5 | A folder per list (file-explorer model) | **Decided: B** (the folder is the list; "List" → "Folder"; subtasks in the parent's folder; leaning: drop `list:`) | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
+| R2-5 | A folder per list (file-explorer model) | **Built** (2026-11-08b, data format 4, branch `r2-5-folders`); awaiting Geoff's test, then the real-folder migration | Full implementation discussion before any build; after the R2-8 safeguards; prototype on the test folder |
 | R2-9 | Add tasks by voice with Amazon Echo (Alexa) | **Open** | Try 2b (Claude sweeps Alexa's own to-do list via an MCP server), then 2a (a home-PC sweeper); 1 (a private Alexa skill) as the official fallback |
 | R2-10 | Build number in the header, version in Settings | **Built** (2026-11-07b) | A: the plain build at the top right (PCs); version stays in Settings |
 | R2-11 | Enter tasks and subtasks one after another | **Built** (2026-11-07c; verified on PC and phone) | Enter in a new task's title = save + next sibling; inline "+ Add subtask…" line; ⋯ → Add subtask opens it |
@@ -32,6 +32,12 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-21 | Home ↔ work: shuttle one package by email (two Claude instances) | Roles decided | git bundle + hand-off .md; no data; only home pushes |
+| R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
+| R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
+| R2-18 | Show that files are being changed (busy indicator) | Open | Spinning status icon + progress toast for multi-file actions (recommended) |
+| R2-17 | Review the repeat options; month-end dates drift | Open | Plain `monthly` from the 29th–31st drifts to the 28th; Geoff to review |
+| R2-16 | Explain the repeat "Next date" choices | **Built** (2026-11-09a, branch) | Tooltips (PC only) |
 | R2-3 | Quick-add in the Today view | **Built** | B + tappable **list** and **date** chips on the input line |
 
 ---
@@ -536,6 +542,103 @@ Full suite: 637 checks pass.
 
 **Status:** Built; pushed to `main` as 2026-11-08a.
 
+### The folder build — as built (approved 2026-11-08: "yes, start the folder build"; build 2026-11-08b, data format 4, branch `r2-5-folders`)
+**Before building:**
+- **Microsoft's docs:**
+    - **A move** is `PATCH` of `parentReference` (+ `name`) and honours `If-Match` (412).
+    - **The change feed** has no paths ("track items by id").
+    - **A folder rename** doesn't resend the folder's files.
+    - **Not stated in the docs:** a move onto a taken name, and whether a deleted folder's files are tombstoned. Both are handled defensively (unique name and retry; everything under a deleted folder is dropped).
+- **Chrome's `move()` on picked folders:** feature-detected at run time, and checked after it runs. Otherwise copy, then delete; an interruption leaves a duplicate (flagged ⚠), never a loss.
+
+**Storage (all three stores and the device copy):**
+- **Listing:** covers one level of folders.
+- **New operations:** `move()`, `folders()`, `createFolder()`, `renameFolder()`, `removeFolder()` (empty only, and only when there are no files at all).
+- **OneDrive:**
+    - a move is one `PATCH`, so the item, and its history, stays
+    - folders are tracked by item id; their ids are saved with the device copy's bookmark (device-copy format 2)
+    - a renamed folder's files are re-pathed by the app
+    - a deleted folder takes everything under it
+- **Local folder:** checks folder names ignoring case.
+- **The read-only guard** (Step 0) covers the new operations.
+
+**App:**
+- **`t.list` is the folder path**, from where the file is; `list:` is no longer read or written. `saveTask` moves the file when the folder changed (`moveFile`: same name when free, otherwise the unique-name rule).
+- **"List" → "Folder" in the UI:**
+    - the Folders picker: "/ (root)" first, counts, ✎ Rename / Delete (empty only), "＋ New folder", "Today (all folders)"
+    - ⋯ → **Move to folder…**
+    - the editor's **Folder** field with "＋ New folder…"
+    - "Add a task to *Folder*…"
+    - the quick-add folder chip, which starts at / (root)
+- **The decisions, as built:**
+    - **4:** Move to folder… moves the whole family.
+    - **5:** a subtask alone: "Move a subtask?", with **Cancel / Make it a top-level task in *Folder***.
+    - **6:** a family split outside the app: **⚠ N** on the parent opens "Subtasks in another folder", with **Move them to *Folder*** (nothing moves without a tap).
+    - **8:** the folder-name rules, checked when a folder is created or renamed.
+    - **11:** a folder gone outside the app:
+        - **Deleted:** "The folder *X* is gone", listing its tasks (due-dated first) and where to restore.
+        - **Renamed:** "renamed to …", and `_todo.json` follows.
+    - **14:** a flat format ≤ 3 folder opens read-only: "still uses the old list layout … has to be converted to folders first (Claude does this)". No Reload button.
+- **Folder changes made elsewhere** (made, renamed, deleted) show on the next check, even when no task changed.
+- **`_todo.json`:** `{"format": 4, "folders": [...]}`, the order only; `lists` is dropped.
+- **Demote (keep):** the archived file moves into the target's folder; the link is its name there. **Promote** finds it in the target's folder, then anywhere, then by `demoted_into`.
+- **Restore** from Recently deleted puts a task back into its folder and on screen.
+- **Recurring copies** are named `<slug>-YYYYMMDD.md` in the task's folder.
+- **Demo data** is in folders (Home, Rental, School; Inbox tasks at the root).
+
+**Migration tool:** `tools/migrate_to_folders.py`.
+- **Preview** by default.
+- **`--apply`:**
+    - zips the folder into `private/backups/` first
+    - moves each file into its list's folder (Inbox → root; a family follows its top parent) with a real move
+    - removes only the `list:` line, byte for byte otherwise (CRLF kept)
+    - re-checks each file before touching it
+    - writes `_todo.json` last, so a re-run continues
+- **Tried on a copy of the real data (42 tasks):**
+    - every file landed in the right folder, identical except for the `list:` line
+    - a re-run says "already uses the folder layout"
+    - edge cases checked: CRLF, unknown keys, a child whose `list:` disagreed with its parent's
+
+**Tools:** `feedback_check.py` reads `<task folder>/Feedback/` (or `list: Feedback` in an old flat folder).
+
+**Tests:**
+- **The shared store suite:** +17 checks per store: folder paths listed, depth limit, `folders()`, move keeps text, a stale move and a taken name refused, create/rename/remove folder, case-insensitive names.
+- **New group `r25`** (43 checks: demo, plus fake OneDrive with moves, strays, folders made/renamed/deleted elsewhere, and a restart from the device copy).
+- **`fmtcheck`:** format 5 and old-layout folders.
+- **Old flat fixtures:** `fake_graph.py` converts them (`to_v4`).
+- **Full suite:** **725 checks pass**.
+
+**Real bugs found by the tests and fixed:**
+- A restored task inside a folder didn't reappear until a refresh.
+- A recurring "keep copies" copy lost its dated name inside a folder.
+- Folder changes alone (no task changed) didn't refresh the picker.
+- The local folder treated "Empty" and "empty" as different.
+- The chosen folder was reset to "/ (root)" before the folder list had loaded.
+
+**Next:**
+1. Convert the `HTML-ToDo-App-Test` copy folder with the tool.
+2. Geoff tests at `localhost:8000`.
+3. With his OK: back up and convert the real folder.
+4. Merge, then a phone check.
+
+**Follow-up (Geoff's test, 2026-11-08):** after dragging a parent in Explorer, its subtasks looked moved (they show under the parent) though their files hadn't moved; ⚠ 4 on the parent moved them. Geoff: "add the per-row marker". **Built (2026-11-08c):** each subtask row whose file is in another folder than its parent's shows "⚠ in *Folder*".
+
+**Bug found in Geoff's test (2026-11-08), fixed in 2026-11-08d:** a second, stale T1/T2/T3 "in / (root)" with `list: "Test List"`. OneDrive and Explorer were correct (the conversion moved the files); the **device copy** in the browser still held the pre-conversion files. The new build skipped an old-format copy but didn't delete it, so its files came back on the next start (no change feed reports files deleted before the bookmark). Fix: a device copy from another format is deleted, then everything downloads fresh. Without it, every device would have shown all tasks twice after the real conversion. Test added (fails without the fix). Claude first blamed OneDrive sync, wrongly; decision 13 (script conversion) stays.
+
+**Bug found in the work-PC simulation (W6, 2026-11-11), fixed in 2026-11-11a:**
+- **What happened:** in a local folder, the parent was dragged alone in Explorer (Home Stuff → Work). The app then showed:
+    - "Project A ⚠" with the tip "two files share id"
+    - no ⚠ 2 button
+    - its subtasks as top-level tasks in Home Stuff
+- **Cause:** a local folder (and work OneDrive's listing) reports a move as "new at B" before "gone from A". The new file was taken for a second file with the same id, and the app gave it a temporary id. The deletion then removed the real id, so the subtasks had no parent.
+- **Fix:**
+    - `applyChanges` handles deletions first.
+    - `healTwin` gives the id back to a same-id twin when the other file is confirmed gone.
+- **Test:** r25 section C (local folder). It fails without the fix.
+- **Not affected:** OneDrive, where a move is one item.
+
+**Status:** Built, being tested by Geoff (all tested steps passed so far).
+
 **Real-folder cleanup (Geoff, 2026-11-08: "you can delete all tasks currently in every list except the "Real Todo", "Feedback", and "Entertainment" lists. When you are done with the migration, I only want those 3 folders"):**
 - **Done 2026-11-08, before any migration:**
     - **Backup:** a zip of the whole folder (559 files, verified) in `private/backups/` (local, git-ignored).
@@ -544,7 +647,7 @@ Full suite: 637 checks pass.
 - **Remaining:** 42 tasks (Real Todo 33, Feedback 5, Entertainment 4). No family crossed lists.
 - **After the migration:** `/ (root)` (empty) plus the folders `Real Todo`, `Feedback`, `Entertainment`.
 
-**Status:** **Decided (B)**; implementation discussion in progress (above). Not approved for build.
+**Status:** **Built** (2026-11-08b, branch `r2-5-folders`), awaiting Geoff's test on the copy folder; the real folder is converted only with his OK.
 
 ---
 
@@ -1275,6 +1378,277 @@ Explained to Geoff with a sketch:
 
 ---
 
+## R2-16 — Explain the repeat "Next date" choices
+
+**Asked** (Geoff, 2026-11-09): "for the repeat next date options, please add a tooltip that explains what the differences are".
+
+**Built (build 2026-11-09a, on branch `r2-5-folders`):** the editor's **Next date** field has a tooltip explaining all three choices, and each choice has its own. Example used: a task every 3 days, due Nov 2, checked off Nov 12.
+- **Skip missed** (default): stays on the original rhythm but skips the dates already missed; the next date is the first one on the schedule after today → Nov 14.
+- **Catch up:** the next date after the old due date, even if it's still in the past, so every missed one comes up in turn → Nov 5.
+- **From completion:** counted from the day it's checked off → Nov 15. Good for "every N days since I last did it".
+
+**Note:** tooltips appear on hover, so on the PC only; phones don't show them. **Decided (2026-11-09):** no visible line under the field on phones ("no need to add the line under the field for the phone").
+
+**Status:** Built.
+
+---
+
+## R2-17 — Review the repeat options; month-end dates drift
+
+**Asked** (Geoff, 2026-11-09): "add R2-17 that I need to look more closely at the repeat options and capture the issue we found just now". It started from: "for all these repeat option, what happen if its a monthly repeat and the date starts as the 31 day of the month? What happens on days when there is no 31st day?"
+
+**Part 1: Geoff reviews the repeat options.** Geoff wants to look more closely at the repeat choices (schedules, Recycle / Keep copies, Skip missed / Catch up / From completion) before anything changes. To discuss when he raises it.
+
+**Part 2: the issue found (checked by running the app's own `nextDue`/`stepAfter`, build 2026-11-09a).**
+
+*What works:* the editor's **Monthly** writes `monthly on day N` (`repBase`), so the day is kept. A short month uses its last day, then the day comes back: Jan 31 → Feb 28 → Mar 31 → Apr 30 → May 31. `monthly on last day` also works (Feb 28, Mar 31, Apr 30, …). Due Jan 31, missed until Apr 10, with `on day 31`:
+- Skip missed → Apr 30, then May 31.
+- Catch up → Feb 28 → Mar 31 → Apr 30.
+
+*The bug:* a plain `monthly` (typed in Custom, or written by Claude) or `every N months` takes its day from the **current** due date (`want = r.mday ?? anchor.getDate()`, with the anchor being the current due). After one short month the day shrinks for good. All three Next date choices drift:
+- `monthly`: Jan 31 → Feb 28 → **Mar 28 → Apr 28 → May 28 …**
+- `every 2 months`: Dec 31 → Feb 28 → **Apr 28 → Jun 28 …**
+- `yearly` from Feb 29: → Feb 28 every year after, even in leap years (2032).
+
+This affects only days 29–31; days 1–28 are fine.
+
+*A quirk (not a bug, but surprising):* **From completion** with `monthly on day 31` means "the next 31st (or month end) after I check it off", not "a month after I check it off". For example, checked off Feb 10 → Feb 28 (18 days later).
+
+**Options for the drift:**
+- **A. Write the day into the file on the first roll** *(recommended)*. When a plain `monthly` / `every N months` / `yearly` rolls forward, the app rewrites the phrase as `monthly on day 31` (yearly: an equivalent form), so the file says what it does.
+  - Pros: self-describing; works for Claude edits too.
+  - Cons: the app changes the `repeat:` text on its own (a small exception to "never rewrites on its own").
+- **B. Keep the start day in a new key** (e.g. `repeat_day: 31`).
+  - Pros: the phrase stays untouched.
+  - Cons: a new frontmatter key and data-format change, for a small problem.
+- **C. Use `series` / history to find the original day.**
+  - Pros: no file change.
+  - Cons: Recycle mode keeps no history, so this doesn't work there.
+- **D. Leave it, and only warn (⚠)** on a plain `monthly` whose due is the 29th–31st.
+  - Pros: no behavior change.
+  - Cons: the drift still happens if the warning is ignored.
+
+**Also to decide:** whether From completion with `on day N` should instead mean "one month after completion".
+
+**Status:** Open (Geoff to review the repeat options; not approved for build).
+
+---
+
+## R2-18 — Show that files are being changed (busy indicator)
+
+**Asked** (Geoff, 2026-11-09, during the folder tests, after moving a family of 6 files): "add to the list of things to work on some kind of spinner icon or something letting the user know that files are being changed".
+
+**Problem:** some actions change many files one after another, and in OneDrive each file is a separate round trip:
+- moving a family to another folder (R2-5)
+- deleting or restoring a task tree (R2-8; deep trees noticeably slower, see R2-8 restore notes A–C)
+- Check all, recurring copies with subtasks, Delete all in Recently deleted
+
+During that time the screen gives little feedback. The only sign is the header status icon, which turns to a static **⟳** "Syncing…" (`setStat`, `S.busy`/`S.syncing`). It is small, doesn't move, is covered by the editor on phones, and doesn't say what's happening or how far along it is. So it's unclear whether a tap worked, and the user may tap again or close the app halfway.
+
+**Options:**
+- **A. Animate the existing status icon.** The ⟳ spins whenever a write is in flight.
+  - Pros: tiny change; the icon is always in the same place.
+  - Cons: still small; says nothing about what or how much; hidden under the phone editor.
+- **B. A progress toast for multi-file actions** *(recommended, together with A)*. A bottom toast such as "Moving 6 files… 3 of 6", then "Moved 6 files" (with Undo where one exists).
+  - Pros: clear; shows progress; the same toast area the app already uses; works on phone and PC.
+  - Cons: each multi-file action needs a counter hooked in.
+- **C. A thin progress bar under the header** (like a browser's loading bar) for any store activity.
+  - Pros: visible without words; generic.
+  - Cons: no detail; another moving element.
+- **D. Block the screen with a spinner overlay** until the action finishes.
+  - Pros: impossible to miss; prevents double taps.
+  - Cons: heavy-handed; blocks reading the list for seconds on slow connections; a stuck request looks like a frozen app.
+
+**Recommendation:** A + B. Also, while a multi-file action runs, disable a second start of the same action. Add a warning when the app or tab is closed mid-action (`beforeunload`).
+
+**To decide:**
+- Which actions count (any write, or only multi-file ones)?
+- Should a single-file save also show anything beyond the spinning icon?
+
+**Status:** Open (not approved for build).
+
+---
+
+## R2-19 — A way to hide the "Add subtask…" lines
+
+**Asked** (Geoff, 2026-11-09, during the folder tests): "add some way to hide the "Add subtask..." input box from the main list view (now I guess called the Folder view?)".
+
+**Background:** R2-11 (build 2026-11-07c) puts an inline "+ Add subtask…" line under **every expanded parent** in the folder view (the list view; with R2-5 each list is a folder). It's fast for entering several subtasks, but with many expanded parents it adds a full-width empty row under each family, which is visual clutter when only reading the list. The other ways to add a subtask stay:
+- ⋯ → Add subtask (focuses that line)
+- the editor's **+ Subtask** button
+- Enter-chaining in a new subtask's title
+
+**Options:**
+- **A. A setting:** Settings → "Show Add subtask lines" (on/off).
+  - Pros: simple; each device chooses.
+  - Cons: all or nothing; when off, the fast path is only through ⋯.
+- **B. Show the line only on demand** *(recommended)*. Hidden by default; **⋯ → Add subtask** (and the editor's + Subtask, if wanted) opens it under that parent. It stays while you keep entering subtasks and disappears when you leave it empty.
+  - Pros: a clean list by default; the fast multi-entry from R2-11 is still one tap away; no setting to manage.
+  - Cons: one extra tap compared with today when you want to add a subtask.
+- **C. Shrink it to a small "+" at the end of each parent row** that opens the line.
+  - Pros: always visible, low clutter.
+  - Cons: another small target on already-busy rows, especially on the phone (the ⋯ column is there).
+- **D. Show it only on hover** (PC).
+  - Pros: no clutter on the PC.
+  - Cons: phones have no hover, so it would need another rule there.
+
+**Option:** B can be combined with A, so "always show" stays available for anyone who prefers today's behavior.
+
+**Status:** Open (not approved for build).
+
+---
+
+## R2-20 — Work PC: open the local folder without "Reconnect" every start; sharing with coworkers
+
+**Asked** (Geoff, 2026-11-11, work-PC simulation W9): "i keep having to choose reconnect "Data". Is there any way to make it so I don't have to keep doing that every time I start the app up?" Also: "I would like to share this app with my coworkers so they can use it too on their system". And: "What is the best way to make this behave like a real applications that remembers where the data folder is on start up?"
+
+**Problem:** the work pack opens as a `file:///` page. Chrome forgets the folder permission when the page closes, so every start shows **Reconnect "data"**. The app can't skip it: asking for access needs a click. Windows file permissions don't matter here (it's Chrome's permission), and no Chrome policy grants folder access.
+
+**Experiment (2026-11-11):**
+- Setup: the 11a pack served at `http://localhost:8001/app/`, installed as an app, `data` picked once, app closed and restarted.
+- **Result: it opened straight to the tasks, with no Reconnect screen.**
+- So a normal web address plus an installed app keeps the folder permission (Chrome's persistent permissions).
+
+**Options for the work PC:**
+- **A. Install from GitHub Pages** *(recommended)*: `https://gvd1024.github.io/html-todo-app/app/`, picking the local `data` folder once (Geoff can reach github.io at work).
+  - Pros: no server to run; updates itself.
+  - Pros: tasks stay in the local folder; nothing is sent in local-folder mode, with no sign-in.
+  - Cons: always runs the live `main` build, not the nightly pack.
+  - Cons: needs internet to start (the service worker caches nothing; S-8 offline is a later item).
+- **B. A local server for the pack** (`localhost`), as in the experiment.
+  - Pros: keeps the nightly pack.
+  - Cons: a server must be running (Python or similar, started at login) before the app starts.
+- **C. A real desktop app** (Tauri/Electron wrapper around the same `index.html`).
+  - Pros: opens a fixed path with no prompts.
+  - Cons: an installer per PC, much more setup, likely IT approval.
+- **D. Keep `file:///`**, and make the one click easier (e.g. Enter or any tap reconnects).
+
+**Sharing with coworkers (with A):** each person installs from the same link and picks their own folder. Their tasks stay on their own PC. Before sharing:
+- **A "stable" address** that only gets builds Geoff has used for a while, so test builds don't reach coworkers. For example, a `stable` branch or a `/stable/` copy published from a tagged release.
+- **Check the employer's policy** on outside web apps, even with local data.
+- Work OneDrive mode would need the employer's IT to approve the Azure app; local folder needs nothing.
+- The repo is public, so the code and specs are visible.
+- **Offline start** (cache the app shell, S-8) becomes more useful once others depend on it.
+
+**Option B in detail (Claude, 2026-11-11):**
+- **The server:** a tiny web server on the work PC that serves the app's files at `http://localhost:8001` (listening on 127.0.0.1 only), with the tasks still in the local `data` folder.
+- **Server types:**
+    1. **A PowerShell script** (`serve.ps1`, .NET `HttpListener`): no install, and no admin needed for `localhost`. Risk: script execution blocked by company policy.
+    2. **Python** `http.server`, if Python is present or allowed.
+    3. **A single-file server program** (e.g. `miniserve.exe`): no installer, but security tools may block unknown programs.
+- **Auto-start:**
+    - a shortcut in the Startup folder (`shell:startup`), started hidden at log-on
+    - or a Task Scheduler "at log on" task (restarts if stopped)
+    - or one "HTA" shortcut that starts the server if needed, then opens the app
+- **Keep the address fixed:** Chrome remembers the folder permission **per address**, so the server must always serve one fixed folder (e.g. `C:\HTA\app\`). An update replaces that folder's contents, so the installed app and its remembered `data` folder keep working.
+- **No internet needed** to start, unlike option A.
+
+**Setup tool (Geoff, 2026-11-11):** "i want a setup app (or script) that presents these prefilled options but allows the user to customize".
+- **What it asks for**, each **prefilled with the recommended value** and editable:
+    - **Server URL:** `http://localhost:8001/app/` (port and path).
+    - **Folders:** where the app goes (recommended `C:\HTA\app\`, fixed across updates) and where the task data goes (recommended `C:\HTA\data\`, kept apart from the app so updates never touch it).
+    - **Server type:** PowerShell script (recommended) / Python / single-file server program. Ideally it checks which ones work on this PC and preselects the first that does.
+    - **Auto-start method:** Startup-folder shortcut, hidden (recommended) / Task Scheduler at log-on / an "HTA" shortcut that starts the server and opens the app.
+- **Other settings Claude recommends making customizable:**
+    - Listen only on this PC (127.0.0.1): on (recommended; off would expose the tasks to the network).
+    - Browser: Chrome / Edge (Chromium-based, needed for local folders), detected.
+    - Create desktop and Start-menu shortcuts: yes.
+    - Open the app and install it as an app at the end: yes.
+    - **Update mode:** re-running setup with a newer pack replaces only the app folder (never `data`), after a backup of the old app folder.
+    - Uninstall: removes the auto-start, the shortcuts and the app folder, never `data`.
+    - A log file of what setup did (for troubleshooting at work).
+    - A port check: if 8001 is taken, suggest the next free one.
+- **Form:** a guided script (PowerShell with prompts, Enter keeps the prefilled value), or a small form. It ships in the work pack, documented in `START-HERE.md`.
+- **Sharing:** coworkers run the same setup and change only what they need.
+- **When to build (Geoff):** "Don't do this yet… make this the last thing you do before packaging the next" work pack. So it's built and tested as the **final step before the next work pack** is made. It is not built now.
+
+**More setup-tool requirements (Geoff, 2026-11-11):**
+- "stays the same across updates" should be a **warning** in the setup app. Changing the app folder or the URL after installing loses Chrome's remembered folder permission and the installed app; setup says so whenever those two are edited, or differ from a previous install.
+- "the setup app should either be able to set everything up or give instructions on how to setup what the app cannot". Every step either runs automatically or, if it can't (blocked script, no Python, a Chrome prompt only the user can click, an IT approval), prints **numbered manual instructions** for that step. It ends with a checklist of what's done and what's left.
+
+**Work pack always includes a Markdown file for the work Claude Code CLI (Geoff, 2026-11-11):** "the install package you give me should always include a md file for my work claude code cli to read so it can help me manage and use the HTA". The pack already carries a work-PC `CLAUDE.md` (from `docs/work-pack/*.template.md`). Make it a **required, checked part of every pack**:
+- `make_work_pack.py` fails without it.
+- It covers the task-file format, how to run, update and repair the setup, the data-folder rules (never touch `data` without asking), the server/auto-start troubleshooting, and the coordination channel below.
+
+**Coordinating the work CLI with the personal CLI (Geoff: "not sure how to make this happen, think up some ideas"):**
+The two machines share no folder or account today. The rule throughout: **only app feedback and build notes cross over, never work task content or employer names** (rule 12).
+- **A. Carry a file (exists today).** The work CLI writes `HTA-feedback.md` (items `F-YYYYMMDD-N`), and Geoff brings it home. The personal CLI turns it into spec items and answers in the next pack's notes.
+    - Pros: no accounts, works on any locked-down PC.
+    - Cons: manual; one round trip per pack.
+- **B. A private GitHub "bridge" repository** (e.g. `gvd1024/hta-bridge`, private) as a mailbox: `inbox-home/` and `inbox-work/` Markdown messages. Each CLI reads and writes through `gh` or git, and a message is moved to `done/` when handled. The personal CLI checks it at session start, like the Feedback review; the work CLI does the same.
+    - Pros: near real-time; history kept; both sides automated.
+    - Cons: needs GitHub access and a login on the work PC (company policy); must stay private and free of work content.
+- **C. GitHub Issues on the public repo** for bugs and feature requests from work.
+    - Pros: built in.
+    - Cons: public, so only generic wording is allowed; easy to leak something by mistake.
+- **D. Email to self** with a fixed subject (the personal side reads it through the Gmail connector).
+    - Pros: no new accounts.
+    - Cons: messy to parse; the work email policy may forbid it.
+- **E. A shared notes doc** (e.g. a Claude Doc, if available on both).
+    - Pros: easy to read.
+    - Cons: depends on that tool being allowed at work.
+
+**Recommendation:** B, if GitHub works on the work PC (Geoff can reach github.io), with A as the fallback that always works. Both CLIs get the same message format, and the work `CLAUDE.md` and this repo's `CLAUDE.md` describe the check-at-start routine.
+
+**Status:** Open (experiment done; Geoff to decide A/B/C/D and the stable address; the setup tool is approved as the last step before the next work pack).
+
+---
+
+## R2-21 — Home ↔ work: shuttle one package by email (two Claude instances)
+
+**Asked** (Geoff, 2026-11-11): "Lets start out just shuttling a package back and forth with the code, applications, install app, html files, .md files, specs, everything."
+
+**Roles (Geoff's words, condensed):**
+1. **Only the home Claude** (personal PC) commits and pushes development work to GitHub.
+2. **Either Claude may change the code, apps, etc.**, but every change is documented and coordinated with the other instance through `.md` files.
+3. **Either Claude packages the latest version** into a single zip that extracts on the other PC. **No data in the zip.**
+4. **The work Claude never uses actual data in feedback, and work data is never shared in any way.**
+5. The package travels by email: personal email → work email → back to personal email.
+
+This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A, extended to code).
+
+**Problems Claude sees, and the proposed handling:**
+- **P1. Both sides edit the same files.** A plain zip can't merge two sets of changes, so the newer zip would silently undo the other side's work.
+  - **Handling:** the package carries the **git history as a `git bundle`** (one file) next to the extracted files.
+  - The work Claude commits locally (never pushes) and packages its commits.
+  - The home Claude fetches the bundle, merges (conflicts are shown, not lost), runs the tests, and pushes.
+  - Each package names the build it was based on (`based-on`), so stale packages are detected.
+  - Simple rule for the start: **only one side changes code at a time**; the package is the baton.
+- **P2. Email filters.** Work email often blocks or strips `.zip` attachments, or ones containing `.html`, `.js` or `.ps1`.
+  - **Handling:** test once with a small pack. Fallbacks: rename to `.zip.txt`, a password-protected zip, or a OneDrive/Drive link instead of an attachment.
+- **P3. Company policy (data-loss prevention).** Sending files from work email to a personal address can be flagged or forbidden, even when it's only Geoff's own code.
+  - **Handling:** Geoff checks the policy. The package must never contain anything from work, so that it's clean if reviewed.
+- **P4. Accidental data in the zip.** Task files, `_todo.json`, `.trash`, the device copy, logs, `private/`, backups, the feedback ledger.
+  - **Handling:** the packager builds from an **allow-list** (app, tools, tests, docs, specs), never from a whole folder.
+  - It refuses any `.md` with task frontmatter outside test fixtures, and any path named `data`, `.trash` or `private`.
+  - It **scans for blocked words**: the home side scans for Geoff's personal info; the work side keeps its own local list (the employer name, work paths), which is never committed or shipped.
+- **P4b. Fixed, separate folders (Geoff, 2026-11-11):** "I will keep both the app and data folders on separate unrelated filepaths that don't change until development is done":
+    - `C:\HTA\App`: the root of everything but the data (code, apps, setup, docs, specs).
+    - `C:\HTA\Data`: the task files only.
+
+  The packager only ever reads from the App root, and refuses to run if the Data folder is inside it (or the reverse). The setup tool (R2-20) prefills these two paths, replacing the earlier `C:\HTA\app\` and `C:\HTA\data\` suggestions.
+- **P5. Feedback without real data.** The work Claude writes feedback with **made-up examples** ("a task with 3 subtasks"), never real titles or text, and no screenshots of real tasks.
+- **P6. Build names.** Work-side builds use their own suffix (e.g. `2026-11-12w1`) so they never clash with home builds; the home Claude assigns the final build number on merge.
+- **P7. Integrity.** The package keeps `SHA256SUMS.txt`, checked by the receiving side before use (it carries scripts that run, e.g. setup).
+- **P8. Instructions travel too.** The package contains a work-side `CLAUDE.md` and a home-side guide, so whichever Claude opens it knows the roles and routine.
+
+**Package contents (both directions):**
+- the full code tree, apps, setup tool (R2-20), tools, tests, specs, docs
+- `git bundle` (P1), `SHA256SUMS.txt`
+- `HANDOFF-<from>-<date>.md`: what changed, why, what was tested, open questions, `based-on` build
+- the running coordination log `docs/coordination/LOG.md`: one entry per hand-off, appended by each side
+- **never** any data (P4)
+
+**Routine when a package arrives:**
+1. Check the sums.
+2. Read the hand-off and the log.
+3. Merge the bundle (home: merge, test, push; work: fast-forward the local copy).
+4. Act on the open questions.
+
+**Status:** Decided by Geoff (roles); the process and P1–P8 handling are to be confirmed. Built together with the R2-20 setup tool before the next work pack.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1341,6 +1715,14 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
+| 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
+| 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |
+| 2026-11-09 | R2-18 | **Added (Open):** busy indicator while files are being changed; options A–D | Not approved for build |
+| 2026-11-09 | R2-17 | **Added (Open):** Geoff to review the repeat options; month-end drift of a plain `monthly`/`yearly` recorded with options A–D | Not approved for build |
+| 2026-11-09 | R2-16 | No visible hint line on phones (Geoff) | — |
+| 2026-11-09 | R2-16 | **Added and built:** tooltips on the repeat "Next date" choices | On the folder branch |
+| 2026-11-08 | R2-5 | **Folder build approved** ("yes, start the folder build") **and built** (2026-11-08b, data format 4) | 725 checks pass; migration tool tried on a copy of the real data |
 | 2026-11-08 | R2-5 | **Decisions 9–16:** new tasks → / (root); folders: create, rename, delete-if-empty; a vanished folder → warn and explain; format check first as its own build; migration by Claude's script (no in-app converter); flat folders read-only in the folder build; shared-with-me folders out; work PC starts fresh | Step 0 (format check) built as 2026-11-08a |
 | 2026-11-08 | R2-5 | **Implementation decisions 1–8:** one level (tree-ready); List → Folder everywhere; no folder field (path is the truth, `list:` removed); same-folder rule enforced; subtask alone → Cancel / top-level there; left behind → ask, one tap; top = "/ (root)", no Home/Inbox; folder-name rules | Real folder cleaned: 516 test files deleted (backup kept); 42 tasks in 3 lists remain |
 | 2026-11-07 | R2-11–15 | **Verified on the phone** (keyboard Enter in the add line and the editor, due ✕, ↑ ↓ ● tap size) | |
@@ -1384,6 +1766,17 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
+- 2026-11-11 — v51: R2-21 P4b fixed separate folders `C:\HTA\App` and `C:\HTA\Data`.
+- 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
+- 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
+- 2026-11-11 — v49: R2-20 setup warnings + manual-step instructions; work CLI md always in the pack; work↔home CLI coordination options A–E.
+- 2026-11-11 — v46: R2-5 bug from W6 (Explorer move in a local folder split the family's ids) fixed in 2026-11-11a.
+- 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
+- 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
+- 2026-11-09 — v43: R2-17 (review repeat options; month-end drift) added, Open. R2-16 phone-line decision logged.
+- 2026-11-09 — v42: R2-16 (repeat Next date tooltips) added and built.
+- 2026-11-08 — v41: R2-5 folder build (format 4) built: storage, UI, rules, migration tool, tests.
 - 2026-11-08 — v40: R2-5 decisions 9–16; Step 0 (data-format check) approved and built (2026-11-08a).
 - 2026-11-08 — v39: R2-5 implementation discussion started (decisions 1–8); real-folder cleanup recorded.
 - 2026-11-07 — v38: R2-11 to R2-15 verified on the phone.
