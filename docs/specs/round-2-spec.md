@@ -1529,7 +1529,39 @@ During that time the screen gives little feedback. The only sign is the header s
 - The repo is public, so the code and specs are visible.
 - **Offline start** (cache the app shell, S-8) becomes more useful once others depend on it.
 
-**Status:** Open (experiment done; Geoff to decide A/B/C/D and the stable address).
+**Option B in detail (Claude, 2026-11-11):**
+- **The server:** a tiny web server on the work PC that serves the app's files at `http://localhost:8001` (listening on 127.0.0.1 only), with the tasks still in the local `data` folder.
+- **Server types:**
+    1. **A PowerShell script** (`serve.ps1`, .NET `HttpListener`): no install, and no admin needed for `localhost`. Risk: script execution blocked by company policy.
+    2. **Python** `http.server`, if Python is present or allowed.
+    3. **A single-file server program** (e.g. `miniserve.exe`): no installer, but security tools may block unknown programs.
+- **Auto-start:**
+    - a shortcut in the Startup folder (`shell:startup`), started hidden at log-on
+    - or a Task Scheduler "at log on" task (restarts if stopped)
+    - or one "HTA" shortcut that starts the server if needed, then opens the app
+- **Keep the address fixed:** Chrome remembers the folder permission **per address**, so the server must always serve one fixed folder (e.g. `C:\HTA\app\`). An update replaces that folder's contents, so the installed app and its remembered `data` folder keep working.
+- **No internet needed** to start, unlike option A.
+
+**Setup tool (Geoff, 2026-11-11):** "i want a setup app (or script) that presents these prefilled options but allows the user to customize".
+- **What it asks for**, each **prefilled with the recommended value** and editable:
+    - **Server URL:** `http://localhost:8001/app/` (port and path).
+    - **Folders:** where the app goes (recommended `C:\HTA\app\`, fixed across updates) and where the task data goes (recommended `C:\HTA\data\`, kept apart from the app so updates never touch it).
+    - **Server type:** PowerShell script (recommended) / Python / single-file server program. Ideally it checks which ones work on this PC and preselects the first that does.
+    - **Auto-start method:** Startup-folder shortcut, hidden (recommended) / Task Scheduler at log-on / an "HTA" shortcut that starts the server and opens the app.
+- **Other settings Claude recommends making customizable:**
+    - Listen only on this PC (127.0.0.1): on (recommended; off would expose the tasks to the network).
+    - Browser: Chrome / Edge (Chromium-based, needed for local folders), detected.
+    - Create desktop and Start-menu shortcuts: yes.
+    - Open the app and install it as an app at the end: yes.
+    - **Update mode:** re-running setup with a newer pack replaces only the app folder (never `data`), after a backup of the old app folder.
+    - Uninstall: removes the auto-start, the shortcuts and the app folder, never `data`.
+    - A log file of what setup did (for troubleshooting at work).
+    - A port check: if 8001 is taken, suggest the next free one.
+- **Form:** a guided script (PowerShell with prompts, Enter keeps the prefilled value), or a small form. It ships in the work pack, documented in `START-HERE.md`.
+- **Sharing:** coworkers run the same setup and change only what they need.
+- **When to build (Geoff):** "Don't do this yet… make this the last thing you do before packaging the next" work pack. So it's built and tested as the **final step before the next work pack** is made. It is not built now.
+
+**Status:** Open (experiment done; Geoff to decide A/B/C/D and the stable address; the setup tool is approved as the last step before the next work pack).
 
 ---
 
@@ -1650,6 +1682,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 ## Change history of this spec
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
+- 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
 - 2026-11-11 — v46: R2-5 bug from W6 (Explorer move in a local folder split the family's ids) fixed in 2026-11-11a.
 - 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
 - 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
