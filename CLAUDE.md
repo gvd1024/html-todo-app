@@ -44,7 +44,11 @@ with **full create/read/update/delete from Geoff's Android phone** on the exact 
 14. **Home ↔ work: two Claude instances, one package** (Geoff, 2026-11-11; details and open problems in round-2 spec R2-21):
     - **Only the home Claude pushes to GitHub.**
     - Either Claude may change code, apps and docs. Every change is documented in the package's hand-off `.md` and `docs/coordination/LOG.md`.
-    - Either Claude packages the latest version as **one zip**, which Geoff emails between his personal and work email. **The zip never contains data** (task files, `_todo.json`, `.trash`, `private/`, backups, logs).
+    - **How things travel** (2026-11-12: the work email quarantined the zip, so email attachments are out):
+        - **Home → work:** this Claude publishes the pack as a **GitHub release** (`make_work_pack.py --release`). Geoff downloads it at work from `https://github.com/gvd1024/html-todo-app/releases/latest` and extracts it into `C:\HTA` (giving `C:\HTA\App`).
+        - **Work → home:** plain text in an **email body** (feedback entries, code changes as diffs or `=== FILE: path ===` blocks), framed by `HTA to home: …` and `END HTA`. Geoff pastes it here, and this Claude applies, tests and commits it.
+        - Never work around the work email filter (renamed or encrypted zips).
+    - **Nothing that travels contains data** (task files, `_todo.json`, `.trash`, `private/`, backups, logs).
     - **The work Claude never uses real work data in feedback, and work data is never shared in any way.** Use made-up examples.
     - Until the git-bundle merge (R2-21 P1) is built, only one side changes code at a time: the package is the baton.
 
@@ -118,7 +122,10 @@ Free-form Markdown body; checklists are - [ ] / - [x].
 - `tests/` — automated tests: `run_tests.py` (Playwright), `fake_graph.py` (a strict in-memory Microsoft Graph), `store_suite.js` (the shared store suite), `screenshots/` (phone and PC screenshots from the last run).
 - `docs/specs/` — round specs and `storage-spec.md`.
 - `tools/migrate_to_folders.py` — the one-time R2-5 conversion of a flat task folder (format ≤ 3) to folders: preview by default, `--apply` backs up to `private/backups/`, moves each file into its list's folder (Inbox → root; a family follows its top parent), removes only the `list:` line, re-checks each file first, writes `_todo.json` last (re-runnable).
-- `tools/make_work_pack.py` — the **nightly work-PC pack** (Geoff asks for it at the end of each evening session): commit and push first, then `python tools/make_work_pack.py --release` → GitHub release `build-<BUILD>` with `html-todo-app-<BUILD>.zip` (top folder `html-todo-app-<BUILD>/`: `app/`, specs, project docs under `docs/project/`, a work-PC `CLAUDE.md` and `START-HERE.md` from `docs/work-pack/*.template.md`, `SHA256SUMS.txt`). Bump `BUILD` when the app changed; `--replace` republishes the same build. Give Geoff the download link. Feedback comes back as `HTA-feedback.md` (items `F-YYYYMMDD-N`), which goes into the round spec.
+- `tools/make_work_pack.py` — the **nightly work-PC pack** (Geoff asks for it at the end of each evening session): commit and push first, then `python tools/make_work_pack.py --release` → GitHub release `build-<BUILD>` with `html-todo-app-<BUILD>.zip`:
+  - **Layout:** top folder `App/`, so extracting into `C:\HTA` gives `C:\HTA\App`.
+  - **Contents:** the whole committed tree, with the home `CLAUDE.md`/`HANDOFF.md` under `docs/project/`, plus the work-PC `CLAUDE.md` and `START-HERE.md` from `docs/work-pack/*.template.md` (both required) and `SHA256SUMS.txt`.
+  - **No data:** it refuses anything that looks like task data. Bump `BUILD` when the app changed; `--replace` republishes the same build. Give Geoff the download link. Feedback comes back as `HTA-feedback.md` (items `F-YYYYMMDD-N`), which goes into the round spec.
 - `private/` — **git-ignored, local only**: Geoff's project memory export and the transcript of the Cowork session that produced all of this. Read these for background; never commit them, never copy their contents into committed files (the repository is public).
 
 ## Testing

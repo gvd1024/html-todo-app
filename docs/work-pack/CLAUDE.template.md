@@ -16,15 +16,19 @@ C:\HTA\
 ```
 - Geoff opens `file:///C:/HTA/App/app/index.html` in Chrome or Edge. Each start shows **Reconnect "Data"**: one click; that's expected for now. R2-20 plans an installed app that skips it.
 - **Tasks live in folders** (data format 4): a task's folder is the folder its file is in. Files at the top of `Data` are in "/ (root)". There is **no `list:` line**. A task and its subtasks always share one folder. See `PROJECT-CLAUDE.md` → "Task file contract".
-- A new build: extract the new zip **into `C:\HTA`**, replacing `App`. `Data` is never touched.
+- A new build: download it from **https://github.com/gvd1024/html-todo-app/releases/latest** and extract it **into `C:\HTA`**, replacing `App`. `Data` is never touched. Keep `HTA-feedback.md` safe first.
 
 ## Roles (Geoff, 2026-11-11; spec R2-21)
 1. **Only the home Claude pushes to GitHub.** You never do; this PC has no repository.
 2. Either Claude may change the code, apps and docs, but **every change is documented** (below), so the other side can bring it in. For now **only one side changes code at a time**: the package is the baton. So **change code only when Geoff asks**, and tell him the home copy must not change until your package reaches home.
-3. Packages travel as **one zip** by email: work email → Geoff's personal email → back. **Never put data in it:**
-    - nothing from `C:\HTA\Data`
-    - no task files, no `_todo.json`, no `.trash`
-    - no screenshots or logs with real tasks
+3. **How things travel** (2026-11-12: the work email quarantines zip attachments, so don't email any):
+    - **Home → work:** the home Claude publishes each build as a **GitHub release**. Geoff downloads the zip in the browser from **https://github.com/gvd1024/html-todo-app/releases/latest** and extracts it into `C:\HTA`. If git is installed, `git clone` / `git pull` of `https://github.com/gvd1024/html-todo-app` also works, **read-only**.
+    - **Work → home:** **plain text in the body of an email** from Geoff's work email to his personal email, never an attachment. That covers `HTA-feedback.md` and any code changes, as a diff or whole small files pasted inline.
+    - **Never** try to get around the email filter (renamed or encrypted zips, other file types). That's a company security control.
+    - Nothing that travels may contain data:
+        - nothing from `C:\HTA\Data`
+        - no task files, no `_todo.json`, no `.trash`
+        - no screenshots or logs with real tasks
 4. **Work data is never shared in any way.** Feedback uses **made-up examples** only ("a task with 3 subtasks", "a folder named Project X"). Never mention the employer's name, colleagues, clients, projects or work paths other than `C:\HTA\...`. The specs end up in a **public** GitHub repository.
 
 ## Your jobs
@@ -43,8 +47,18 @@ C:\HTA\
 
    Don't bump `BUILD` yourself; if Geoff wants a marker, use a `w` suffix (e.g. `2026-11-12w1`). The home Claude assigns the real build number.
 
-## Sending things home
-Geoff emails **`C:\HTA\App\HTA-feedback.md`** to his personal email. Before he sends it, check it together: no real task text, no names, no work paths. If code changed, zip **only the changed files under `C:\HTA\App`** plus `HTA-feedback.md`, and check that **nothing from `C:\HTA\Data`** is in the zip.
+## Sending things home (plain-text email)
+When Geoff says "send it home", prepare **one block of text** for him to paste into the **body** of an email to his personal address:
+1. Start it with `HTA to home: build {BUILD}, <date>`.
+2. The new or changed `HTA-feedback.md` entries (the items not yet `sent`).
+3. If code changed, add each change as a **unified diff**. Make it from a pristine copy if one exists, e.g. `git diff` if the folder is a git clone, or a copy of the original build kept in `C:\HTA\App-original`. Otherwise paste the exact before/after text, or a whole small file between `=== FILE: path ===` and `=== END FILE ===` lines.
+4. End it with `END HTA`.
+
+**Check it together before he sends it:**
+- no real task text, no names, no work paths
+- nothing from `C:\HTA\Data`
+
+Show him the block in a code fence so it copies cleanly. Once sent, mark those items `sent YYYY-MM-DD`. Don't send attachments, and never repackage files to get past the email filter.
 
 ## Feedback format (`C:\HTA\App\HTA-feedback.md`)
 Create the file if it's missing. Append to it; never rewrite earlier entries except to mark them sent. New builds don't overwrite it (the zip doesn't contain it), but keep a copy before extracting a new build, just in case.

@@ -9,6 +9,7 @@ Tasks are **folders** now (data format 4): each folder in your task folder is a 
 | `C:\HTA\Data` | **your task files only**. Never put it inside `App`; never email it. |
 
 ## First-time setup (about 5 minutes)
+0. **Download the zip** in Chrome or Edge from **https://github.com/gvd1024/html-todo-app/releases/latest**: the file `html-todo-app-<build>.zip` under *Assets*. Don't email zips to work; the mail filter quarantines them.
 1. **Extract the zip into `C:\HTA`**: right-click the zip → *Extract All…* → type `C:\HTA` → Extract. You get `C:\HTA\App\` (with `app\`, `docs\`, this file …).
    - If Windows blocked the download: right-click the zip → *Properties* → tick **Unblock** → OK, before extracting.
 2. **Create the data folder** `C:\HTA\Data` (empty) in File Explorer, if it isn't there yet.
@@ -29,12 +30,12 @@ Tasks are **folders** now (data format 4): each folder in your task folder is a 
 ## Claude Code at work
 - Open a terminal **in `C:\HTA\App`** and run `claude`. It reads `CLAUDE.md` here: the roles, the no-data rules, and how to log feedback.
 - Ask it: *"Read CLAUDE.md and START-HERE.md and help me check my HTA setup."*
-- Feedback goes to `C:\HTA\App\HTA-feedback.md`. Email that file to your personal address to bring it home. Never send anything from `C:\HTA\Data`.
+- Feedback goes to `C:\HTA\App\HTA-feedback.md`. To bring it home, say *"send it home"*. Claude prepares a text block (feedback, plus any code changes as text), and you paste it into the **body** of an email to your personal address. **No attachments.** Never send anything from `C:\HTA\Data`.
 
 ## Updating to a new build later
 1. Close HTA.
 2. Copy `C:\HTA\App\HTA-feedback.md` somewhere safe.
-3. Extract the new zip into `C:\HTA` and choose **Replace** when asked.
+3. Download the new zip from **https://github.com/gvd1024/html-todo-app/releases/latest**, extract it into `C:\HTA`, and choose **Replace** when asked.
 4. Open the same bookmark. `Data` is untouched, and the app remembers it (one Reconnect click).
 
 ## Optional
