@@ -1616,6 +1616,12 @@ This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A,
   - Simple rule for the start: **only one side changes code at a time**; the package is the baton.
 - **P2. Email filters.** Work email often blocks or strips `.zip` attachments, or ones containing `.html`, `.js` or `.ps1`.
   - **Handling:** test once with a small pack. Fallbacks: rename to `.zip.txt`, a password-protected zip, or a OneDrive/Drive link instead of an attachment.
+  - **Result (2026-11-12):** the work email **quarantined** the 11a zip. Emailing packages doesn't work.
+    - Renaming or encrypting the zip to slip past the filter is **ruled out**: it works around a company security control.
+  - **Next option (Claude's recommendation):**
+    - **Home → work through GitHub.** The work PC downloads the pack from the public GitHub release (`make_work_pack.py --release`), or uses `git clone` / `git pull` if git is available there (read-only: the work side never pushes, rule 14).
+    - **Work → home as plain text.** Feedback (`HTA-feedback.md`) and any code change (as a diff) go in the **body** of an email, not as an attachment.
+    - Fallback if github.com downloads are blocked: Geoff asks IT, or the work side only sends feedback and the home side does all code changes.
 - **P3. Company policy (data-loss prevention).** Sending files from work email to a personal address can be flagged or forbidden, even when it's only Geoff's own code.
   - **Handling:** Geoff checks the policy. The package must never contain anything from work, so that it's clean if reviewed.
 - **P4. Accidental data in the zip.** Task files, `_todo.json`, `.trash`, the device copy, logs, `private/`, backups, the feedback ledger.
@@ -1766,6 +1772,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-12 — v52: R2-21 P2 result: work email quarantined the zip; next option GitHub download (home→work) + plain-text email (work→home).
 - 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
 - 2026-11-11 — v51: R2-21 P4b fixed separate folders `C:\HTA\App` and `C:\HTA\Data`.
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
