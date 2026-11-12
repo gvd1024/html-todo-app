@@ -1727,7 +1727,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
-| 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` deleted |
+| 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` merged (deletion pending Geoff) |
 | 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
 | 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
 | 2026-11-09 | R2-19 | **Added (Open):** a way to hide the inline "Add subtask…" lines; options A–D | Not approved for build |

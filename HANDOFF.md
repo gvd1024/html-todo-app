@@ -10,7 +10,7 @@
 ## Current state
 **Latest (2026-11-12):**
 - `main` = **build 2026-11-11a**, live on Pages: **R2-5 folders (data format 4)**, the folder is the list.
-- Geoff's real OneDrive folder is converted (Real Todo / Feedback / Entertainment), verified on PC and phone. The `r2-5-folders` branch was merged and deleted. 735 checks pass.
+- Geoff's real OneDrive folder is converted (Real Todo / Feedback / Entertainment), verified on PC and phone. The `r2-5-folders` branch is merged (not yet deleted). 735 checks pass.
 - **Work PC:** layout `C:\HTA\App` (app + docs, no data) and `C:\HTA\Data` (tasks).
     - **Home → work:** GitHub release `build-2026-11-11a` (`releases/latest`).
     - **Work → home:** plain-text email body (`HTA to home: …` … `END HTA`).
