@@ -1767,7 +1767,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 ## Change history of this spec
 - 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
-- 2026-11-11 — v51: R2-21 P4b fixed separate folders C:HTAApp and C:HTAData.
+- 2026-11-11 — v51: R2-21 P4b fixed separate folders `C:\HTA\App` and `C:\HTA\Data`.
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
 - 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
 - 2026-11-11 — v49: R2-20 setup warnings + manual-step instructions; work CLI md always in the pack; work↔home CLI coordination options A–E.
