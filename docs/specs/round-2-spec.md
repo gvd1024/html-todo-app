@@ -1561,6 +1561,34 @@ During that time the screen gives little feedback. The only sign is the header s
 - **Sharing:** coworkers run the same setup and change only what they need.
 - **When to build (Geoff):** "Don't do this yet… make this the last thing you do before packaging the next" work pack. So it's built and tested as the **final step before the next work pack** is made. It is not built now.
 
+**More setup-tool requirements (Geoff, 2026-11-11):**
+- "stays the same across updates" should be a **warning** in the setup app. Changing the app folder or the URL after installing loses Chrome's remembered folder permission and the installed app; setup says so whenever those two are edited, or differ from a previous install.
+- "the setup app should either be able to set everything up or give instructions on how to setup what the app cannot". Every step either runs automatically or, if it can't (blocked script, no Python, a Chrome prompt only the user can click, an IT approval), prints **numbered manual instructions** for that step. It ends with a checklist of what's done and what's left.
+
+**Work pack always includes a Markdown file for the work Claude Code CLI (Geoff, 2026-11-11):** "the install package you give me should always include a md file for my work claude code cli to read so it can help me manage and use the HTA". The pack already carries a work-PC `CLAUDE.md` (from `docs/work-pack/*.template.md`). Make it a **required, checked part of every pack**:
+- `make_work_pack.py` fails without it.
+- It covers the task-file format, how to run, update and repair the setup, the data-folder rules (never touch `data` without asking), the server/auto-start troubleshooting, and the coordination channel below.
+
+**Coordinating the work CLI with the personal CLI (Geoff: "not sure how to make this happen, think up some ideas"):**
+The two machines share no folder or account today. The rule throughout: **only app feedback and build notes cross over, never work task content or employer names** (rule 12).
+- **A. Carry a file (exists today).** The work CLI writes `HTA-feedback.md` (items `F-YYYYMMDD-N`), and Geoff brings it home. The personal CLI turns it into spec items and answers in the next pack's notes.
+    - Pros: no accounts, works on any locked-down PC.
+    - Cons: manual; one round trip per pack.
+- **B. A private GitHub "bridge" repository** (e.g. `gvd1024/hta-bridge`, private) as a mailbox: `inbox-home/` and `inbox-work/` Markdown messages. Each CLI reads and writes through `gh` or git, and a message is moved to `done/` when handled. The personal CLI checks it at session start, like the Feedback review; the work CLI does the same.
+    - Pros: near real-time; history kept; both sides automated.
+    - Cons: needs GitHub access and a login on the work PC (company policy); must stay private and free of work content.
+- **C. GitHub Issues on the public repo** for bugs and feature requests from work.
+    - Pros: built in.
+    - Cons: public, so only generic wording is allowed; easy to leak something by mistake.
+- **D. Email to self** with a fixed subject (the personal side reads it through the Gmail connector).
+    - Pros: no new accounts.
+    - Cons: messy to parse; the work email policy may forbid it.
+- **E. A shared notes doc** (e.g. a Claude Doc, if available on both).
+    - Pros: easy to read.
+    - Cons: depends on that tool being allowed at work.
+
+**Recommendation:** B, if GitHub works on the work PC (Geoff can reach github.io), with A as the fallback that always works. Both CLIs get the same message format, and the work `CLAUDE.md` and this repo's `CLAUDE.md` describe the check-at-start routine.
+
 **Status:** Open (experiment done; Geoff to decide A/B/C/D and the stable address; the setup tool is approved as the last step before the next work pack).
 
 ---
@@ -1683,6 +1711,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 ## Change history of this spec
 - 2026-11-11 — v47: R2-20 (work PC without Reconnect; sharing with coworkers) added, Open.
 - 2026-11-11 — v48: R2-20 option B details and the setup tool (to build last, before the next work pack).
+- 2026-11-11 — v49: R2-20 setup warnings + manual-step instructions; work CLI md always in the pack; work↔home CLI coordination options A–E.
 - 2026-11-11 — v46: R2-5 bug from W6 (Explorer move in a local folder split the family's ids) fixed in 2026-11-11a.
 - 2026-11-09 — v45: R2-19 (hide the Add subtask lines) added, Open.
 - 2026-11-09 — v44: R2-18 (busy indicator while files change) added, Open.
