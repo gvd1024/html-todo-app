@@ -1,4 +1,8 @@
-"""Build the nightly work-PC pack: dist/html-todo-app-<BUILD>.zip, one top folder html-todo-app-<BUILD>/.
+"""Build the work-PC pack: dist/html-todo-app-<BUILD>.zip, one top folder App/ (extract into C:\\HTA -> C:\\HTA\\App).
+
+The pack carries the whole committed tree (R2-21: code, apps, tools, tests, docs, specs) and never any data:
+it refuses task-like .md files outside tests/ and any data/.trash/private path. The work-PC CLAUDE.md and
+START-HERE.md (docs/work-pack/*.template.md) are required.
 
 Usage (from the repository root):
     python tools/make_work_pack.py              # build the zip only
@@ -33,20 +37,29 @@ def main():
     commit = git("rev-parse", "--short", "HEAD").strip()
     build = re.search(r"const BUILD = '([^']+)'", show("app/index.html").decode()).group(1)
     name = f"html-todo-app-{build}"
-    files = git("ls-tree", "-r", "--name-only", "HEAD").split("\n")
+    top = "App"                                     # R2-21: extract into C:\\HTA -> C:\\HTA\\App
+    files = [f for f in git("ls-tree", "-r", "--name-only", "HEAD").split("\n") if f]
 
-    # published path -> repo path
+    # published path -> repo path: the whole committed tree (R2-21), the home CLAUDE.md/HANDOFF.md under docs/project/
     layout = {}
     for f in files:
-        if f.startswith("app/"):
-            layout[f] = f
-        elif f.startswith("docs/specs/"):
-            layout[f] = f
-    layout.update({
-        "docs/project/PROJECT-CLAUDE.md": "CLAUDE.md", "docs/project/HANDOFF.md": "HANDOFF.md",
-        "docs/project/README.md": "README.md", "docs/SECURITY-REVIEW.md": "SECURITY-REVIEW.md",
-        "docs/WORK-PC-BACKUP.md": "docs/WORK-PC-BACKUP.md",
-    })
+        if f in ("CLAUDE.md", "HANDOFF.md", "README.md", ".gitignore"):
+            continue
+        layout[f] = f
+    layout.update({"docs/project/PROJECT-CLAUDE.md": "CLAUDE.md", "docs/project/HANDOFF.md": "HANDOFF.md",
+                   "docs/project/README.md": "README.md"})
+    # never any data (R2-21 P4)
+    for out, src in layout.items():
+        low = "/" + out.lower()
+        if any(x in low for x in ("/data/", "/.trash/", "/private/", "/backups/")) or low.endswith("_todo.json"):
+            sys.exit(f"Refusing: {out} looks like task data.")
+        if out.endswith(".md") and not out.startswith("tests/"):
+            head = show(src)[:400].decode("utf-8", "replace")
+            if head.startswith("---") and "\nid: t-" in head:
+                sys.exit(f"Refusing: {out} looks like a task file.")
+    for t in ("docs/work-pack/CLAUDE.template.md", "docs/work-pack/START-HERE.template.md"):
+        if t not in files:
+            sys.exit(f"Missing {t}: the work-PC guide must be in every pack.")
     fill = {"{BUILD}": build, "{COMMIT}": commit, "{DATE}": datetime.date.today().isoformat()}
     templates = {"CLAUDE.md": "docs/work-pack/CLAUDE.template.md", "START-HERE.md": "docs/work-pack/START-HERE.template.md"}
 
@@ -65,7 +78,7 @@ def main():
     zpath = DIST / f"{name}.zip"
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         for p, b in sorted(blobs.items()):
-            z.writestr(f"{name}/{p}", b)
+            z.writestr(f"{top}/{p}", b)
     zsha = hashlib.sha256(zpath.read_bytes()).hexdigest().upper()
     index_sha = hashlib.sha256(blobs["app/index.html"]).hexdigest().upper()
     print(f"built {zpath} ({len(blobs)} files, {zpath.stat().st_size // 1024} KB)\n  zip SHA-256 {zsha}\n  app/index.html SHA-256 {index_sha}")
@@ -84,7 +97,7 @@ def main():
         subprocess.run(["git", "-C", str(ROOT), "fetch", "-q", "--prune", "--prune-tags", "origin"], check=False)
         subprocess.run(["git", "-C", str(ROOT), "tag", "-d", tag], capture_output=True)
     notes = (f"Work-PC pack for build **{build}** (commit `{commit}`).\n\n"
-             f"Download **{name}.zip**, extract it into your HTA root folder, open `{name}\\app\\index.html`. "
+             f"Download **{name}.zip**, extract it into `C:\\HTA` (it creates `C:\\HTA\\App`), open `C:\\HTA\\App\\app\\index.html`. "
              f"See START-HERE.md inside.\n\n"
              f"- ZIP SHA-256: `{zsha}`\n- app/index.html SHA-256: `{index_sha}`\n- Every file: SHA256SUMS.txt inside the ZIP.\n")
     subprocess.run(["gh", "release", "create", tag, str(zpath), "--target", git("rev-parse", "HEAD").strip(),

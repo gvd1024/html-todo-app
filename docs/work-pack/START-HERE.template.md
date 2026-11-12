@@ -1,14 +1,41 @@
-# HTML-ToDo-App — build {BUILD}
+# HTML-ToDo-App — build {BUILD}: work PC setup
 
-**Install a new build (about a minute):**
-1. Extract this ZIP into your HTA root folder (e.g. `C:\Users\<you>\Apps\HTA\`). It creates `html-todo-app-{BUILD}\` next to the older builds.
-2. Close any open HTA tab, then open `html-todo-app-{BUILD}\app\index.html` in Edge or Chrome. Settings (⋯ → Settings) should show build **{BUILD}**.
-3. It remembers your task folder from the last build. If it asks, click **Allow** for folder access.
-   - First time only: ⋯ → Settings → tick **Network lock**, choose **A local folder on this PC**, Apply. The app shows where your task folder goes: **`data`**, next to the build folders (`<root>\data`). Copy the path, create the folder if it isn't there yet, and pick it.
-   - Already using another task folder? Keep it: the app remembers it, and any folder with task files works.
+Tasks are **folders** now (data format 4): each folder in your task folder is a list. Files at the top are in "/ (root)".
 
-**Optional checks:** `SHA256SUMS.txt` lists every file's SHA-256 hash; in PowerShell, `Get-FileHash app\index.html` should match.
+## The two folders (keep these paths; don't move them later)
+| Folder | Holds |
+|---|---|
+| `C:\HTA\App` | the app, docs, specs, tools (this folder) |
+| `C:\HTA\Data` | **your task files only**. Never put it inside `App`; never email it. |
 
-**Claude Code at work:** start `claude` in this folder (or in the root, with a one-line `CLAUDE.md` there pointing to the newest build). It reads `CLAUDE.md` here and logs your feedback to `..\HTA-feedback.md`. Paste that file into the home session when you get home.
+## First-time setup (about 5 minutes)
+1. **Extract the zip into `C:\HTA`**: right-click the zip → *Extract All…* → type `C:\HTA` → Extract. You get `C:\HTA\App\` (with `app\`, `docs\`, this file …).
+   - If Windows blocked the download: right-click the zip → *Properties* → tick **Unblock** → OK, before extracting.
+2. **Create the data folder** `C:\HTA\Data` (empty) in File Explorer, if it isn't there yet.
+3. **Open the app:** in Chrome or Edge, open **`file:///C:/HTA/App/app/index.html`**. Bookmark it, or drag it to the bookmarks bar. The header should show **{BUILD}**.
+4. **Network lock (recommended at work):** ⋯ → Settings → tick **Network lock**. It blocks all internet connections from the app (your tasks never leave the PC). Apply.
+5. **Pick the task folder:** ⋯ → Settings → **A local folder on this PC** → *Open a local folder…* → choose **`C:\HTA\Data`** → **Allow** (edit access).
+   - It asks "This folder has no task files…": choose **Start empty**.
+6. **Make your folders:** tap the folder name at the top-left → **New folder** (e.g. one per area of work). Tasks you add go into the folder you're in; Today's quick-add goes to "/ (root)".
+7. **Every later start:** open the bookmark → click **Reconnect "Data"** (Chrome asks again after the app is closed; expected for now).
 
-**Old builds:** keep a couple for rollback; delete the rest. They all share the same task folder; avoid having two builds open at once.
+## Check it (2 minutes)
+- Add a task with a subtask in a folder, and check File Explorer: both `.md` files are in `C:\HTA\Data\<folder>\`.
+- Delete a test task → ⋯ → **Recently deleted** → Restore. It comes back.
+
+## Backups (recommended)
+`docs\WORK-PC-BACKUP.md` sets up an automatic copy of the task folder into your work OneDrive every 30 minutes (built-in Windows tools, no admin). Use **`C:\HTA\Data`** as the task folder in it.
+
+## Claude Code at work
+- Open a terminal **in `C:\HTA\App`** and run `claude`. It reads `CLAUDE.md` here: the roles, the no-data rules, and how to log feedback.
+- Ask it: *"Read CLAUDE.md and START-HERE.md and help me check my HTA setup."*
+- Feedback goes to `C:\HTA\App\HTA-feedback.md`. Email that file to your personal address to bring it home. Never send anything from `C:\HTA\Data`.
+
+## Updating to a new build later
+1. Close HTA.
+2. Copy `C:\HTA\App\HTA-feedback.md` somewhere safe.
+3. Extract the new zip into `C:\HTA` and choose **Replace** when asked.
+4. Open the same bookmark. `Data` is untouched, and the app remembers it (one Reconnect click).
+
+## Optional
+`SHA256SUMS.txt` lists every file's SHA-256 hash. In PowerShell, `Get-FileHash C:\HTA\App\app\index.html` should match the line for `app\index.html`.
