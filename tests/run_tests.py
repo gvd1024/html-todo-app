@@ -393,7 +393,7 @@ def test_onedrive(browser):
     page.wait_for_timeout(600)
     cfg = json.loads(fg.files()["_todo.json"])
     check("folder order merges both devices' changes; the new folder exists", cfg.get("folders") == ["Feedback", "Test List", "Remote List", "Local List"] and "Local List" in fg.folders() and "lists" not in cfg, (cfg, fg.folders()))
-    check("_todo.json gets the current data format and keeps unknown keys", cfg.get("format") == page.evaluate("__todo.DATA_FORMAT") and cfg.get("note") == "kept", cfg)
+    check("_todo.json keeps format 4 (no reminders in the folder, R2-22) and its unknown keys", cfg.get("format") == 4 == page.evaluate("__todo.BASE_FORMAT") and cfg.get("note") == "kept", cfg)
 
     # sign-in expires mid-session → no automatic redirect (R2-6 C); a tap on the status icon signs in, stashing the draft first
     page.click("#list-name")
@@ -1111,7 +1111,7 @@ def test_recurring(browser):
     # --- unknown phrase: ⚠, normal check-off ---
     page.evaluate("""async () => { const t = __todo.all().find(x => (x.file === 'tenant-lease-renewal.md' || x.file.endsWith('/tenant-lease-renewal.md'))); t.repeat = 'every blue moon'; t.unknown = ['repeat: every blue moon']; await __todo.saveTask(t); __todo.render(); }""")
     check("unknown phrase → ⚠ on the row, no ↻", row(page, "Tenant lease renewal").locator(".wflag").count() == 1 and row(page, "Tenant lease renewal").locator(".rep-ico").count() == 0)
-    check("data format 4 (folders) recognized", page.evaluate("__todo.DATA_FORMAT") == 4)
+    check("data format 5 (reminders, R2-22) is this build's format", page.evaluate("__todo.DATA_FORMAT") == 5)
     tips = page.evaluate("() => [document.querySelector('label:has(#f-rep-next)').title, ...[...document.querySelectorAll('#f-rep-next option')].map(o => o.title)]")
     check("R2-16: 'Next date' has a tooltip explaining all three, and each choice its own",
           all(w in tips[0] for w in ["Skip missed", "Catch up", "From completion"]) and tips[1].startswith("Skip missed") and tips[2].startswith("Catch up") and tips[3].startswith("From completion"), tips)
@@ -2463,14 +2463,16 @@ def test_format_check(browser):
     cfg = lambda f: '{\n  "format": %d,\n  "folders": []\n}\n' % f
     od_init = lambda **kv: TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.everSignedIn": True, "todo.list": "", **kv})
     ready = "__todo.S.store && __todo.S.store.ready === true"
-    # format 4 (this build): normal
+    # format 4 (and 5, R2-22): normal
     fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(4)})
     ctx, page, errors = new_page(browser, phone=True, init=od_init())
     fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
     check("format 4 folder: no read-only bar, quick-add on", not page.is_visible("#ro-bar") and page.is_enabled("#qa"))
     # another device's newer build updates the folder mid-session → read-only from the next check
-    fg.ext_edit("_todo.json", cfg(5)); page.wait_for_selector("#ro-bar:not([hidden])", timeout=5000)
-    check("…the folder becomes format 5 elsewhere: the read-only bar appears on the next check", "data format 5" in page.inner_text("#ro-text") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
+    fg.ext_edit("_todo.json", cfg(5)); page.wait_for_timeout(1200)
+    check("…the folder becomes format 5 elsewhere (reminders, R2-22): still normal", not page.is_visible("#ro-bar") and page.is_enabled("#qa"))
+    fg.ext_edit("_todo.json", cfg(6)); page.wait_for_selector("#ro-bar:not([hidden])", timeout=5000)
+    check("…the folder becomes format 6 elsewhere: the read-only bar appears on the next check", "data format 6" in page.inner_text("#ro-text") and page.is_disabled("#qa"), page.inner_text("#ro-text"))
     before = fg.files()["a.md"]
     row(page, "Alpha").locator(".ck").click(); page.wait_for_timeout(600)
     if page.locator("#modal [data-a=one]").count(): page.click("#modal [data-a=one]"); page.wait_for_timeout(600)
@@ -2479,16 +2481,16 @@ def test_format_check(browser):
     row(page, "Alpha").locator(".row-more").click(); page.locator("#pop button", has_text="Delete").click(); page.click("#modal [data-a=ok]"); page.wait_for_timeout(600)
     check("…a delete is refused too: the file stays, nothing written to .trash", "a.md" in fg.files() and not fg.trash())
     r = page.evaluate("async () => { __todo.S.lists.push('Sneaky'); try { await __todo.saveConfig(); return 'saved'; } catch (e) { return e.constructor.name; } }"); page.wait_for_timeout(300)
-    check("…and _todo.json is never rewritten with the older format (the write is refused)", '"format": 5' in fg.files()["_todo.json"] and "Sneaky" not in fg.files()["_todo.json"], (r, fg.files()["_todo.json"]))
+    check("…and _todo.json is never rewritten with the older format (the write is refused)", '"format": 6' in fg.files()["_todo.json"] and "Sneaky" not in fg.files()["_todo.json"], (r, fg.files()["_todo.json"]))
     r = page.evaluate("async () => { try { await __todo.S.store.createFolder('Sneaky'); return 'made'; } catch (e) { return e.constructor.name; } }")
     check("…folder changes are refused too (create folder)", r == "ReadOnlyError" and "Sneaky" not in fg.folders(), r)
     check("format check (OneDrive): never wrote without If-Match", not fg.violations, fg.violations[:3])
     ctx.close()
-    # opened fresh on a format-5 folder (the device copy is per context, so this is a cold start)
-    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(5)})
+    # opened fresh on a format-6 folder (the device copy is per context, so this is a cold start)
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "_todo.json": cfg(6)})
     ctx, page, errors2 = new_page(browser, phone=False, init=od_init())
     fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function(ready)
-    check("opening a format-5 folder: read-only bar with a Reload button, tasks still shown", page.is_visible("#ro-bar") and page.is_visible("#ro-reload") and row(page, "Alpha").count() == 1)
+    check("opening a format-6 folder: read-only bar with a Reload button, tasks still shown", page.is_visible("#ro-bar") and page.is_visible("#ro-reload") and row(page, "Alpha").count() == 1)
     check("…quick-add is off", page.is_disabled("#qa"))
     check("…the Diagnostics log says why", "read-only" in page.evaluate("localStorage.getItem('todo.deviceLog') || ''"))
     ctx.close()
@@ -2823,21 +2825,291 @@ def test_r211_fast_entry(browser):
 
 
 # ---------------------------------------------------------------- main
+
+def test_r222_reminders(browser):
+    print("\n[27] R2-22 reminders: data format 5, the Remind field, the 🔔 marker, the in-app popup, the shared fixtures")
+    fx = ROOT / "tests" / "fixtures" / "frontmatter"
+    cases = json.loads((fx / "cases.json").read_text(encoding="utf-8"))
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": "", "todo.showDone": True}))
+    page.goto(APP)
+    page.wait_for_selector(".row")
+
+    # --- the shared fixtures (rule 13): the app's own functions, byte for byte (HTA Alarms' Kotlin tests use the same files) ---
+    inputs = {c["file"]: (fx / c["file"]).read_bytes().decode("utf-8") for c in cases["cases"]}
+    expected = {e["expect"]: (fx / "expected" / e["expect"]).read_bytes().decode("utf-8") for c in cases["cases"] for e in c["edits"] if e["expect"] not in (None, "gone")}
+    res = page.evaluate("""([cases, inputs, expected]) => { const T = __todo, out = [];
+      for (const c of cases){ const text = inputs[c.file], t = T.parseTask(c.file, text, 'v1'), p = c.parsed;
+        const unread = p.unreadable || p.noFrontmatter;
+        if (p.unreadable) out.push([`fixture ${c.name}: unreadable frontmatter → read-only`, t.readonly, '']);
+        else if (p.noFrontmatter) out.push([`fixture ${c.name}: no frontmatter → no reminders`, t.noId && !t.remind.length, JSON.stringify(t.remind)]);
+        else { const got = { id:t.id, title:t.title, status:t.status, due:t.due, remind:t.remind, remind_text:t.remind_text, repeat:t.repeat };
+          const want = { id:p.id, title:p.title, status:p.status, due:p.due, remind:p.remind, remind_text:p.remind_text, repeat:p.repeat };
+          out.push([`fixture ${c.name}: parsed fields match`, JSON.stringify(got) === JSON.stringify(want), JSON.stringify(got)]);
+          out.push([`fixture ${c.name}: an untouched save keeps remind as it was`, (() => { const back = T.parseTask(c.file, T.serializeTask(t), 'v2'); return JSON.stringify(back.remind) === JSON.stringify(t.remind) && back.remind_text === t.remind_text && back.eol === t.eol && back.bom === t.bom; })(), T.serializeTask(t)]); }
+        c.edits.forEach((e, i) => {
+          const cur = unread ? [] : [...(t.remind || [])];     // unreadable / no frontmatter: the edit itself must refuse
+          let r;
+          if (!unread && (e.op === 'remove' || e.op === 'replace') && !cur.includes(e.entry)) r = 'gone';
+          else { const list = e.op === 'remove' ? cur.filter(x => x !== e.entry) : e.op === 'replace' ? [...cur.filter(x => x !== e.entry), e.to] : [...cur, e.to];
+            r = T.remindPatch(text, list); }
+          const want = e.expect === null ? null : e.expect === 'gone' ? 'gone' : expected[e.expect];
+          out.push([`fixture ${c.name} edit ${i + 1} (${e.op}): byte-identical to the expected file`, r === want, JSON.stringify(r)]);
+        });
+      }
+      return out; }""", [cases["cases"], inputs, expected])
+    for name, ok, detail in res:
+        check(name, ok, detail)
+
+    # --- parse / serialize ---
+    r = page.evaluate("""() => { const T = __todo, P = s => T.parseTask('x.md', s, 'v');
+      const fm = b => '---\\nid: t-1\\ntitle: A\\nstatus: open\\norder: 1\\ndue: 2026-11-20\\n' + b + 'repeat: weekly\\nzz: kept\\n---\\nbody\\n';
+      const one = P(fm('remind: 2026-11-14 17:00\\n')), two = P(fm('remind: [2026-11-14 17:00, 2026-11-14 09:00]\\n')), none = P(fm(''));
+      const bad = P(fm('remind: tomorrow-ish\\n')), crlf = P(fm('remind: 2026-11-14 17:00\\n').replace(/\\n/g, '\\r\\n'));
+      const set = (t, l) => { t.remind = l; return T.serializeTask(t); };
+      return {
+        types: [typeof one.remind[0], two.remind.length, none.remind.length],
+        untouchedTwo: T.serializeTask(two).includes('remind: [2026-11-14 17:00, 2026-11-14 09:00]\\n'),
+        oneScalar: set(P(fm('')), ['2026-11-15 08:00']).includes('\\ndue: 2026-11-20\\nremind: 2026-11-15 08:00\\nrepeat: weekly\\n'),
+        sorted: set(P(fm('')), ['2026-11-15 08:00', '2026-11-14 08:00', '2026-11-15 08:00']).includes('remind: [2026-11-14 08:00, 2026-11-15 08:00]\\n'),
+        removed: !set(P(fm('remind: 2026-11-14 17:00\\n')), []).includes('remind'),
+        noGain: !T.serializeTask(none).includes('remind') && !T.serializeTask(none).includes('remind_text'),
+        badFlag: bad.unknown.some(u => u.startsWith('remind:')) && T.serializeTask(bad).includes('remind: tomorrow-ish\\n'),
+        badNeverRings: !T.isRemind('tomorrow-ish') && !T.isRemind('2026-02-30 10:00') && !T.isRemind('2026-11-14 24:00') && T.isRemind('2026-11-14 23:59'),
+        textOrder: (() => { const t = P(fm('')); t.remind = ['2026-11-15 08:00']; t.remind_text = 'Say: hello'; const s = T.serializeTask(t);
+          return s.indexOf('due:') < s.indexOf('remind:') && s.indexOf('remind:') < s.indexOf('remind_text:') && s.indexOf('remind_text:') < s.indexOf('repeat:') && s.indexOf('repeat:') < s.indexOf('zz: kept') && P(s).remind_text === 'Say: hello'; })(),
+        crlfKept: T.serializeTask(crlf).includes('remind: 2026-11-14 17:00\\r\\nrepeat') && !/[^\\r]\\n/.test(T.serializeTask(crlf)),
+        unknownKept: T.serializeTask(one).includes('zz: kept'),
+      }; }""")
+    check("remind is read as a string (js-yaml CORE_SCHEMA, no timestamps); a list; none", r["types"] == ["string", 2, 0], r["types"])
+    check("an untouched list is written back as it was (not re-sorted on its own)", r["untouchedTwo"])
+    check("one reminder → a plain scalar, right after due and before repeat", r["oneScalar"])
+    check("several → a sorted flow list without duplicates", r["sorted"])
+    check("no reminders left → the key is removed", r["removed"])
+    check("a task with no reminders never gains remind or remind_text", r["noGain"])
+    check("an invalid value → ⚠ and written back untouched", r["badFlag"])
+    check("only real YYYY-MM-DD HH:MM values count (never rings otherwise)", r["badNeverRings"])
+    check("key order: due, remind, remind_text, repeat, then unknown keys", r["textOrder"])
+    check("CRLF files stay CRLF", r["crlfKept"])
+    check("unknown keys kept", r["unknownKept"])
+    sn = page.evaluate("""() => { const T = __todo, at = (y, mo, d, h, mi, s = 0) => new Date(y, mo - 1, d, h, mi, s).getTime();
+      return [T.snoozeTo('10m', '2026-11-14 17:00', at(2026, 11, 14, 17, 0, 40)), T.snoozeTo('1h', '2026-11-14 17:00', at(2026, 11, 14, 23, 30)),
+              T.snoozeTo('tomorrow', '2026-03-07 09:00', at(2026, 3, 7, 9, 1)), T.snoozeTo('tomorrow', '2026-10-31 02:30', at(2026, 10, 31, 2, 31)),
+              JSON.stringify(T.remindShift(['2026-11-14 08:00', 'junk', '2026-11-20 17:00'], '2026-11-14', '2026-11-21'))]; }""")
+    check("snooze math: 10 min / 1 hour (across midnight) / tomorrow same time (across DST weekends)",
+          sn == ["2026-11-14 17:10", "2026-11-15 00:30", "2026-03-08 09:00", "2026-11-01 02:30", '["2026-11-21 08:00","junk","2026-11-27 17:00"]'], sn)
+
+    # --- the editor's Remind section (phone, demo) ---
+    row(page, "Call insurance agent about renewal").locator(".ttl").click()
+    page.wait_for_selector("#drawer.open")
+    check("Remind section: quick picks, no entries, note hidden until there's a reminder", page.locator("#rmd-picks [data-rq]").count() >= 4 and page.locator("#rmd-list .rmd-in").count() == 0 and page.is_hidden("#rmd-note"))
+    page.click("#rmd-picks [data-rq=tmr]"); page.click("#rmd-picks [data-rq='1h']"); page.click("#rmd-picks [data-rq=eve]")
+    tmr = page.evaluate("() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }")
+    vals = page.eval_on_selector_all("#rmd-list .rmd-in", "els => els.map(e => [e.type, e.value])")
+    check("quick picks add native date+time entries (tomorrow 09:00, in 1 hour, 18:00)", len(vals) == 3 and all(t == "datetime-local" for t, _ in vals) and vals[0][1] == tmr + "T09:00" and vals[2][1].endswith("T18:00"), vals)
+    check("the limits note shows once there's a reminder", page.is_visible("#rmd-note") and "next quarter hour" in page.inner_text("#rmd-note") and "force-stopped" in page.inner_text("#rmd-note"))
+    check("in 1 hour on a phone that isn't Android-labelled… (warning only < 15 min)", "15 minutes" not in page.inner_text("#rmd-warn"))
+    page.locator("#rmd-list .rmd-x").nth(1).click()
+    check("✕ removes one entry; the editor is dirty", page.locator("#rmd-list .rmd-in").count() == 2 and page.is_enabled("#d-save"))
+    page.fill("#f-rmd-text", "Milk, the big one")
+    page.locator("#rmd-list .rmd-in").nth(1).fill(tmr + "T07:15"); page.locator("#rmd-list .rmd-in").nth(1).dispatch_event("change")
+    page.click("#d-saveclose"); page.wait_for_timeout(400)
+    txt = page.evaluate("() => __fget('call-insurance-agent.md').text")
+    check("Save writes remind as a sorted flow list plus remind_text", f"remind: [{tmr} 07:15, {tmr} 09:00]\nremind_text: Milk, the big one\n" in txt, txt)
+    cfg = json.loads(page.evaluate("() => __fget('_todo.json').text"))
+    check("…and _todo.json moves to format 5 with the first reminder (folders kept)", cfg.get("format") == 5 and cfg.get("folders") == ["Home", "Rental", "School"], cfg)
+    ic = row(page, "Call insurance agent about renewal").locator(".rmd-ico")
+    check("🔔 on the row, tooltip = the next time", ic.count() == 1 and "rmd-past" not in (ic.get_attribute("class") or "") and "07:15" in (ic.get_attribute("title") or ""), ic.get_attribute("title") if ic.count() else None)
+    page.screenshot(path=str(SHOTS / "40-phone-reminder-bell.png"))
+    row(page, "Call insurance agent about renewal").locator(".ttl").click(); page.wait_for_selector("#drawer.open")
+    page.wait_for_timeout(200)
+    page.screenshot(path=str(SHOTS / "41-phone-remind-field.png"))
+    check("reopened: both entries and the text are back", page.locator("#rmd-list .rmd-in").count() == 2 and page.input_value("#f-rmd-text") == "Milk, the big one")
+    page.locator("#rmd-list .rmd-x").first.click(); page.locator("#rmd-list .rmd-x").first.click(); page.fill("#f-rmd-text", "")
+    page.click("#d-saveclose"); page.wait_for_timeout(400)
+    txt = page.evaluate("() => __fget('call-insurance-agent.md').text")
+    check("removing every entry removes the key (and an emptied text)", "remind" not in txt, txt)
+    check("…no 🔔 any more", row(page, "Call insurance agent about renewal").locator(".rmd-ico").count() == 0)
+    cfg = json.loads(page.evaluate("() => __fget('_todo.json').text"))
+    check("…the folder stays at format 5 (never goes down)", cfg.get("format") == 5)
+
+    # --- the in-app popup ---
+    def set_remind(title, lst, text=""):
+        page.evaluate("""async ([title, lst, text]) => { localStorage.removeItem('todo.remindSeen'); const t = __todo.all().find(x => x.title === title); t.remind = lst; t.remind_text = text; await __todo.saveTask(t); __todo.render(); }""", [title, lst, text])
+    past = page.evaluate("() => { const d = new Date(Date.now() - 30 * 60000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }")
+    later = page.evaluate("() => { const d = new Date(Date.now() + 3 * 3600000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }")
+    set_remind("Call insurance agent about renewal", [past, later], "Get milk")
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    check("a reminder whose time came pops up: the text, the title, marked late", page.inner_text("#modal .rmd-pop-text") == "Get milk" and "Call insurance agent about renewal" in page.inner_text("#modal") and "late" in page.inner_text("#modal"), page.inner_text("#modal")[:200])
+    page.screenshot(path=str(SHOTS / "42-phone-reminder-popup.png"))
+    page.click("#modal [data-a=dismiss]"); page.wait_for_timeout(400)
+    txt = page.evaluate("() => __fget('call-insurance-agent.md').text")
+    check("Dismiss removes only that entry (line-level edit)", f"remind: {later}\nremind_text: Get milk\n" in txt and past not in txt, txt)
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_timeout(300)
+    check("…and it doesn't pop up again", page.locator("#modal .rmd-pop-text").count() == 0)
+    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.remind = [...t.remind, '2020-01-01 10:00']; await __todo.saveTask(t); }")
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    page.click("#modal [data-a=dismiss]"); page.wait_for_timeout(300)
+    page.reload(); page.wait_for_selector(".row"); page.wait_for_timeout(800)
+    check("a shown reminder isn't shown again after a reload (localStorage note)", page.locator("#modal .rmd-pop-text").count() == 0)
+    set_remind("Call insurance agent about renewal", [past], "")
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    check("no reminder text → the title is shown", page.inner_text("#modal .rmd-pop-text") == "Call insurance agent about renewal")
+    page.click("#modal [data-a='s:10m']"); page.wait_for_timeout(400)
+    txt = page.evaluate("() => __fget('call-insurance-agent.md').text")
+    want10 = page.evaluate("() => __todo.snoozeTo('10m', '')")
+    check("Snooze 10 min replaces that entry", f"remind: {want10}\n" in txt and past not in txt, txt)
+    set_remind("Call insurance agent about renewal", [past], "")
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    page.click("#modal [data-a=pick]"); page.fill("#rmd-pick-in", tmr + "T06:05"); page.click("#modal [data-a=pickset]"); page.wait_for_timeout(400)
+    txt = page.evaluate("() => __fget('call-insurance-agent.md').text")
+    check("Pick… (reschedule) replaces that entry with the chosen time", f"remind: {tmr} 06:05\n" in txt, txt)
+    set_remind("Call insurance agent about renewal", [past], "")
+    page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    page.click("#modal [data-a=open]"); page.wait_for_timeout(300)
+    check("Open task opens the editor and leaves the reminder", page.is_visible("#drawer.open") and past in page.evaluate("() => __fget('call-insurance-agent.md').text"))
+    page.click("#d-close"); page.wait_for_timeout(200)
+    ic = row(page, "Call insurance agent about renewal").locator(".rmd-ico")
+    check("an answered-later reminder: 🔔 greyed on the row", ic.count() == 1 and "rmd-past" in (ic.get_attribute("class") or ""))
+    ic.click(); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    check("…tap it to answer it", page.inner_text("#modal .rmd-pop-text") == "Call insurance agent about renewal")
+    page.click("#modal [data-a=dismiss]"); page.wait_for_timeout(300)
+    # done / archived never ring
+    set_remind("Call insurance agent about renewal", [past], "")
+    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.status = 'done'; t.completed = '2026-11-14'; await __todo.saveTask(t); __todo.render(); localStorage.removeItem('todo.remindSeen'); await __todo.remindTick(); }")
+    page.wait_for_timeout(300)
+    check("a done task never rings (and shows no 🔔)", page.locator("#modal .rmd-pop-text").count() == 0 and row(page, "Call insurance agent about renewal").locator(".rmd-ico").count() == 0)
+    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.status = 'open'; t.completed = ''; t.remind = []; await __todo.saveTask(t); __todo.render(); }")
+
+    # --- repeating tasks: shifts on Recycle and Copy; popup actions stay on this device ---
+    r = page.evaluate("""async () => { const T = __todo, mk = async (title, fm) => { const t = T.all().find(x => x.title === title); Object.assign(t, fm); await T.saveTask(t); return t; };
+      const d0 = '2026-11-10';
+      const a = await mk('Call insurance agent about renewal', { due:d0, repeat:'daily, catch up', remind:['2026-11-10 08:00', '2026-11-09 20:00'], status:'open' });
+      await T.toggleDone(a); await new Promise(r => setTimeout(r, 300));
+      const ra = T.all().find(x => x.title === 'Call insurance agent about renewal');
+      return [ra.due, JSON.stringify(ra.remind), __fget('call-insurance-agent.md').text.includes('remind: [2026-11-10 20:00, 2026-11-11 08:00]')]; }""")
+    check("Recycle: the reminders move with the due date (same days, same time)", r == ["2026-11-11", '["2026-11-11 08:00","2026-11-10 20:00"]', True], r)
+    r = page.evaluate("""async () => { const T = __todo; const t = T.all().find(x => x.title === 'Call insurance agent about renewal');
+      Object.assign(t, { due:'2026-11-10', repeat:'weekly, keep copies, catch up', remind:['2026-11-10 08:00'] }); await T.saveTask(t);
+      await T.toggleDone(t); await new Promise(r => setTimeout(r, 400));
+      const orig = T.all().find(x => x.id === t.id), copy = T.all().find(x => x.id !== t.id && x.title === 'Call insurance agent about renewal' && x.status === 'open');
+      return [orig.status, orig.remind.length, __fget(orig.file).text.includes('remind'), copy && copy.due, copy && JSON.stringify(copy.remind), copy && __fget(copy.file).text.includes('remind: 2026-11-17 08:00\\n')]; }""")
+    check("Copy: the completed original loses remind; the copy gets the moved reminder", r == ["done", 0, False, "2026-11-17", '["2026-11-17 08:00"]', True], r)
+    r = page.evaluate("""async () => { const T = __todo; const t = T.all().find(x => x.title === 'Tap a title to open it · tap the box to check it off · tap ⋯ for more');
+      Object.assign(t, { due:'', repeat:'monthly', remind:['2026-11-10 08:00'], status:'open' }); await T.saveTask(t);
+      await T.toggleDone(t); await new Promise(r => setTimeout(r, 300)); const x = T.all().find(y => y.id === t.id); return [x.due !== '', JSON.stringify(x.remind)]; }""")
+    check("a repeating task without a due date: the reminders stay as they are", r == [True, '["2026-11-10 08:00"]'], r)
+    r = page.evaluate("""async () => { const T = __todo; const t = T.all().find(x => x.title === 'Tap a title to open it · tap the box to check it off · tap ⋯ for more');
+      const e = t.remind[0]; const before = __fget(t.file).text; localStorage.removeItem('todo.remindSeen');
+      await T.remindTick(); await new Promise(r => setTimeout(r, 300)); const shown = !!document.querySelector('#modal .rmd-pop-text');
+      document.querySelector('#modal [data-a=dismiss]')?.click(); await new Promise(r => setTimeout(r, 300));
+      return [shown, __fget(t.file).text === before]; }""")
+    check("repeating task: Dismiss in the popup leaves the file (the schedule moves on at check-off)", r == [True, True], r)
+    page.evaluate("async () => { const T = __todo; for (const t of T.all()) if (t.remind && t.remind.length){ t.remind = []; t.repeat = t.title === 'Tap a title to open it · tap the box to check it off · tap ⋯ for more' ? '' : t.repeat; await T.saveTask(t); } T.render(); }")
+    check("reminders: no page errors (demo)", not errors, errors[:3])
+    ctx.close()
+
+    # --- OneDrive (fake Graph): format bump only with the first reminder, If-Match always, two tabs never both pop up ---
+    fm = lambda i, title, extra="": f"---\nid: {i}\ntitle: {title}\nstatus: open\norder: 1\n{extra}---\n"
+    fg = FakeGraph(FOLDER, {"a.md": fm("t-a", "Alpha"), "b.md": fm("t-b", "Beta"), "_todo.json": '{\n  "format": 4,\n  "folders": [],\n  "keep": 1\n}\n'})
+    od = TEST_AUTH + ls_init(**{"todo.source": "onedrive", "todo.folder": FOLDER, "todo.pollMs": 300, "todo.everSignedIn": True, "todo.list": ""})
+    ctx, page, errors = new_page(browser, phone=False, init=od)
+    fg.install(page); page.goto(APP); page.wait_for_selector(".row"); page.wait_for_function("__todo.S.store && __todo.S.store.ready === true")
+    page.evaluate("async () => { const t = __todo.all().find(x => x.id === 't-a'); t.title = 'Alpha 2'; await __todo.saveTask(t); }")
+    check("OneDrive: saving a task without reminders leaves _todo.json at format 4", json.loads(fg.files()["_todo.json"])["format"] == 4)
+    row(page, "Beta").locator(".ttl").click(); page.wait_for_selector("#drawer.open")
+    page.click("#rmd-picks [data-rq=tmr]")
+    check("PC: no warning for tomorrow", page.inner_text("#rmd-warn") == "")
+    page.click("#rmd-picks [data-rq='1h']")
+    page.evaluate("() => { const i = document.querySelectorAll('#rmd-list .rmd-in')[1]; const d = new Date(Date.now() + 5 * 60000); i.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); i.dispatchEvent(new Event('change', { bubbles:true })); }")
+    check("PC: a reminder < 15 min ahead warns that the phone may ring late", "15 minutes" in page.inner_text("#rmd-warn"), page.inner_text("#rmd-warn"))
+    page.screenshot(path=str(SHOTS / "43-pc-remind-field-warning.png"))
+    page.click("#d-saveclose"); page.wait_for_timeout(600)
+    cfg = json.loads(fg.files()["_todo.json"])
+    check("OneDrive: the first reminder bumps _todo.json to format 5, keeping its other keys", cfg.get("format") == 5 and cfg.get("keep") == 1, cfg)
+    check("…and the task file has it", "remind: [" in fg.files()["b.md"], fg.files()["b.md"])
+    seq = {it["name"]: it["seq"] for it in fg.live()}
+    check("…_todo.json was written before the task file", seq["_todo.json"] < seq["b.md"], seq)
+    # two tabs on the same folder: only one shows the popup
+    past = page.evaluate("() => { const d = new Date(Date.now() - 60000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }")
+    fg.ext_edit("a.md", fm("t-a", "Alpha 2", f"remind: {past}\n"))
+    page2 = ctx.new_page(); errors2 = []; page2.on("pageerror", lambda e: errors2.append(str(e))); page2.add_init_script(FGET_JS); page2.add_init_script(od); fg.install(page2)
+    page2.goto(APP); page2.wait_for_selector(".row"); page2.wait_for_function("__todo.S.store && __todo.S.store.ready === true")
+    page.evaluate("() => __todo.poll(true)"); page.wait_for_timeout(500)
+    page2.evaluate("() => __todo.poll(true)"); page2.wait_for_timeout(500)
+    page.evaluate("() => { __todo.remindTick(); }"); page2.evaluate("() => { __todo.remindTick(); }")
+    page.wait_for_timeout(1200)
+    n1, n2 = page.locator("#modal .rmd-pop-text").count(), page2.locator("#modal .rmd-pop-text").count()
+    check("two tabs: the reminder pops up in exactly one", n1 + n2 == 1, (n1, n2))
+    pg = page if n1 else page2
+    # someone dismissed it elsewhere first → our Dismiss finds it gone and writes nothing
+    fg.ext_edit("a.md", fm("t-a", "Alpha 2"))
+    before = fg.files()["a.md"]
+    pg.click("#modal [data-a=dismiss]"); pg.wait_for_timeout(800)
+    check("a reminder already dismissed elsewhere: Dismiss re-reads (412), finds it gone and writes nothing", fg.files()["a.md"] == before and "already changed elsewhere" in pg.inner_text("#toast"), pg.inner_text("#toast"))
+    fg.ext_edit("a.md", fm("t-a", "Alpha 2", f"remind: {past}\nflavor: x\n"))
+    pg.evaluate("() => __todo.poll(true)"); pg.wait_for_timeout(400)
+    pg.evaluate("async () => { localStorage.removeItem('todo.remindSeen'); await __todo.remindTick(); }"); pg.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
+    pg.click("#modal [data-a='s:1h']"); pg.wait_for_timeout(800)
+    want = pg.evaluate("() => __todo.snoozeTo('1h', '')")
+    check("OneDrive: Snooze writes only the remind line (flavor and order kept)", fg.files()["a.md"] == fm("t-a", "Alpha 2", f"remind: {want}\nflavor: x\n"), fg.files()["a.md"])
+    check("R2-22 on OneDrive: never wrote without If-Match", not fg.violations, fg.violations[:3])
+    check("R2-22 on OneDrive: no page errors", not errors and not errors2, (errors + errors2)[:3])
+    ctx.close()
+
+    # --- the same data rules on a local folder (FsStore on the browser's private file system) ---
+    ctx, page, errors = new_page(browser, init=ls_init(**{"todo.source": "demo"}))
+    page.goto(APP); page.wait_for_selector(".row")
+    r = page.evaluate("""async () => { const T = __todo, root = await navigator.storage.getDirectory();
+      try { await root.removeEntry('r222', { recursive:true }); } catch {}
+      const dir = await root.getDirectoryHandle('r222', { create:true });
+      const put = async (n, t) => { const w = await (await dir.getFileHandle(n, { create:true })).createWritable(); await w.write(t); await w.close(); };
+      await put('c.md', '---\\r\\nid: t-c\\r\\ntitle: Gamma\\r\\nstatus: open\\r\\norder: 1\\r\\nweird: 1\\r\\n---\\r\\nbody\\r\\n'); await put('_todo.json', '{"format": 4, "folders": []}');
+      await T.useStore(new T.FsStore(dir)); await new Promise(r => setTimeout(r, 400));
+      const t = T.all().find(x => x.id === 't-c'); t.remind = ['2030-01-02 03:04']; const ok = await T.saveTask(t);
+      const read = async n => (await (await dir.getFileHandle(n)).getFile()).text();
+      const c = await read('c.md'), cfg = JSON.parse(await read('_todo.json'));
+      const ok2 = await T.remindEdit(T.get('t-c'), l => l.filter(e => e !== '2030-01-02 03:04'));
+      return [ok, cfg.format, c.includes('remind: 2030-01-02 03:04\\r\\n') && c.includes('weird: 1\\r\\n'), ok2, (await read('c.md')).includes('remind')]; }""")
+    check("local folder: a reminder is saved (CRLF, unknown key kept) and bumps the format to 5", r[:3] == [True, 5, True], r)
+    check("local folder: the line-level Dismiss removes it", r[3:] == [True, False], r)
+    check("local folder: no page errors", not errors, errors[:3])
+    ctx.close()
+
+    # --- Android: the handoff link and the Settings switch ---
+    ctx, page, errors = new_page(browser, phone=True, init=ls_init(**{"todo.source": "demo", "todo.list": ""}))
+    page.goto(APP); page.wait_for_selector(".row")
+    r = page.evaluate("() => [__todo.IS_ANDROID, __todo.alarmsIntent(), __todo.pokeAlarms(true)]")
+    check("Android: the handoff link targets HTA Alarms with a same-page fallback", r[0] is True and r[1].startswith("intent://sync#Intent;scheme=htaalarms;package=io.github.gvd1024.htaalarms;S.browser_fallback_url=")
+          and "%23no-hta-alarms" in r[1] and r[1].endswith(";end"), r[1])
+    check("…automatic handoff is off until switched on in Settings", r[2] is False)
+    row(page, "Call insurance agent about renewal").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.click("#rmd-picks [data-rq=tmr]")
+    check("…the Remind section shows “Send to HTA Alarms now” on Android", page.is_visible("#rmd-send"))
+    page.click("#d-close"); page.wait_for_timeout(100)
+    if page.locator("#modal [data-a=discard]").count(): page.click("#modal [data-a=discard]")
+    page.evaluate("() => { location.hash = 'no-hta-alarms'; }"); page.wait_for_timeout(300)
+    check("…when HTA Alarms isn't installed the fallback just shows a note (no reload, hash cleared)", "isn’t installed" in page.inner_text("#toast") and not page.evaluate("location.hash"), page.inner_text("#toast"))
+    check("Android checks: no page errors", not errors, errors[:3])
+    ctx.close()
+
 def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
     httpd = serve()
     only = set(sys.argv[1:])
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        launch = lambda: p.chromium.launch(**({"channel": os.environ["HTA_TEST_CHANNEL"]} if os.environ.get("HTA_TEST_CHANNEL") else {}))
+        browser = launch()
         tests = [("store", test_store_suite), ("demo", test_phone_demo), ("onedrive", test_onedrive),
                  ("desktop", test_desktop_smoke), ("signedout", test_signed_out), ("resilience", test_resilience),
-                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry), ("fmtcheck", test_format_check), ("r25", test_r25_folders)]
+                 ("security", test_hostile_files), ("netlock", test_network_lock), ("phase4", test_phase4), ("desktopsite", test_desktop_site_phone), ("phase5", test_phase5), ("indent", test_indent_saveclose), ("pctoolbar", test_pc_toolbar), ("recurring", test_recurring), ("today", test_today), ("localfolder", test_local_folder), ("diag", test_diagnostics), ("devicecopy", test_device_copy), ("agentr1", test_agent_round1), ("agentr2", test_agent_round2), ("agentr3", test_agent_round3), ("r26", test_r26_signin_editor), ("r28p1", test_r28_phase1), ("r211", test_r211_fast_entry), ("fmtcheck", test_format_check), ("r25", test_r25_folders), ("r222", test_r222_reminders)]
         for name, fn in tests:
             if not only or name in only:
                 try:
                     fn(browser)
                 except Exception as e:  # keep going; report the crash as a failure
                     check(f"{name}: crashed", False, repr(e))
+                if not browser.is_connected():  # the browser itself died (e.g. a Chromium CHECK): start a fresh one for the next group
+                    print(f"  (browser crashed in group {name}; relaunching for the remaining groups)")
+                    browser = launch()
         browser.close()
     httpd.shutdown()
     failed = [r for r in RESULTS if not r[1]]

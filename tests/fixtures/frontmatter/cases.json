@@ -1,0 +1,374 @@
+{
+ "about": "Shared task-file contract fixtures (R2-22, rule 13). Run by tests/run_tests.py (group r222) and android/core unit tests; both must produce byte-identical output.",
+ "rules": [
+  "Each edit applies to the original file on its own (not chained).",
+  "remove/replace an entry the file does not have → \"gone\" (nothing written).",
+  "expect null → the line-level edit refuses (no frontmatter, two remind keys, a value it cannot read); the caller must not write. For parsed.unreadable / parsed.noFrontmatter cases, apply the op to an empty list.",
+  "parsed.remindLine (when present) is what the line-level reader gives where it differs from YAML (null = unreadable value)."
+ ],
+ "cases": [
+  {
+   "name": "crlf-scalar",
+   "file": "crlf-scalar.md",
+   "parsed": {
+    "id": "t-20261114-crlf",
+    "title": "Pay rent",
+    "status": "open",
+    "due": "2026-11-14",
+    "remind": [
+     "2026-11-14 17:00"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-14 17:00",
+     "expect": "crlf-scalar.1.md"
+    },
+    {
+     "op": "replace",
+     "entry": "2026-11-14 17:00",
+     "to": "2026-11-14 17:10",
+     "expect": "crlf-scalar.2.md"
+    },
+    {
+     "op": "add",
+     "to": "2026-11-14 09:00",
+     "expect": "crlf-scalar.3.md"
+    }
+   ]
+  },
+  {
+   "name": "odd-order-list",
+   "file": "odd-order-list.md",
+   "parsed": {
+    "id": "t-20261114-odd",
+    "title": "Water the plants",
+    "status": "active",
+    "due": "2026-11-15",
+    "remind": [
+     "2026-11-15 08:00",
+     "2026-11-14 18:30"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-14 18:30",
+     "expect": "odd-order-list.1.md"
+    },
+    {
+     "op": "replace",
+     "entry": "2026-11-15 08:00",
+     "to": "2026-11-14 08:00",
+     "expect": "odd-order-list.2.md"
+    },
+    {
+     "op": "add",
+     "to": "2026-11-16 08:00",
+     "expect": "odd-order-list.3.md"
+    }
+   ]
+  },
+  {
+   "name": "quoted",
+   "file": "quoted.md",
+   "parsed": {
+    "id": "t-20261114-quo",
+    "title": "Call: the dentist",
+    "status": "open",
+    "due": "2026-11-20",
+    "remind": [
+     "2026-11-19 09:00"
+    ],
+    "remind_text": "Call the dentist, it's about the crown",
+    "repeat": "yearly"
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-19 09:00",
+     "expect": "quoted.1.md"
+    },
+    {
+     "op": "add",
+     "to": "2026-11-20 08:00",
+     "expect": "quoted.2.md"
+    },
+    {
+     "op": "replace",
+     "entry": "2026-11-19 09:00",
+     "to": "2026-11-19 10:00",
+     "expect": "quoted.3.md"
+    }
+   ]
+  },
+  {
+   "name": "bom",
+   "file": "bom.md",
+   "parsed": {
+    "id": "t-20261114-bom",
+    "title": "Notepad file",
+    "status": "open",
+    "due": "2026-12-01",
+    "remind": [],
+    "remind_text": "",
+    "repeat": "monthly"
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-12-01 07:45",
+     "expect": "bom.1.md"
+    },
+    {
+     "op": "remove",
+     "entry": "2026-12-01 07:45",
+     "expect": "gone"
+    }
+   ]
+  },
+  {
+   "name": "no-trailing-newline",
+   "file": "no-trailing-newline.md",
+   "parsed": {
+    "id": "t-20261114-nonl",
+    "title": "No newline",
+    "status": "open",
+    "due": "",
+    "remind": [],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-11-14 12:00",
+     "expect": "no-trailing-newline.1.md"
+    }
+   ]
+  },
+  {
+   "name": "invalid-entry",
+   "file": "invalid-entry.md",
+   "parsed": {
+    "id": "t-20261114-bad",
+    "title": "Half bad",
+    "status": "open",
+    "due": "",
+    "remind": [
+     "2026-11-14 17:00",
+     "next tuesday"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-14 17:00",
+     "expect": "invalid-entry.1.md"
+    },
+    {
+     "op": "replace",
+     "entry": "2026-11-14 17:00",
+     "to": "2026-11-15 17:00",
+     "expect": "invalid-entry.2.md"
+    }
+   ]
+  },
+  {
+   "name": "invalid-scalar",
+   "file": "invalid-scalar.md",
+   "parsed": {
+    "id": "t-20261114-bad2",
+    "title": "All bad",
+    "status": "open",
+    "due": "",
+    "remind": [
+     "2026-02-30 25:00"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-11-14 08:00",
+     "expect": "invalid-scalar.1.md"
+    }
+   ]
+  },
+  {
+   "name": "body-dashes-block-list",
+   "file": "body-dashes-block-list.md",
+   "parsed": {
+    "id": "t-20261114-body",
+    "title": "Dashes in the body",
+    "status": "open",
+    "due": "",
+    "remind": [
+     "2026-11-20 08:00",
+     "2026-11-21 08:00"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-20 08:00",
+     "expect": "body-dashes-block-list.1.md"
+    },
+    {
+     "op": "remove",
+     "entry": "2026-11-21 08:00",
+     "expect": "body-dashes-block-list.2.md"
+    }
+   ]
+  },
+  {
+   "name": "crlf-col0-list",
+   "file": "crlf-col0-list.md",
+   "parsed": {
+    "id": "t-20261114-col0",
+    "title": "Column zero",
+    "status": "open",
+    "due": "2026-11-22",
+    "remind": [
+     "2026-11-22 06:30"
+    ],
+    "remind_text": "",
+    "repeat": "daily"
+   },
+   "edits": [
+    {
+     "op": "replace",
+     "entry": "2026-11-22 06:30",
+     "to": "2026-11-22 06:45",
+     "expect": "crlf-col0-list.1.md"
+    }
+   ]
+  },
+  {
+   "name": "remind-comment",
+   "file": "remind-comment.md",
+   "parsed": {
+    "id": "t-20261114-cmt",
+    "title": "Comment",
+    "status": "open",
+    "due": "",
+    "remind": [
+     "2026-11-14 17:00"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "replace",
+     "entry": "2026-11-14 17:00",
+     "to": "2026-11-14 18:00",
+     "expect": "remind-comment.1.md"
+    }
+   ]
+  },
+  {
+   "name": "no-frontmatter",
+   "file": "no-frontmatter.md",
+   "parsed": {
+    "noFrontmatter": true
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-11-14 08:00",
+     "expect": null
+    }
+   ]
+  },
+  {
+   "name": "duplicate-remind",
+   "file": "duplicate-remind.md",
+   "parsed": {
+    "unreadable": true
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-14 08:00",
+     "expect": null
+    }
+   ]
+  },
+  {
+   "name": "done-task",
+   "file": "done-task.md",
+   "parsed": {
+    "id": "t-20261114-done",
+    "title": "Finished",
+    "status": "done",
+    "due": "",
+    "remind": [
+     "2026-11-14 08:00"
+    ],
+    "remind_text": "",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "remove",
+     "entry": "2026-11-14 08:00",
+     "expect": "done-task.1.md"
+    }
+   ]
+  },
+  {
+   "name": "map-value",
+   "file": "map-value.md",
+   "parsed": {
+    "id": "t-20261114-map",
+    "title": "Map value",
+    "status": "open",
+    "due": "",
+    "remind": [
+     "{\"at\":\"2026-11-14 08:00\"}"
+    ],
+    "remind_text": "",
+    "repeat": "",
+    "remindLine": null
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-11-14 09:00",
+     "expect": null
+    }
+   ]
+  },
+  {
+   "name": "empty-list",
+   "file": "empty-list.md",
+   "parsed": {
+    "id": "t-20261114-empty",
+    "title": "Empty list",
+    "status": "open",
+    "due": "2026-11-30",
+    "remind": [],
+    "remind_text": "Bring the forms",
+    "repeat": ""
+   },
+   "edits": [
+    {
+     "op": "add",
+     "to": "2026-11-30 08:00",
+     "expect": "empty-list.1.md"
+    }
+   ]
+  }
+ ]
+}

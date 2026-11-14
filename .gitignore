@@ -9,3 +9,13 @@ __pycache__/
 
 # Nightly work-PC packs (tools/make_work_pack.py)
 dist/
+
+# HTA Alarms (Android) build output
+android/.gradle/
+android/.kotlin/
+android/build/
+android/*/build/
+android/local.properties
+*.keystore
+*.jks
+*.p12

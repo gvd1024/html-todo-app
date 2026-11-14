@@ -149,6 +149,24 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .addsub-in::placeholder{color:var(--muted)}
 .addsub-ed{flex:0 0 auto;border:0;background:none;color:var(--muted);width:calc(40px*var(--z));min-height:calc(40px*var(--z));font-size:calc(16px*var(--z));padding:0}
 .due-wrap{display:flex;gap:4px;align-items:stretch} .due-wrap>input{flex:1;min-width:0}
+/* R2-22 reminders (class names start with rmd- so Toast UI's plain names can't collide) */
+.rmd-box{display:flex;flex-direction:column;gap:6px;font-size:calc(11px*var(--z));color:var(--muted)}
+.rmd-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.rmd-entry{display:flex;gap:4px;align-items:stretch}
+.rmd-entry>input{flex:1;min-width:0;min-height:calc(36px*var(--z))}
+.rmd-bad-val{flex:1;color:var(--warn);font-size:calc(13px*var(--z));align-self:center;overflow-wrap:anywhere}
+.rmd-x{flex:0 0 auto;padding:0 10px}
+.rmd-pick{font-size:calc(12px*var(--z));padding:4px 8px;min-height:calc(32px*var(--z))}
+.rmd-tl{display:flex;flex-direction:column;gap:3px}
+.rmd-note{font-size:calc(11px*var(--z));color:var(--muted)}
+.rmd-warn{font-size:calc(12px*var(--z));color:var(--warn)} .rmd-warn:empty{display:none}
+.rmd-ico{font-size:calc(12px*var(--z));margin-left:6px;cursor:default}
+.rmd-ico.rmd-past{filter:grayscale(1);opacity:.75;cursor:pointer}
+.rmd-pop-text{font-size:calc(20px*var(--z));color:var(--text);margin:6px 0 4px;overflow-wrap:anywhere}
+.rmd-pop-meta{font-size:calc(13px*var(--z));color:var(--muted);margin:0 0 4px}
+.rmd-pop-late{color:var(--warn);font-weight:700}
+.rmd-pop-snz{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.rmd-pop-snz button{flex:1 1 30%;min-height:calc(40px*var(--z))}
 #f-due-clear{flex:0 0 auto;padding:0 10px}
 .qbtn::after,.badge::after{content:"";position:absolute;left:0;right:0;top:calc(-6px*var(--z));bottom:calc(-6px*var(--z))}
 .badge::after{top:calc(-7px*var(--z));bottom:calc(-7px*var(--z))}
@@ -344,6 +362,14 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
     <label>Status<select id="f-status"></select></label>
     <label>Folder<select id="f-list"></select></label>
     <label>Due<span class="due-wrap"><input type="date" id="f-due"><button type="button" id="f-due-clear" title="Clear the due date" aria-label="Clear the due date" hidden>✕</button></span></label>
+    <div class="wide rmd-box" id="f-rmd"><span>Remind</span>
+      <div id="rmd-list"></div>
+      <div class="rmd-row" id="rmd-picks"></div>
+      <label class="rmd-tl" id="rmd-tl">Reminder text (spoken on the phone)<input type="text" id="f-rmd-text" placeholder="the title" autocomplete="off"></label>
+      <div class="rmd-warn" id="rmd-warn"></div>
+      <div class="rmd-note" id="rmd-note">Phone: rings via HTA Alarms. Set elsewhere, it reaches the phone by the next quarter hour. Needs the phone on and HTA Alarms not force-stopped.</div>
+      <div class="rmd-row" id="rmd-send-row" hidden><button type="button" class="rmd-pick" id="rmd-send">📲 Send to HTA Alarms now</button></div>
+    </div>
     <label class="wide">Repeat<span style="display:flex;gap:6px"><select id="f-rep" style="flex:0 0 auto">
       <option value="">Doesn't repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option>
       <option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option>
@@ -388,10 +414,11 @@ html.phone .toastui-editor-toolbar-item-wrapper{display:flex!important}
    Specs: docs/specs/storage-spec.md (storage) and round-1-spec.md R1-12 (list view).
    ===================================================================== */
 const APP_VERSION = '0.2.0-dev';
-const BUILD = '2026-11-11a';            // bump on every build — shown in Settings so we can tell which version a device runs
-const DATA_FORMAT = 4;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line
+const BUILD = '2026-11-15a';            // bump on every build — shown in Settings so we can tell which version a device runs
+const DATA_FORMAT = 5;   // 3 adds repeat + series (R2-1); 4 = folders (R2-5): the folder is where a task is, no list: line; 5 adds remind + remind_text (R2-22)
+const BASE_FORMAT = 4;   // R2-22: what _todo.json says until the first reminder is written in that folder (so older builds keep working)
 const CONFIG_FILE = '_todo.json';
-const KNOWN = ['id','title','status','prefix','collections','parent','order','due','repeat','series','completed','demoted_into'];
+const KNOWN = ['id','title','status','prefix','collections','parent','order','due','remind','remind_text','repeat','series','completed','demoted_into'];
 const STATUSES = ['open','active','done','archived'];
 const PREFIXES = ['checkbox','bullet','none'];
 const DEFAULT_CLIENT_ID = '18f50dc2-e8ba-4b12-8735-1cf7d6c873cd';   // Azure registration "HTML-ToDo-App PoC" (not a secret)
@@ -1013,13 +1040,14 @@ function titleFromName(n){ return baseName(n).replace(/\.md$/,'').replace(/[-_]+
 function asArr(v){ return v == null || v === '' ? [] : Array.isArray(v) ? v.map(String) : String(v).split(',').map(s=>s.trim()).filter(Boolean); }
 function parseTask(path, text, version){
   const raw = text, eol = /\r\n/.test(text) ? '\r\n' : '\n';   // T1-5: CRLF files (Notepad, OneDrive web) are read as LF, written back as CRLF
+  const bom = text.charCodeAt(0) === 0xFEFF; if (bom) text = text.slice(1);   // R2-22: a BOM (Notepad's "UTF-8 with BOM") is kept, not read as part of the frontmatter
   text = text.replace(/\r\n/g, '\n');
   let fm = {}, body = text, bad = false;
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/);
   if (m){ try { fm = jsyaml.load(m[1], { schema: jsyaml.CORE_SCHEMA }) || {}; if (typeof fm !== 'object' || Array.isArray(fm)) { fm = {}; bad = true; } }
           catch(e){ bad = true; fm = {}; } body = m[2]; }
   const t = {
-    file: path, version, raw, eol, readonly: bad,
+    file: path, version, raw, eol, bom, readonly: bad,
     id: String(fm.id ?? ('f-' + path.replace(/\.md$/,''))),
     title: fm.title != null ? String(fm.title) : titleFromName(path),
     status: String(fm.status || 'open'), prefix: fm.prefix != null ? String(fm.prefix) : '',
@@ -1028,6 +1056,7 @@ function parseTask(path, text, version){
     due: fm.due ? String(fm.due) : '', repeat: fm.repeat ? String(fm.repeat) : '', series: fm.series ? String(fm.series) : '',
     completed: fm.completed ? String(fm.completed) : '',
     demoted_into: fm.demoted_into ? String(fm.demoted_into) : '',
+    ...remindFrom(fm),
     body, extra: {}, noId: fm.id == null,
   };
   for (const k of Object.keys(fm)) if (!KNOWN.includes(k)) t.extra[k] = fm[k];
@@ -1040,6 +1069,7 @@ function unknownBits(t){            // R1-12: flag (never change) frontmatter th
   if (t.prefix && !PREFIXES.includes(t.prefix)) u.unshift(`prefix: ${t.prefix}`);
   if (t.repeat && !parseRepeat(t.repeat)) u.unshift(`repeat: ${t.repeat}`);
   if (t.due && !isYmd(t.due)) u.unshift(`due: ${t.due}`);      // T1-4: not a real YYYY-MM-DD date
+  const badR = (t.remind || []).filter(e => !isRemind(e)); if (badR.length) u.push(`remind: ${badR.join(', ')}`);   // R2-22: never rings, kept as is
   return u;
 }
 function isYmd(s){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); if (!m) return false;
@@ -1051,14 +1081,133 @@ function serializeTask(t){
   if (t.parent) fm.parent = t.parent;
   fm.order = t.order ?? 1;
   if (t.due) fm.due = t.due;
+  const rv = remindValue(t); if (rv !== undefined) fm.remind = rv;
+  if (t.remind_text) fm.remind_text = t.remind_text;
   if (t.repeat) fm.repeat = t.repeat;
   if (t.series) fm.series = t.series;
   if (t.completed) fm.completed = t.completed;
   if (t.demoted_into) fm.demoted_into = t.demoted_into;
   Object.assign(fm, t.extra);
   const y = jsyaml.dump(fm, { schema: jsyaml.CORE_SCHEMA, lineWidth: -1, flowLevel: 1 });
-  const out = '---\n' + y + '---\n' + (t.body || '');
+  const out = (t.bom ? '\uFEFF' : '') + '---\n' + y + '---\n' + (t.body || '');
   return t.eol === '\r\n' ? out.replace(/\r?\n/g, '\r\n') : out;   // keep the file's own line endings
+}
+/* ---------------- reminders (R2-22, data format 5) ----------------
+   remind: 2026-11-14 17:00                       one reminder: a plain string (local time, 24 h, no zone)
+   remind: [2026-11-14 09:00, 2026-11-14 17:00]   several: a YAML flow list, sorted
+   remind_text: …                                 optional; the title is used when it's empty or missing
+   t.remind = the entries as strings (file order); t.remindOrig = the value as read (written back untouched while
+   the entries don't change, so an odd or unsorted value is never rewritten on its own); invalid entries → ⚠, never ring. */
+function isRemind(s){ const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})$/.exec(String(s ?? '')); return !!m && isYmd(m[1]) && +m[2] < 24 && +m[3] < 60; }
+function remindFrom(fm){
+  const v = fm.remind; let list;
+  if (v == null || v === '') list = [];
+  else if (Array.isArray(v)) list = v.filter(x => x != null && x !== '').map(x => typeof x === 'object' ? JSON.stringify(x) : String(x));
+  else list = [typeof v === 'object' ? JSON.stringify(v) : String(v)];
+  return { remind: list, remindOrig: v, remindKey: JSON.stringify(list), remind_text: fm.remind_text != null ? String(fm.remind_text) : '' };
+}
+const remindNorm = list => [...new Set((list || []).map(String))].sort();
+function remindValue(t){                               // what serializeTask writes for remind: (undefined = no key)
+  const list = t.remind || [];
+  if (t.remindOrig !== undefined && t.remindOrig !== null && t.remindOrig !== '' && JSON.stringify(list) === t.remindKey) return t.remindOrig;   // untouched
+  const n = remindNorm(list); return !n.length ? undefined : n.length === 1 ? n[0] : n;
+}
+const remindParts = e => { const [d, hm] = String(e).split(' '); return { d, hm }; };
+const remindMs = e => { const { d, hm } = remindParts(e); const [y, mo, dd] = d.split('-').map(Number), [h, mi] = hm.split(':').map(Number); return new Date(y, mo - 1, dd, h, mi).getTime(); };
+function remindAt(ms){ const d = new Date(ms); return fd(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+/* a repeating task (a repeat phrase and a real due date): its reminders are a schedule that moves with the due date. A
+   Dismiss there doesn't remove the entry (that would end the daily alarm after one day); it's acknowledged on this
+   device and moves on with the next check-off. Same rule in HTA Alarms. */
+const remindRepeats = t => !!(t.repeat && isYmd(t.due));
+function remindShift(list, oldDue, newDue){            // R2-1 + R2-22: move each reminder by the days the due date moved, keeping its time
+  if (!isYmd(oldDue) || !isYmd(newDue) || oldDue === newDue) return [...(list || [])];
+  const days = Math.round((pd(newDue) - pd(oldDue)) / 864e5);
+  return (list || []).map(e => { if (!isRemind(e)) return e; const { d, hm } = remindParts(e); return ymdAdd(d, days) + ' ' + hm; });
+}
+/* snooze math, shared by the popup (HTA Alarms has the same rules): 10 min / 1 hour from now; tomorrow = the entry's
+   own time of day on tomorrow's date (a calendar day, so a DST change doesn't move it) */
+function snoozeTo(kind, entry, now = Date.now()){
+  if (kind === '10m') return remindAt(Math.floor(now / 60000) * 60000 + 10 * 60000);
+  if (kind === '1h') return remindAt(Math.floor(now / 60000) * 60000 + 60 * 60000);
+  if (kind === 'tomorrow') return ymdAdd(fd(new Date(now)), 1) + ' ' + (isRemind(entry) ? remindParts(entry).hm : remindAt(now).slice(11));
+  return null;
+}
+/* The line-level edit of remind: (the shared contract with HTA Alarms; tests/fixtures/frontmatter). Only the remind
+   line(s) change: every other byte stays (key order, unknown keys, comments, quoting, CRLF/LF, BOM, body).
+   → the new text, or null when it can't be done safely (no frontmatter, two remind keys, an unreadable value). */
+const RP_KEY = /^([A-Za-z_][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)/;
+const RP_BEFORE = ['id','title','status','prefix','collections','parent','order','due'];
+function fmLines(text){                                // the file's lines with their own terminators
+  const out = []; let i = 0;
+  while (i < text.length){ const j = text.indexOf('\n', i); if (j < 0){ out.push([text.slice(i), '']); break; }
+    const line = text.slice(i, j); if (line.endsWith('\r')) out.push([line.slice(0, -1), '\r\n']); else out.push([line, '\n']); i = j + 1; }
+  return out;
+}
+function rpScalar(s){                                  // one YAML scalar token → { value, raw } or null (not a simple scalar)
+  s = s.trim(); if (!s) return null;
+  if (s[0] === '"'){ let v = '', i = 1;
+    for (; i < s.length; i++){ const c = s[i]; if (c === '"') break;
+      if (c === '\\'){ const n = s[++i], esc1 = { n:'\n', t:'\t', r:'\r', '"':'"', '\\':'\\', '/':'/' };
+        if (n === 'u'){ const h = s.slice(i + 1, i + 5); if (!/^[0-9a-fA-F]{4}$/.test(h)) return null; v += String.fromCharCode(parseInt(h, 16)); i += 4; }
+        else if (n in esc1) v += esc1[n]; else return null; }
+      else v += c; }
+    return i === s.length - 1 ? { value:v, raw:s } : null; }
+  if (s[0] === "'"){ let v = '', i = 1;
+    for (; i < s.length; i++){ if (s[i] === "'"){ if (s[i + 1] === "'"){ v += "'"; i++; continue; } break; } v += s[i]; }
+    return i === s.length - 1 ? { value:v, raw:s } : null; }
+  if (/^[\[\]{}&*!|>%@`]/.test(s) || /: /.test(s)) return null;
+  return { value:s, raw:s };
+}
+function rpValue(first, cont){                         // the value of a key: its line + continuation lines → [{ value, raw }] or null
+  let v = first.replace(/(^|[ \t])#.*$/, '').trim();
+  if (!v || v === '~' || v === 'null'){
+    if (!cont.length) return [];
+    const out = []; for (const l of cont){ const m = /^[ \t]*-(?:[ \t]+(.*))?$/.exec(l); if (!m) return null;
+      const x = rpScalar((m[1] || '').replace(/(^|[ \t])#.*$/, '')); if (!x) return null; out.push(x); }
+    return out;
+  }
+  if (cont.length) return null;                        // a value on the key line plus more lines: not ours to touch
+  if (v === '[]') return [];
+  if (v[0] === '['){ if (!v.endsWith(']')) return null;
+    const inner = v.slice(1, -1), items = []; let cur = '', q = '';
+    for (let i = 0; i < inner.length; i++){ const c = inner[i];
+      if (q){ cur += c; if (c === q && !(q === '"' && inner[i - 1] === '\\')){ if (q === "'" && inner[i + 1] === "'"){ cur += inner[++i]; continue; } q = ''; } continue; }
+      if (c === '"' || c === "'"){ q = c; cur += c; continue; }
+      if (c === '[' || c === ']' || c === '{' || c === '}') return null;
+      if (c === ','){ items.push(cur); cur = ''; continue; }
+      cur += c; }
+    if (q) return null; if (cur.trim() || items.length) items.push(cur);
+    const out = []; for (const it of items){ if (!it.trim()) continue; const x = rpScalar(it); if (!x) return null; out.push(x); }
+    return out;
+  }
+  const x = rpScalar(v); return x ? [x] : null;
+}
+const rpPlainOk = v => /^[^\s\[\]{}#&*!|>'"%@`,-][^\[\]{},#]*$/.test(v) && !/: |:$|\s$/.test(v) && !/^(null|~|true|false)$/i.test(v);
+const rpQuote = v => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\t/g, '\\t') + '"';
+function remindPatch(text, entries){
+  const bom = text.charCodeAt(0) === 0xFEFF ? '\uFEFF' : '', lines = fmLines(bom ? text.slice(1) : text);
+  if (!lines.length || !/^---[ \t]*$/.test(lines[0][0]) || !lines[0][1]) return null;
+  let close = -1; for (let i = 1; i < lines.length; i++) if (/^---[ \t]*$/.test(lines[i][0])){ close = i; break; }
+  if (close < 0) return null;
+  const eol = lines[0][1];
+  const keys = [];                                     // top-level keys: { key, start, end (exclusive), value }
+  for (let i = 1; i < close; i++){ const m = RP_KEY.exec(lines[i][0]); if (!m) continue;
+    const rest = lines[i][0].slice(m[0].length), emptyVal = !rest.replace(/(^|[ \t])#.*$/, '').trim();
+    let j = i + 1; while (j < close && lines[j][0] !== '' && (/^[ \t]/.test(lines[j][0]) || (emptyVal && /^-([ \t]|$)/.test(lines[j][0])))) j++;
+    keys.push({ key:m[1], start:i, end:j, rest }); }
+  const rk = keys.filter(k => k.key === 'remind'); if (rk.length > 1) return null;
+  const old = rk.length ? rpValue(rk[0].rest, lines.slice(rk[0].start + 1, rk[0].end).map(l => l[0])) : [];
+  if (!old) return null;
+  const rawOf = new Map(old.map(x => [x.value, x.raw]));
+  const vals = remindNorm(entries), toks = vals.map(v => rawOf.get(v) ?? (rpPlainOk(v) ? v : rpQuote(v)));
+  const out = !toks.length ? [] : [[`remind: ${toks.length === 1 ? toks[0] : '[' + toks.join(', ') + ']'}`, rk.length ? lines[rk[0].end - 1][1] || eol : eol]];
+  let at, del = 0;
+  if (rk.length){ at = rk[0].start; del = rk[0].end - rk[0].start; }
+  else { if (!out.length) return bom + lines.map(l => l[0] + l[1]).join('');
+    const due = keys.find(k => k.key === 'due'), before = [...keys].reverse().find(k => RP_BEFORE.includes(k.key));
+    at = (due || before)?.end ?? close; }
+  lines.splice(at, del, ...out);
+  return bom + lines.map(l => l[0] + l[1]).join('');
 }
 function normBody(md){ md = (md || '').trim(); return md ? '\n' + md + '\n' : ''; }
 
@@ -1142,6 +1291,7 @@ async function loadAll(){
     keepOpenEdit(prev);
     S.offline = false;
     syncLists(); render();
+    setTimeout(() => { rmdPrune(); remindTick().catch(() => {}); }, 300);   // R2-22: reminders due while the app was closed
   } finally { busy(-1); }
 }
 /* T1-1: a full load replaces every task object. The open drawer must not end up holding a newer version than the text
@@ -1224,7 +1374,18 @@ function syncLists(){                               // R2-5: the root, the folde
   if (!S.lists.includes(S.list)) S.list = ''; }
 
 /* _todo.json: version-checked, merged on conflict (S-3) */
-function cfgText(){ return JSON.stringify({ ...S.cfgExtra, format: DATA_FORMAT, folders: S.lists.filter(Boolean) }, null, 2) + '\n'; }
+/* R2-22: the folder stays at format 4 until the first reminder is written there (then 5), so a folder without reminders
+   is still usable by older builds. The format never goes down. */
+function cfgFormat(){ const want = S.formatWant && S.formatWant.store === S.store ? S.formatWant.f : 0;
+  return Math.min(DATA_FORMAT, Math.max(BASE_FORMAT, Number(S.cfgExtra?.format) || 0, want)); }
+function cfgText(){ return JSON.stringify({ ...S.cfgExtra, format: cfgFormat(), folders: S.lists.filter(Boolean) }, null, 2) + '\n'; }
+const needsFormat5 = t => (t.remind || []).length > 0 || !!t.remind_text;
+async function ensureFormat(f){                     // before a file with format-f keys is written: say so in _todo.json first
+  if ((Number(S.cfgExtra?.format) || 0) >= f) return true;
+  S.formatWant = { store:S.store, f };
+  const ok = await saveConfig(); if (ok) logNote(`folder data format → ${f} (first reminder)`);
+  return ok;
+}
 async function mergeConfigFromDisk(){
   const r = await S.store.read(CONFIG_FILE); let remote = {};
   try { remote = JSON.parse(r.text) || {}; } catch {}
@@ -1266,11 +1427,12 @@ async function moveFile(t, dir){
     catch (e){ if (e instanceof ExistsError && i < 5){ tried.push(to); to = uniqueFile(stem, pre, tried); continue; } throw e; }
   }
 }
-async function saveTask(t, { force = false } = {}){
+async function saveTask(t, { force = false, text: given = null, conflict = 'ask' } = {}){
   if (t.readonly){ toast(`"${t.title}" has unreadable frontmatter — fix the file by hand first.`); return false; }
-  const text = serializeTask(t);
+  const text = given ?? serializeTask(t);              // R2-22: a reminder action passes its line-level edit (remindPatch)
   busy(1);
   try {
+    if (needsFormat5(t) && !S.tooNew && !(await ensureFormat(5))){ toast('Could not update the folder to data format 5 — the reminder was not saved.'); return false; }
     const dir = t.list || '', pre = dir ? dir + '/' : '';
     if (t.isNew || !t.file){
       if (t.file && dirOf(t.file) !== dir) t.file = pre + baseName(t.file);
@@ -1288,7 +1450,7 @@ async function saveTask(t, { force = false } = {}){
     t.raw = text; t.isNew = false; t.diskChanged = false; t.unknown = unknownBits(t);
     S.offline = false; return true;
   } catch (e){
-    if (e instanceof ConflictError) return await conflictDialog(t);
+    if (e instanceof ConflictError){ if (conflict === 'throw') throw e; return await conflictDialog(t); }
     storeError(e, 'save'); return false;
   } finally { busy(-1); }
 }
@@ -1567,7 +1729,7 @@ function rowHTML(t, depth, opts = {}){
   const cls = ['row', depth ? 'sub' : '', t.status === 'done' ? 'done' : '', t.isNew ? 'new-unsaved' : ''].join(' ');
   let html = `<div class="${cls}" data-id="${esc(t.id)}">
     ${depth ? `<div class="ind" style="width:calc(${depth*22}px*var(--z))"></div>` : ''}<div class="pfx"${depth ? ` style="left:calc(${depth*22}px*var(--z))"` : ''}>${prefixHTML(t)}</div>
-    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}${away != null ? `<span class="stray-chip" title="This subtask's file is in “${esc(fname(away))}”, not in its parent's folder — ⚠ on the parent moves it">⚠ in ${esc(fname(away))}</span>` : ''}</div>
+    <div class="ttl" data-act="open" tabindex="0" role="button" style="padding-left:4px">${esc(t.title)}${t.repeat && parseRepeat(t.repeat) ? `<span class="rep-ico" title="Repeats: ${esc(t.repeat)}">↻</span>` : ''}${rmdIcon(t)}${opts.path ? ` <span class="chip">${esc(opts.path(t))}</span>` : ''}${warn ? `<span class="wflag" title="${esc(warnTip)}">⚠</span>` : ''}${away != null ? `<span class="stray-chip" title="This subtask's file is in “${esc(fname(away))}”, not in its parent's folder — ⚠ on the parent moves it">⚠ in ${esc(fname(away))}</span>` : ''}</div>
     <div class="act">${opts.arrows ? `<button class="qbtn qarrow" data-act="q-up" title="Move to the next day" aria-label="Move to the next day">↑</button><button class="qbtn qarrow" data-act="q-down" title="Move to the previous day" aria-label="Move to the previous day">↓</button>${t.due !== today() ? `<button class="qbtn qarrow qdot" data-act="q-dot" title="Move to today" aria-label="Move to today">●</button>` : '<span class="qgap" aria-hidden="true"></span>'}` : ''}${subs.length && !opts.flat ? `<button class="badge ${open?'open':''}" data-act="expand" title="${doneN} of ${subs.length} subtasks done — tap to ${expanded?'collapse':'expand'}">${doneN}/${subs.length}</button>` : ''}${strays ? `<button class="stray-btn" data-act="strays" title="${strays} subtask${strays > 1 ? 's are' : ' is'} in another folder — tap to move ${strays > 1 ? 'them' : 'it'} here">⚠ ${strays}</button>` : ''}<button class="row-more" data-act="menu" title="More">⋯</button></div>
   </div>`;
   if (expanded) for (const c of subs.filter(visible)) html += rowHTML(c, depth + 1, opts);
@@ -1884,6 +2046,7 @@ $('#rows').addEventListener('click', async e => {
   else if (act === 'q-dot') setDue(t, today());
   else if (act === 'q-up') bumpDue(t, 1);
   else if (act === 'q-down') bumpDue(t, -1);
+  else if (act === 'rmd'){ const n = rmdNext(t); if (n && n.past && !S.rmdOpen) rmdPopup(t, n.at); }   // R2-22: answer a missed reminder
 });
 /* R2-11: the inline add line. Enter saves a subtask (title only) at the end of the parent's subtasks and keeps the line
    ready; Enter on an empty line stops. A failed save puts the text back. */
@@ -2002,15 +2165,16 @@ const ymdCompact = s => String(s).replace(/-/g, '');
 /* Recycle: the same file moves to the next date; everything unchecked (task, subtasks, notes); nothing logged */
 async function recycleTask(t, r){
   const fam = [t, ...descendants(t.id).filter(d => d.status !== 'archived' && STATUSES.includes(d.status))];
-  const before = fam.map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, due:x.due }));
+  const before = fam.map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, due:x.due, remind:x.remind }));
   const next = nextDue(r, t.due);
+  t.remind = remindShift(t.remind, t.due, next);       // R2-22: the reminders move with the due date, keeping their time
   t.due = next;
   for (const x of fam){ x.status = 'open'; x.completed = ''; x.body = resetChecks(x.body); }
   render();
   if (!(await saveMany(fam.filter(x => !x.isNew)))) { render(); return; }
   render(); syncEditorStatus(fam);
   showUndo(`“${t.title}” — next: ${niceDate(next)}`, async () => {
-    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, due:s.due }); return x; }).filter(Boolean);
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, due:s.due, remind:s.remind }); return x; }).filter(Boolean);
     render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
   });
 }
@@ -2025,13 +2189,14 @@ async function copyTask(t, r, { checkAll = false } = {}){
   const next = nextDue(r, t.due), stamp = today(), series = t.series || t.id;
   const subs = descendants(t.id).filter(d => d.status !== 'archived' && STATUSES.includes(d.status));
   const doneNow = checkAll ? [t, ...subs.filter(s => s.status !== 'done')] : [t];
-  const before = [t, ...subs].map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, repeat:x.repeat, series:x.series }));
+  const before = [t, ...subs].map(x => ({ id:x.id, status:x.status, completed:x.completed, body:x.body, repeat:x.repeat, series:x.series, remind:x.remind }));
   // the copy (and fresh copies of its subtasks), all unchecked
   const idMap = new Map(), taken = [], copies = [];
   for (const x of [t, ...subs]){
     const c = { ...x, extra:{ ...x.extra }, collections:[...x.collections], id:newId(), version:null, isNew:true, status:'open', completed:'',
-      body: resetChecks(x.body), repeat:'', series: x.series || '' };
+      body: resetChecks(x.body), repeat:'', series: x.series || '', remind:[...(x.remind || [])], remindOrig:undefined, raw:undefined };
     idMap.set(x.id, c.id);
+    c.remind = remindShift(x.remind, t.due, next);           // R2-22: the copies get the reminders, moved with the due date
     if (x === t){ c.due = next; c.repeat = t.repeat; c.series = series; }
     c.parent = x === t ? t.parent : (idMap.get(x.parent) || x.parent);
     c.file = datedFile(x.title, x === t ? next : (x.due || next), taken, x.list);
@@ -2040,7 +2205,7 @@ async function copyTask(t, r, { checkAll = false } = {}){
   }
   // the original: completed like any task; its repeat moves to the copy
   for (const x of doneNow){ x.status = 'done'; x.completed = x.completed || stamp; if (checkAll) x.body = (x.body || '').replace(/^(\s*[-*+] )\[ \]/gm, '$1[x]'); }
-  t.repeat = ''; t.series = series;
+  t.repeat = ''; t.series = series; t.remind = [];          // R2-22: the completed original stops reminding
   for (const c of copies) S.tasks.set(c.id, c);
   render();
   let ok = await saveMany([t, ...doneNow.filter(x => x !== t)]);
@@ -2049,7 +2214,7 @@ async function copyTask(t, r, { checkAll = false } = {}){
   if (!ok) return;
   showUndo(`Done — copy for ${niceDate(next)} created`, async () => {
     for (const c of [...copies].reverse()) { const x = get(c.id); if (x) await removeTask(x, { trash:false }); }   // its own just-made copy: no trash
-    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, repeat:s.repeat, series:s.series }); return x; }).filter(Boolean);
+    const back = before.map(s => { const x = get(s.id); if (x) Object.assign(x, { status:s.status, completed:s.completed, body:s.body, repeat:s.repeat, series:s.series, remind:s.remind }); return x; }).filter(Boolean);
     render(); await saveMany(back.filter(x => !x.isNew)); render(); syncEditorStatus(back);
   });
 }
@@ -2413,7 +2578,7 @@ $('#d-mode').onclick = () => { const ed = ensureEditor(); const to = ed.isMarkdo
   ed.changeMode(to, true); ls.set('todo.mode', to); updateModeBtn(); fitToolbar(); };
 
 function fieldState(){ return JSON.stringify({ rep: repControlsKey(), title:$('#f-title').value, status:$('#f-status').value, prefix:$('#f-prefix').value, list:$('#f-list').value,
-  due:$('#f-due').value, coll:$('#f-coll').value }); }
+  due:$('#f-due').value, coll:$('#f-coll').value, rmd: rmdDrawerList(), rmdText: $('#f-rmd-text').value }); }
 function isDirty(){ if (!S.editing || !S.snapshot || !S.editor) return false; const t = get(S.editing);
   if (t?.isNew && $('#f-title').value.trim()) return true;          // R2-12: a new task counts once it has a title (or any other change)
   return fieldState() !== S.snapshot.fields || S.editor.getMarkdown() !== S.snapshot.md; }
@@ -2421,12 +2586,197 @@ function onDirtyCheck(){ const d = isDirty(); $('#d-dirty').classList.toggle('on
   if (d){ const t = get(S.editing); if (t) t.editedAt = Date.now(); }      // R2-8 Overwritten A: "yours, edited …"
   if (S.editing) scheduleAutoDraft(); }
 function updateSnapshotField(k, v){ if (!S.snapshot) return; const f = JSON.parse(S.snapshot.fields); f[k] = v; S.snapshot.fields = JSON.stringify(f); onDirtyCheck(); }
-['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
+['#f-title','#f-status','#f-prefix','#f-list','#f-due','#f-coll','#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-rmd-text'].forEach(s => $(s).addEventListener('input', onDirtyCheck));
 ['#f-rep','#f-rep-custom','#f-rep-mode','#f-rep-next','#f-due'].forEach(s => $(s).addEventListener('input', repUI));
 ['input', 'change'].forEach(ev => $('#f-due').addEventListener(ev, () => { S.dueTouched = true; dueClearUI(); }));
 /* R2-13: ✕ clears the due date (Android's date picker has no Clear); saved with Save as usual */
 function dueClearUI(){ $('#f-due-clear').hidden = !$('#f-due').value; }
 $('#f-due-clear').onclick = () => { const f = $('#f-due'); f.value = ''; f.dispatchEvent(new Event('input', { bubbles:true })); f.dispatchEvent(new Event('change', { bubbles:true })); $('#f-title').focus({ preventScroll:true }); };
+/* ---------------- R2-22: the editor's Remind section ----------------
+   S.rmdList = the drawer's entries as strings, in the file's order (new ones appended); an untouched list is written
+   back exactly as it was read. Valid entries are datetime-local inputs; invalid ones (⚠) are shown and kept until ✕. */
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const rmdToInput = e => String(e).replace(' ', 'T'), rmdFromInput = v => String(v || '').replace('T', ' ').slice(0, 16);
+function rmdDrawerList(){ return S.rmdList ? S.rmdList.filter(e => e !== '') : []; }
+function rmdFill(t){ S.rmdList = [...(t.remind || [])]; $('#f-rmd-text').value = t.remind_text || ''; rmdRender(); }
+function rmdRender(){
+  const list = S.rmdList || [];
+  $('#rmd-list').innerHTML = list.map((e, i) => isRemind(e)
+    ? `<div class="rmd-entry"><input type="datetime-local" class="rmd-in" data-i="${i}" value="${esc(rmdToInput(e))}" aria-label="Reminder ${i + 1}"><button type="button" class="rmd-x" data-rmdx="${i}" title="Remove this reminder" aria-label="Remove this reminder">✕</button></div>`
+    : `<div class="rmd-entry"><span class="rmd-bad-val" title="Not a date and time (YYYY-MM-DD HH:MM): kept as is, never rings">⚠ ${esc(e)}</span><button type="button" class="rmd-x" data-rmdx="${i}" title="Remove it" aria-label="Remove it">✕</button></div>`).join('');
+  const now = new Date(), h = now.getHours(), dueV = $('#f-due').value;
+  const picks = [['add', '+ Add reminder'], ['1h', 'In 1 hour'], ['eve', h < 18 ? 'This evening 18:00' : 'Tomorrow 18:00'], ['tmr', 'Tomorrow 09:00']];
+  if (isYmd(dueV)) picks.push(['due', `At the due date 09:00`]);
+  $('#rmd-picks').innerHTML = picks.map(([k, l]) => `<button type="button" class="rmd-pick" data-rq="${k}">${l}</button>`).join('');
+  const any = list.length > 0;
+  $('#rmd-tl').hidden = !any && !$('#f-rmd-text').value; $('#rmd-note').hidden = !any;
+  $('#rmd-send-row').hidden = !(any && IS_ANDROID);
+  rmdWarn();
+}
+function rmdWarn(){
+  const now = Date.now(), valid = (S.rmdList || []).filter(isRemind), w = [];
+  if (valid.some(e => remindMs(e) <= now)) w.push('⚠ A reminder time has already passed — it shows as missed right away.');
+  if (!IS_ANDROID && valid.some(e => remindMs(e) > now && remindMs(e) - now < 15 * 60000))
+    w.push('⚠ Less than 15 minutes ahead: the phone checks on the quarter hours, so HTA Alarms may ring up to 15 minutes late. Set it on the phone for exact timing.');
+  $('#rmd-warn').textContent = w.join(' ');
+}
+function rmdQuick(k){
+  const now = Date.now(), d0 = today();
+  const at = k === '1h' ? snoozeTo('1h', '', now) : k === 'eve' ? (new Date().getHours() < 18 ? d0 : addDays(1)) + ' 18:00'
+    : k === 'tmr' ? addDays(1) + ' 09:00' : k === 'due' ? $('#f-due').value + ' 09:00'
+    : remindAt(Math.ceil((now + 60000) / 3600000) * 3600000);          // + Add: the next full hour, then adjust it
+  if (!isRemind(at)) return;
+  S.rmdList = [...(S.rmdList || [])]; if (!S.rmdList.includes(at)) S.rmdList.push(at);
+  rmdRender(); onDirtyCheck();
+  if (k === 'add'){ const ins = document.querySelectorAll('#rmd-list .rmd-in'), el = ins[S.rmdList.indexOf(at)] || ins[ins.length - 1]; el?.focus(); try { el?.showPicker?.(); } catch {} }
+}
+$('#rmd-picks').addEventListener('click', e => { const b = e.target.closest('[data-rq]'); if (b) rmdQuick(b.dataset.rq); });
+$('#rmd-list').addEventListener('click', e => { const b = e.target.closest('[data-rmdx]'); if (!b) return;
+  S.rmdList = S.rmdList.filter((_, i) => i !== +b.dataset.rmdx); rmdRender(); onDirtyCheck(); });
+$('#rmd-list').addEventListener('change', e => { const i = e.target.closest('.rmd-in'); if (!i) return;
+  const v = rmdFromInput(i.value); S.rmdList[+i.dataset.i] = isRemind(v) ? v : ''; if (!v) S.rmdList = S.rmdList.filter((_, k) => k !== +i.dataset.i);
+  rmdRender(); onDirtyCheck(); });
+$('#f-rmd-text').addEventListener('input', () => { if (!$('#f-rmd-text').value) rmdRender(); });
+$('#f-due').addEventListener('change', () => rmdRender());
+$('#rmd-send').onclick = () => pokeAlarms(false);
+
+/* ---------------- R2-22: handoff to HTA Alarms (Android) ----------------
+   An intent: link opens HTA Alarms' invisible "sync now" screen, which checks OneDrive at once and closes. Chrome
+   only follows it right after a tap. When the app isn't installed, Chrome goes to the fallback, which is this same
+   page with #no-hta-alarms (a same-page jump, no reload) → a short note. Automatic after each reminder change only
+   when switched on in Settings (once HTA Alarms is installed); the button in the Remind section always works. */
+const ALARMS_PKG = 'io.github.gvd1024.htaalarms';
+function alarmsIntent(){ const back = location.href.split('#')[0] + '#no-hta-alarms';
+  return `intent://sync#Intent;scheme=htaalarms;package=${ALARMS_PKG};S.browser_fallback_url=${encodeURIComponent(back)};end`; }
+function pokeAlarms(auto){
+  if (!IS_ANDROID || (auto && !ls.get('todo.alarmsPoke', false))) return false;
+  logNote('handoff to HTA Alarms' + (auto ? ' (after a reminder change)' : ' (button)'));
+  try { location.href = alarmsIntent(); } catch {}
+  return true;
+}
+window.addEventListener('hashchange', () => { if (location.hash !== '#no-hta-alarms') return;
+  history.replaceState(null, '', location.href.split('#')[0]);
+  toast('HTA Alarms isn’t installed on this phone (or Android blocked the link).'); });
+if (location.hash === '#no-hta-alarms') history.replaceState(null, '', location.href.split('#')[0]);
+
+/* ---------------- R2-22: the in-app reminder popup (any device, while HTA is open) ----------------
+   Every 10 s: entries whose time has come, on open/active tasks, not yet shown on this device. localStorage
+   todo.remindSeen = { "<scope>|<task id>|<entry>": { at, tab } } keeps another tab (or a reload) from showing it again;
+   a short claim-then-check stops two tabs racing. A shown, unanswered reminder stays in the file (🔔 greyed on the row,
+   tap to answer it). Repeating tasks: Dismiss and Snooze stay on this device (todo.remindSnooze), so the schedule keeps
+   moving with the due date. Otherwise Dismiss removes the entry and Snooze/Pick replaces it, through saveTask. */
+const RMD_SEEN = 'todo.remindSeen', RMD_SNOOZE = 'todo.remindSnooze', TAB_ID = Math.random().toString(36).slice(2, 10);
+const rmdRingable = t => (t.status === 'open' || t.status === 'active') && !t.isNew && !t.readonly && !t.dupOf;
+const rmdKeyOf = (t, e) => (S.draftScope || 'demo') + '|' + t.id + '|' + e;
+function rmdNext(t){                                   // { at: entry, past } for the row marker, or null
+  if (!rmdRingable(t)) return null;
+  const v = (t.remind || []).filter(isRemind).sort(); if (!v.length) return null;
+  const now = Date.now(), fut = v.find(e => remindMs(e) > now);
+  return fut ? { at:fut, past:false } : { at:v[v.length - 1], past:true };
+}
+function rmdIcon(t){ const n = rmdNext(t); if (!n) return '';
+  const when = whenText(remindMs(n.at));
+  return n.past ? `<span class="rmd-ico rmd-past" data-act="rmd" role="button" tabindex="0" title="Reminder passed: ${esc(when)} — tap to answer it">🔔</span>`
+    : `<span class="rmd-ico" title="Reminder: ${esc(when)}">🔔</span>`; }
+function rmdPrune(){
+  const seen = ls.get(RMD_SEEN, {}), cut = Date.now() - 30 * 864e5; let n = 0;
+  for (const k of Object.keys(seen)) if (!(seen[k]?.at > cut)){ delete seen[k]; n++; }
+  if (n) ls.set(RMD_SEEN, seen);
+}
+S.rmdQueue = [];
+async function remindTick(){
+  if (!S.store || S.firstFill || S.tooNew) return;
+  const now = Date.now(), seen = ls.get(RMD_SEEN, {}), snz = ls.get(RMD_SNOOZE, {}); let snzDirty = false;
+  for (const t of all()){
+    if (!rmdRingable(t)) continue;
+    for (const e of (t.remind || [])){
+      if (!isRemind(e) || remindMs(e) > now) continue;
+      const k = rmdKeyOf(t, e), z = snz[k];
+      if (z){ if (z.until > now) continue; delete snz[k]; snzDirty = true; S.rmdQueue.push({ id:t.id, entry:e, k, snoozed:true }); continue; }
+      if (seen[k] || S.rmdQueue.some(q => q.k === k)) continue;
+      seen[k] = { at:now, tab:TAB_ID }; S.rmdQueue.push({ id:t.id, entry:e, k, claim:true });
+    }
+  }
+  if (snzDirty) ls.set(RMD_SNOOZE, snz);
+  const claimed = S.rmdQueue.filter(q => q.claim);
+  if (claimed.length){ const cur = ls.get(RMD_SEEN, {}); for (const q of claimed) if (!cur[q.k]) cur[q.k] = seen[q.k]; ls.set(RMD_SEEN, cur);
+    await new Promise(r => setTimeout(r, 150));                         // another tab may have claimed the same entry
+    const after = ls.get(RMD_SEEN, {}); S.rmdQueue = S.rmdQueue.filter(q => !q.claim || (after[q.k] && after[q.k].tab === TAB_ID)); S.rmdQueue.forEach(q => delete q.claim); }
+  rmdShowNext();
+}
+setInterval(() => { remindTick().catch(e => console.warn('reminders', e)); }, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) remindTick().catch(() => {}); });
+function rmdShowNext(){
+  if (S.rmdOpen || $('#modal-bg').classList.contains('on')) return;
+  while (S.rmdQueue.length){
+    const q = S.rmdQueue.shift(), t = get(q.id);
+    if (t && rmdRingable(t) && (t.remind || []).includes(q.entry)) return rmdPopup(t, q.entry, { snoozed:q.snoozed, more:S.rmdQueue.length });
+  }
+}
+function rmdPopup(t, entry, { snoozed = false, more = 0 } = {}){
+  S.rmdOpen = true;
+  const late = Date.now() - remindMs(entry) > 2 * 60000, rep = remindRepeats(t);
+  const text = t.remind_text || t.title;
+  modal(`<h3>🔔 Reminder${more ? ` <span style="font-weight:400;color:var(--muted)">(+${more} more)</span>` : ''}</h3>
+    <p class="rmd-pop-text">${esc(text)}</p>
+    <p class="rmd-pop-meta">${t.remind_text ? esc(t.title) + ' · ' : ''}${esc(fname(t.list))}${t.due ? ' · due ' + esc(dueText(t.due)) : ''}</p>
+    <p class="rmd-pop-meta">${esc(whenText(remindMs(entry)))}${late ? ' · <span class="rmd-pop-late">late</span>' : ''}${snoozed ? ' · snoozed' : ''}${rep ? ' · repeating: Dismiss and Snooze apply on this device; it moves on when you check the task off' : ''}</p>
+    <div class="rmd-pop-snz"><button data-a="s:10m">Snooze 10 min</button><button data-a="s:1h">1 hour</button><button data-a="s:tomorrow">Tomorrow</button><button data-a="pick">Pick…</button></div>
+    <div id="rmd-pick-row" class="rmd-entry" hidden style="margin-top:8px"><input type="datetime-local" id="rmd-pick-in"><button data-a="pickset" class="primary">Set</button></div>
+    <div class="btns"><button data-a="open">Open task</button><button class="primary" data-a="dismiss">Dismiss</button></div>`,
+    async a => {
+      if (a === 'pick'){ const r = $('#rmd-pick-row'); r.hidden = false; const i = $('#rmd-pick-in'); i.value = rmdToInput(snoozeTo('1h', entry)); i.focus(); return; }
+      let to = null;
+      if (a === 'pickset'){ to = rmdFromInput($('#rmd-pick-in').value); if (!isRemind(to)) return; }
+      else if (a.startsWith('s:')) to = snoozeTo(a.slice(2), entry);
+      closeModal(); S.rmdOpen = false;
+      if (a === 'open'){ openDrawer(t.id); return; }
+      await rmdAct(t, entry, to);
+      rmdShowNext();
+    }, { noDismiss:true });
+  const mb = $('#modal-bg'), stop = new MutationObserver(() => { if (!mb.classList.contains('on')){ S.rmdOpen = false; stop.disconnect(); setTimeout(rmdShowNext, 0); } });
+  stop.observe(mb, { attributes:true, attributeFilter:['class'] });
+}
+/* dismiss (to = null) or move (to = the new entry) one reminder */
+async function rmdAct(t, entry, to){
+  const k = rmdKeyOf(t, entry);
+  if (remindRepeats(t) && (to === null || remindMs(to) > Date.now())){          // repeating: this device only
+    if (to){ const z = ls.get(RMD_SNOOZE, {}); z[k] = { until: remindMs(to), at: Date.now() }; ls.set(RMD_SNOOZE, z); toast(`Snoozed on this ${DEVICE.toLowerCase()} until ${whenText(remindMs(to))}`); }
+    else toast('Dismissed — it comes back with the next repeat');
+    return true;
+  }
+  const r = await remindEdit(t, list => { if (!list.includes(entry)) return null; const out = list.filter(e => e !== entry); if (to) out.push(to); return out; });
+  if (r === 'gone'){ toast('That reminder was already changed elsewhere.'); return false; }
+  if (r) toast(to ? `Reminder moved to ${whenText(remindMs(to))}` : 'Reminder dismissed');
+  return r;
+}
+/* Change a task's reminders with the line-level edit (only the remind line changes, like HTA Alarms). If the file
+   changed elsewhere, re-read it and try once more; if the entry is gone by then, there's nothing to do. → true |
+   false | 'gone' */
+async function remindEdit(t0, edit){
+  const id = t0.id;
+  for (let attempt = 0; attempt < 2; attempt++){
+    const t = get(id) || t0, list = edit([...(t.remind || [])]);
+    if (!list) return 'gone';
+    const text = t.raw != null ? remindPatch(t.raw, list) : null;
+    const before = { remind:t.remind, version:t.version };
+    t.remind = list;
+    const ok = await saveTask(t, { text: text ?? undefined, conflict:'throw' }).catch(e => e);
+    if (ok === true){
+      const p = parseTask(t.file, t.raw, t.version); p.id = t.id;
+      if (S.editing === t.id && isDirty()){ p.diskChanged = true; $('#d-banner').classList.add('on'); S.tasks.set(t.id, p); }
+      else { S.tasks.set(t.id, p); if (S.editing === t.id) fillDrawer(p); }
+      render(); pokeAlarms(true); return true;
+    }
+    t.remind = before.remind;
+    if (ok instanceof ConflictError && attempt === 0){ try { await reloadOne(t); continue; } catch (e){ if (e instanceof NotFoundError) return 'gone'; storeError(e, 'reminder'); return false; } }
+    if (ok instanceof ConflictError){ toast('That task keeps changing elsewhere — try again.'); return false; }
+    if (ok instanceof Error) storeError(ok, 'reminder');
+    render(); return false;
+  }
+  return false;
+}
+
 /* R2-11: Enter in the title. A new task: save it and start the next one (same parent and list); Enter on an empty
    title stops (closes, nothing saved). An existing task: Save & close. */
 $('#f-title').addEventListener('keydown', async e => {
@@ -2497,6 +2847,7 @@ function fillDrawer(t){
   $('#f-title').value = t.title; fillStatusSelect(t.status); fillListSelect(t.list);
   $('#f-prefix').value = PREFIXES.includes(prefixOf(t)) ? prefixOf(t) : 'checkbox';
   $('#f-due').value = t.due; $('#f-coll').value = t.collections.join(', '); dueClearUI();
+  rmdFill(t);
   $('#f-title').enterKeyHint = t.isNew ? 'next' : 'done';
   fillRepeat(t);
   const p = hasParent(t) ? get(t.parent) : null;
@@ -2528,6 +2879,7 @@ function readDrawerInto(t){
   const dueIn = $('#f-due').value;
   if (!(t.due && !isYmd(t.due) && !S.dueTouched && t.due === S.snapshot.due)) t.due = dueIn;   // T1-4: an unreadable due stays unless the Due field was used (T2-2: clearing it removes it)
   t.collections = asArr($('#f-coll').value);
+  t.remind = rmdDrawerList(); t.remind_text = $('#f-rmd-text').value.trim();     // R2-22 (an untouched list writes the value back as it was)
   if (repControlsKey() !== S.repKey){ t.repeat = repPhrase(); }              // only rewrite repeat: when its controls changed
   if (t.repeat && !t.due && !S.dueTouched) t.due = today();             // R2-13: a date cleared on purpose stays cleared
   const md = S.editor.getMarkdown();
@@ -2538,7 +2890,9 @@ function readDrawerInto(t){
 }
 async function saveDrawer(){
   const t = get(S.editing); if (!t) return false;
+  const rmdKey = () => JSON.stringify([t.remind || [], t.remind_text || '', t.status, t.due]), rmdHad = (t.remind || []).length > 0, rmdBefore = rmdKey();
   const changed = readDrawerInto(t);
+  const rmdChanged = (rmdHad || (t.remind || []).length > 0) && rmdKey() !== rmdBefore;
   let ok;
   if (t.diskChanged && !t.isNew){                     // T3-1: the banner is up (changed elsewhere, or by the app's own check-off) → ask, never overwrite silently
     ok = await conflictDialog(t);
@@ -2546,7 +2900,9 @@ async function saveDrawer(){
   } else ok = await saveMany(changed);
   if (ok && get(S.editing) === t){ takeSnapshot(t); dropAutoDraft(t.id); $('#d-file').textContent = t.file; $('#d-demote').disabled = false;
     $('#d-unknown').textContent = t.unknown?.length ? '⚠ Unrecognized frontmatter (kept as is): ' + t.unknown.join(' · ') : ''; toast('Saved'); }
-  onDirtyCheck(); syncLists(); render(); return ok;
+  onDirtyCheck(); syncLists(); render();
+  if (ok && rmdChanged) pokeAlarms(true);             // R2-22: tell HTA Alarms (Android, if switched on in Settings)
+  return ok;
 }
 $('#d-save').onclick = saveDrawer;
 $('#d-saveclose').onclick = async () => { if (!isDirty()) return closeDrawer(); if (await saveDrawer()) closeDrawer(true); };   // R1-3
@@ -2596,6 +2952,7 @@ function fillFromDraft(f, md){                        // put a saved draft's fie
   if (!$('#f-list').disabled && S.lists.includes(f.list)) $('#f-list').value = f.list;
   if (f.due !== S.snapshot?.due) S.dueTouched = true;
   if (f.rep){ try { const [a, b, c, e] = JSON.parse(f.rep); $('#f-rep').value = a; $('#f-rep-custom').value = b; $('#f-rep-mode').value = c; $('#f-rep-next').value = e; repUI(); } catch {} }
+  if (Array.isArray(f.rmd)){ S.rmdList = [...f.rmd]; rmdRender(); } if (typeof f.rmdText === 'string') $('#f-rmd-text').value = f.rmdText;
   S.editor.setMarkdown(md, false); onDirtyCheck();
 }
 
@@ -2972,6 +3329,9 @@ function settingsDialog(){
     <fieldset><legend>Network lock</legend>
       <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="checkbox" id="m-netlock" ${window.__NETLOCK__?'checked':''}> <span><b>Block all network access</b> — the browser stops this page from connecting anywhere (OneDrive sign-in is off; use a local folder). Applies on reload.</span></label>
     </fieldset>
+    ${IS_ANDROID ? `<fieldset><legend>Reminders on this phone (R2-22)</legend>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="checkbox" id="m-alarmspoke" ${ls.get('todo.alarmsPoke', false)?'checked':''}> <span><b>Tell HTA Alarms right away</b> after a reminder is set, changed or removed here (turn on once HTA Alarms is installed). Without it, HTA Alarms picks changes up by the next quarter hour.</span></label>
+    </fieldset>` : ''}
     <fieldset><legend>Where your task files are</legend>
       <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="src" value="onedrive" ${src==='onedrive'?'checked':''} ${window.__NETLOCK__?'disabled':''}> OneDrive (phone + PC)${window.__NETLOCK__?' — off while the network lock is on':''}</label>
       <label style="display:block;font-size:12px;color:var(--muted);margin:4px 0 8px 24px">Folder (from the top of your OneDrive)<input type="text" id="m-folder" value="${esc(ls.get('todo.folder', DEFAULT_FOLDER))}"></label>
@@ -2985,6 +3345,7 @@ function settingsDialog(){
       if (a !== 'ok'){ applyTextSize(textSize()); return closeModal(); }          // cancel: undo the size preview
       const size = +document.querySelector('input[name=tsz]:checked').value;
       ls.set('todo.textSize', size); applyTextSize(size);
+      if ($('#m-alarmspoke')) ls.set('todo.alarmsPoke', $('#m-alarmspoke').checked);
       const nsrc = document.querySelector('input[name=src]:checked').value; const folder = $('#m-folder').value.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_FOLDER;
       const lock = $('#m-netlock').checked; const lockChanged = lock !== !!window.__NETLOCK__;
       if (lock && nsrc === 'onedrive') return toast('With the network lock on, choose a local folder (or demo data).');
@@ -3200,7 +3561,7 @@ function sampleFiles(){
     const t = { id:fm.id, title:fm.title, status:fm.status||'open', prefix:fm.prefix||'', list:dir, collections:fm.collections||[],
     parent:fm.parent||'', order:fm.order, due:fm.due||'', repeat:fm.repeat||'', series:fm.series||'', completed:fm.completed||'', demoted_into:fm.demoted_into||'', body: body ? '\n' + body.trim() + '\n' : '', extra:fm.extra||{} };
     f[joinPath(dir, file)] = serializeTask(t); };
-  f[CONFIG_FILE] = JSON.stringify({ format:DATA_FORMAT, folders:['Home','Rental','School'] }, null, 2) + '\n';
+  f[CONFIG_FILE] = JSON.stringify({ format:BASE_FORMAT, folders:['Home','Rental','School'] }, null, 2) + '\n';
   mk('call-insurance-agent.md', { id:'t-s01', title:'Call insurance agent about renewal', list:'Inbox', order:1, due:d(1) }, 'Ask about bundling the rental policy.');
   mk('try-the-list.md', { id:'t-s02', title:'Tap a title to open it · tap the box to check it off · tap ⋯ for more', list:'Inbox', order:2, collections:['meta'] },
      '## How this works\n\nEvery row is a `.md` file. Tap the folder name at the top to switch folders.\n\n- [x] Open the editor\n- [ ] Toggle Raw Markdown\n- [ ] Promote one of these checklist items to its own task');
@@ -3235,7 +3596,7 @@ function sampleFiles(){
 window.__todo = { CachedStore, devCache, TokenExpired, buildFrom, deviceReport, suggestedLocalPath, pickLocalFolder, QA, TODAY_OPEN, setDue, S, MemStore, FsStore, GraphStore, MsalAuth, ConflictError, ExistsError, NotFoundError, OfflineError, AuthError, FolderError, ReadOnlyError,
   useStore, parseTask, serializeTask, slug, uniqueFile, checklistBlocks, demoteLines, doDemote, promote, saveTask, saveConfig, get, all,
   trashPut, trashEntries, trashRestore, trashDrop, recentlyDeleted, folderNameError, fname, isFolderPath, dirOf, moveFile, offerDrafts, autoDraft, overdueCount, isTaskPath, TRASH, conflictDialog, removeTask,
-  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT };
+  openDrawer, saveDrawer, closeDrawer, sampleFiles, loadAll, poll, applyChanges, render, listDiff, stashDraft, reauth, refreshAll, setDone, placeTask, parseRepeat, nextDue, BUILD, IS_PHONE, PAGE_ZOOM, APP_VERSION, DATA_FORMAT, BASE_FORMAT, remindPatch, remindShift, snoozeTo, isRemind, remindValue, cfgFormat, remindTick, rmdPopup, rmdNext, remindEdit, pokeAlarms, alarmsIntent, toggleDone, IS_ANDROID };
 /* installable app (home-screen icon, own window): register the no-cache service worker */
 if ('serviceWorker' in navigator && !window.__NETLOCK__ && !window.__TEST_AUTH__ && !window.__TEST_NO_BOOT__ && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
