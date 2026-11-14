@@ -150,7 +150,9 @@ main{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .addsub-ed{flex:0 0 auto;border:0;background:none;color:var(--muted);width:calc(40px*var(--z));min-height:calc(40px*var(--z));font-size:calc(16px*var(--z));padding:0}
 .due-wrap{display:flex;gap:4px;align-items:stretch} .due-wrap>input{flex:1;min-width:0}
 /* R2-22 reminders (class names start with rmd- so Toast UI's plain names can't collide) */
-.rmd-box{display:flex;flex-direction:column;gap:6px;font-size:calc(11px*var(--z));color:var(--muted)}
+.rmd-box{display:flex;flex-direction:column;gap:6px;font-size:calc(11px*var(--z));color:var(--muted);min-width:0}
+#f-rmd [hidden]{display:none !important}
+.rmd-pick{max-width:100%;white-space:normal}
 .rmd-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .rmd-entry{display:flex;gap:4px;align-items:stretch}
 .rmd-entry>input{flex:1;min-width:0;min-height:calc(36px*var(--z))}

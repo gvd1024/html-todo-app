@@ -1,4 +1,4 @@
-# HANDOFF — current state (updated 2026-11-12)
+# HANDOFF — current state (updated 2026-11-15)
 
 ## Read in this order
 1. `CLAUDE.md`: rules (incl. 13 one code path, 14 home↔work), file contract (**data format 4: folders**), code map, testing.
@@ -8,7 +8,13 @@
 5. Optional background: `private/` (only on Geoff's home PC; local and git-ignored).
 
 ## Current state
-**Latest (2026-11-12):**
+**Latest (2026-11-15): R2-22 reminders built on a branch, not merged.**
+- Branch `claude/vibrant-mccarthy-dqcpgi` (an unattended cloud session, brief `docs/briefs/r2-22-build.md`). **Read `docs/briefs/r2-22-report.md` first**: what's built, what couldn't be verified, Geoff's steps, the data-format-5 rollout, open questions.
+- HTA build **2026-11-15a = data format 5** (`remind:`, `remind_text:`, editor Remind section, 🔔, in-app popup, Android handoff). A folder goes to format 5 only with its first reminder; **every device must run a format-5 build before that** (older builds open it read-only).
+- **HTA Alarms** (`android/`): the Kotlin app that speaks reminders on the phone. APKs come from GitHub Actions (`hta-alarms.yml`, signed with the repository secrets).
+- `main` is unchanged (build 2026-11-11a).
+
+**Before (2026-11-12):**
 - `main` = **build 2026-11-11a**, live on Pages: **R2-5 folders (data format 4)**, the folder is the list.
 - Geoff's real OneDrive folder is converted (Real Todo / Feedback / Entertainment), verified on PC and phone. The `r2-5-folders` branch is merged (not yet deleted). 735 checks pass.
 - **Work PC:** layout `C:\HTA\App` (app + docs, no data) and `C:\HTA\Data` (tasks).

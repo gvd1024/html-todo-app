@@ -51,7 +51,12 @@ class RingService : Service() {
                 val r = key?.let { describe(it, intent.getBooleanExtra("late", false)) }
                 if (r == null) { if (queue.isEmpty()) finishAll(false); return START_NOT_STICKY }
                 if (queue.none { it.key == key }) queue.add(r)
-                State.edit(this) { it.rung[r.key] = System.currentTimeMillis() }     // never rings twice for the same entry
+                State.edit(this) {                                                     // never rings twice for the same entry
+                    val now = System.currentTimeMillis()
+                    it.rung[r.key] = now
+                    if ((it.snoozed[r.key] ?: Long.MAX_VALUE) <= now + 60_000L) it.snoozed.remove(r.key)   // a phone-only snooze is used up
+                    it.tests.remove(r.key)                                                 // a test alarm rings once
+                }
                 if (started == 0L) begin()
                 showScreen()
             }

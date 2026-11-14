@@ -48,7 +48,7 @@ object Auth {
                 val app = app(activity)
                 val params = SignInParameters.builder().withActivity(activity).withScopes(SCOPES).withCallback(object : AuthenticationCallback {
                     override fun onSuccess(result: IAuthenticationResult) { activity.runOnUiThread { done(result.account.username, null) } }
-                    override fun onError(e: MsalException) { activity.runOnUiThread { done(null, e.errorCode ?: "error") } }
+                    override fun onError(e: MsalException) { activity.runOnUiThread { done(null, e.errorCode) } }
                     override fun onCancel() { activity.runOnUiThread { done(null, "cancelled") } }
                 }).build()
                 activity.runOnUiThread { app.signIn(params) }

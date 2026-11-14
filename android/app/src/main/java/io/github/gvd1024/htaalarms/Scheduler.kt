@@ -56,6 +56,7 @@ object Scheduler {
             // forget "rang here" notes and local snoozes for reminders that no longer exist (keeps the file small)
             val live = st.index.values.flatMap { it.reminders() }.map { it.key }.toSet()
             st.rung.keys.retainAll(live + st.tests.keys); st.snoozed.keys.retainAll(live)
+            st.tests.entries.removeIf { it.value < now - 3600_000L }               // a test that never rang (phone off) is dropped after an hour
             val plans = Planner.plan(st.index.values, now, zone, st.rung.keys, st.snoozed)
             val ids = st.alarmIds
             val keys = plans.map { it.reminder.key }.toSet() + st.tests.keys

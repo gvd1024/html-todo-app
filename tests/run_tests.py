@@ -1873,7 +1873,9 @@ def test_r26_signin_editor(browser):
         page.locator(".row .ttl", has_text="Fix gate latch").first.click(); page.wait_for_selector("#drawer.open"); page.wait_for_timeout(400)
         r = page.evaluate("""() => { const W = innerWidth, d = document.querySelector('#drawer').getBoundingClientRect();
           const inside = s => { const b = document.querySelector(s).getBoundingClientRect(); return b.left >= -1 && b.right <= W + 1; };
-          return { left: Math.round(d.left), right: Math.round(d.right), W, fields: ['#d-close', '#f-title', '#f-prefix', '#f-status', '#f-list', '#f-due', '#f-coll', '#d-saveclose'].every(inside) }; }""")
+          const sel = ['#d-close', '#f-title', '#f-prefix', '#f-status', '#f-list', '#f-due', '#f-coll', '#d-saveclose'];
+          const wide = [...document.querySelectorAll('#drawer .d-fields > *')].filter(e => e.getBoundingClientRect().right > W + 1).map(e => (e.id || e.className || e.tagName) + ':' + Math.round(e.getBoundingClientRect().right));
+          return { left: Math.round(d.left), right: Math.round(d.right), W, fields: sel.every(inside), out: sel.filter(x => !inside(x)), wide }; }""")
         check(f"editor ({name} start): exactly the screen's width, nothing cut off left or right", abs(r["left"]) <= 1 and abs(r["right"] - r["W"]) <= 1 and r["fields"], r)
         reach = page.evaluate("""() => { const d = document.querySelector('#drawer'); d.scrollTop = d.scrollHeight;
           const f = document.querySelector('.d-foot').getBoundingClientRect(); return f.bottom <= innerHeight + 1; }""")
@@ -3018,7 +3020,7 @@ def test_r222_reminders(browser):
     check("OneDrive: saving a task without reminders leaves _todo.json at format 4", json.loads(fg.files()["_todo.json"])["format"] == 4)
     row(page, "Beta").locator(".ttl").click(); page.wait_for_selector("#drawer.open")
     page.click("#rmd-picks [data-rq=tmr]")
-    check("PC: no warning for tomorrow", page.inner_text("#rmd-warn") == "")
+    check("PC: no warning for tomorrow, and no “Send to HTA Alarms” button (Android only)", page.inner_text("#rmd-warn") == "" and page.is_hidden("#rmd-send"))
     page.click("#rmd-picks [data-rq='1h']")
     page.evaluate("() => { const i = document.querySelectorAll('#rmd-list .rmd-in')[1]; const d = new Date(Date.now() + 5 * 60000); i.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); i.dispatchEvent(new Event('change', { bubbles:true })); }")
     check("PC: a reminder < 15 min ahead warns that the phone may ring late", "15 minutes" in page.inner_text("#rmd-warn"), page.inner_text("#rmd-warn"))
@@ -3087,6 +3089,7 @@ def test_r222_reminders(browser):
     check("…automatic handoff is off until switched on in Settings", r[2] is False)
     row(page, "Call insurance agent about renewal").locator(".ttl").click(); page.wait_for_selector("#drawer.open"); page.click("#rmd-picks [data-rq=tmr]")
     check("…the Remind section shows “Send to HTA Alarms now” on Android", page.is_visible("#rmd-send"))
+    check("…and hides the reminder text and note again when the last reminder is removed", (page.click("#rmd-list .rmd-x") or True) and page.is_hidden("#rmd-send") and page.is_hidden("#rmd-note") and page.is_hidden("#rmd-tl"))
     page.click("#d-close"); page.wait_for_timeout(100)
     if page.locator("#modal [data-a=discard]").count(): page.click("#modal [data-a=discard]")
     page.evaluate("() => { location.hash = 'no-hta-alarms'; }"); page.wait_for_timeout(300)

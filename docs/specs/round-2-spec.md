@@ -32,7 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
-| R2-22 | Reminders: always-on-top PC popup; spoken alarm on the phone (HTA Alarms) | **Approved for build** (Phases 1–2, cloud session) | Data format 5 `remind:`/`remind_text:`; PowerShell popup; Kotlin alarm app with text-to-speech |
+| R2-22 | Reminders: always-on-top PC popup; spoken alarm on the phone (HTA Alarms) | **Built** (Phases 1–2, branch `claude/vibrant-mccarthy-dqcpgi`, build 2026-11-15a; not merged, not verified) | Data format 5 `remind:`/`remind_text:`; HTA Alarms (Kotlin, TTS); report `docs/briefs/r2-22-report.md` |
 | R2-21 | Home ↔ work: shuttle one package by email (two Claude instances) | Roles decided | git bundle + hand-off .md; no data; only home pushes |
 | R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
 | R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
@@ -1790,7 +1790,28 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (th
     - Release APKs are signed by GitHub Actions from encrypted repo secrets that Geoff uploads.
 - **Build:** approved for an unattended cloud session (claude.ai/code), Phase 1 then Phase 2, on a branch. The brief is `docs/briefs/r2-22-build.md`, and the report goes to `docs/briefs/r2-22-report.md`.
 
-**Status:** Approved for build (2026-11-14), Phases 1–2. Phase 3 (PC popup) later.
+**Status:** **Built** (2026-11-15, unattended cloud session), Phases 1–2, on branch `claude/vibrant-mccarthy-dqcpgi`. Not merged; Geoff's phone and PC checks pending (steps in `docs/briefs/r2-22-report.md`). Phase 3 (PC popup) later.
+
+### Phase 1 — as built (HTA, build 2026-11-15a, data format 5)
+- **Data:** `remind:` (a string for one, a sorted flow list for several, `YYYY-MM-DD HH:MM` local) and `remind_text:`, right after `due`. Invalid values ⚠, kept untouched (an untouched value is written back exactly as read, even unsorted), never ring. A task without reminders never gains either key. js-yaml's CORE_SCHEMA keeps the value a string (tested). Files with a UTF-8 BOM are now read correctly and keep it.
+- **Format 5 bump:** `_todo.json` stays at 4 until the first `remind`/`remind_text` is written in that folder; then it's written as 5 **before** the task file. Never goes down. A format-4 folder opens normally; a format-6 one read-only. Demo data stays 4.
+- **Repeating (R2-1):** Recycle moves every entry by the days the due date moved (same time); Copy: the copy (and its subtask copies) get the moved entries, the completed original loses `remind`; no due date → unchanged. Undo restores them.
+- **Editor:** a Remind section under Due: datetime-local entries with ✕, quick picks (+ Add reminder = next full hour, In 1 hour, This evening 18:00 / Tomorrow 18:00 after 18:00, Tomorrow 09:00, At the due date 09:00 when there's a due date), Reminder text (placeholder: the title), the limits note (shown once there's a reminder), a warning for a time already passed and, off Android, for one under 15 minutes ahead.
+- **Rows:** 🔔 on open/active tasks with a reminder (tooltip: the next time); greyed when only past ones are left — tap it to answer.
+- **In-app popup:** every 10 s and on return to the app: due entries not yet shown on this device pop up (the text or the title, folder, due date, "late" when > 2 min past). Buttons: Snooze 10 min / 1 hour / Tomorrow / Pick…, Open task, Dismiss. Writes use the **line-level edit** (`remindPatch`, the contract shared with HTA Alarms) through `saveTask` (If-Match; a 412 re-reads and tries once more; an entry already gone → "already changed elsewhere", nothing written). `localStorage` `todo.remindSeen` (claim, then check after 150 ms) keeps two tabs from both showing it.
+- **Repeating tasks in the popup** (decision taken in the build, see the report's open questions): Dismiss and Snooze stay on this device (`todo.remindSnooze`); the file isn't changed, so the daily reminder isn't lost after one Dismiss.
+- **Handoff to HTA Alarms (Android):** `intent://sync#Intent;scheme=htaalarms;package=io.github.gvd1024.htaalarms;S.browser_fallback_url=<this page>#no-hta-alarms;end`. A "📲 Send to HTA Alarms now" button in the Remind section (Android only); automatic after each reminder change only when Settings → "Tell HTA Alarms right away" is on (off by default). Not installed → Chrome goes to the fallback, a same-page `#` jump that shows a note. **Not verified on a phone** (Chrome needs a recent tap; see the report).
+- **Tests:** group `r222` (112 checks): the shared fixtures byte for byte, parse/serialize, key order, the editor, the popup (dismiss, snooze, pick, open, no double fire across tabs, reload), done never rings, Recycle/Copy/no-due, the format bump order and once-only, OneDrive If-Match, a 412 with the entry gone, a local folder (CRLF, unknown key), the Android link.
+
+### Phase 2 — as built (HTA Alarms, `android/`)
+- **Project:** Gradle 9.8.2 (Kotlin DSL), AGP 9.4.1 (built-in Kotlin), Kotlin 2.4.21, compileSdk/targetSdk 37 (Android 17), minSdk 29. Dependencies: MSAL 8.7.0 only (plus `org.json`, built into Android). No analytics. `core/` = plain Kotlin with the contract and the math (JUnit tests); `app/` = the Android parts.
+- **Sign-in:** MSAL single-account, the HTA registration, redirect `msauth://io.github.gvd1024.htaalarms/aJ6Exuuw7N1kKUzxtANItriZ0Vw%3D`. Tokens stay in MSAL's cache; never logged.
+- **Checker:** at the next :00/:15/:30/:45 (`setExactAndAllowWhileIdle`; battery mode = a 10-minute window), plus app open, boot, time/time-zone change, app update and the `htaalarms://sync` handoff (an invisible screen that starts a check and closes). Graph folder delta; folders tracked by id (a renamed folder re-paths its files); one level deep; `.`/`_` names, `.trash`, `README.md` skipped. A file is downloaded only when its cTag changed; a big first read is done in parts (18 s per background check, 90 s with the app open, progress saved, a follow-up check a minute later). `_todo.json`'s format is read: above 5, buttons only change the phone.
+- **Alarms:** one `setAlarmClock` per (task, entry), stable request codes (freed when gone). A reminder found past and not yet rung here rings at once ("late" after 2 min). Permission: `USE_EXACT_ALARM` (Android 13+, granted at install for alarm-clock apps, can't be revoked; `SCHEDULE_EXACT_ALARM` only for Android 12).
+- **Ringing:** a foreground service (type **mediaPlayback**: audible playback the user expects; `shortService` times out at 3 minutes and `specialUse` is for Play review) speaks the text with TextToSpeech on the alarm stream (`USAGE_ALARM`, audio focus, a 3.5-minute wake lock), pauses 4 s, repeats for 3 minutes, then posts a persistent "Missed: …" notification for each (tap → the app with that reminder's buttons). The full-screen notification (category ALARM) opens the ringing screen over the lock screen (`showWhenLocked`, `turnScreenOn`); several at once are spoken in turn and listed together.
+- **Buttons:** Dismiss · Snooze 10 min / 1 hour / tomorrow (same time) / until… (time) · Reschedule… (date + time). Not repeating: written back line by line with If-Match (`WriteBack.edit`: re-download with the eTag, edit only the remind line, PUT; 412 → re-read once; entry gone or task done/deleted → just stop). Repeating, offline, signed out, or a newer folder format: kept on the phone and said so.
+- **Status panel:** signed-in account (red when sign-in expired; alarms keep ringing), folder and format, last/next check, Check now, Test alarm in 1 minute, Settings (folder, check mode), the reminders (upcoming, snoozed, missed; tap → buttons), a green/red line with a button for notifications, exact alarms, full-screen alerts (Android 14+ `canUseFullScreenIntent`), battery optimization, Do Not Disturb vs. alarms, alarm volume, Samsung "Never sleeping apps" (not detectable: instructions + Samsung's battery screen, falling back to the app's settings), and the limits.
+- **CI:** `.github/workflows/hta-alarms.yml` builds and tests on every push touching `android/`; signs with the repository secrets (PKCS12, decoded to the runner's temp folder and deleted), checks the signature hash against Azure's, uploads `hta-alarms-<BUILD>.apk`. `web-tests.yml` runs the web suite.
 
 ---
 
@@ -1860,6 +1881,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-15 | R2-22 | **Built** Phases 1–2 (unattended cloud session, branch `claude/vibrant-mccarthy-dqcpgi`, build 2026-11-15a). Decided in the build: `_todo.json` goes to 5 only with a folder's first reminder; a repeating task's Dismiss/Snooze stay on the device (the file keeps its schedule); the Android handoff is a button, automatic only when switched on in Settings; FGS type mediaPlayback | Geoff to confirm the repeating-task rule; phone and PC checks pending |
 | 2026-11-14 | R2-22 | **Approved for build** (Phases 1–2): several reminders per task; snooze 10 min / 1 h / tomorrow / custom; 3 min of speaking; reminders follow repeating tasks; package io.github.gvd1024.htaalarms; unattended cloud build per docs/briefs/r2-22-build.md | Phase 3 (PC popup) later |
 | 2026-11-13 | R2-22 | **Design decided:** PC = always-on-top PowerShell popup (Dismiss/Snooze/Reschedule); phone = separate Kotlin app "HTA Alarms" scheduling real alarms and speaking the reminder text (TTS); no voice recordings; alarms not shown in the Clock app | Not approved for build |
 | 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` merged (deletion pending Geoff) |
@@ -1914,6 +1936,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-15 — v57: R2-22 Phases 1–2 built (as-built sections, decision log).
 - 2026-11-14 — v56: R2-22 decisions; approved for build (Phases 1–2); build brief added.
 - 2026-11-13 — v55: R2-22 edits from Geoff (remind_text wording, PC every 15 min adjustable, phone checks on the quarter hours, limits shown in the UI, phone first); effort and blockers added.
 - 2026-11-13 — v54: R2-22 (reminders: PC popup, HTA Alarms on the phone) added, design decided.
