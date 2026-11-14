@@ -6,7 +6,7 @@
 
 ## TL;DR
 - [x] HTA (web app): reminders in the task files, the editor's Remind section, 🔔 on rows, an in-app popup, the handoff to HTA Alarms. All stores, one code path.
-- [x] HTA Alarms (Android): checker, alarms, spoken ringing screen, write-back, status panel. CI_LINE
+- [x] HTA Alarms (Android): checker, alarms, spoken ringing screen, write-back, status panel. **The signed release APK builds on GitHub Actions; its signature hash is `aJ6Exuuw7N1kKUzxtANItriZ0Vw=`, the one in Azure.**
 - [x] One set of tricky task files (`tests/fixtures/frontmatter/`) that HTA and HTA Alarms must both edit byte for byte. Both do.
 - [ ] Nothing has run on a real phone or against real OneDrive yet. That's your part (steps below).
 - [ ] **One decision of mine needs your OK:** on a *repeating* task, Dismiss/Snooze don't remove the reminder from the file (see Open questions #1).
@@ -51,7 +51,16 @@
 - HTA's test (group `r222`) and HTA Alarms' JUnit test both produce byte-identical output for all of them.
 
 ## Tests
-TESTS_SECTION
+| Suite | Result |
+|---|---|
+| Web app, full suite on GitHub's runner (`web-tests.yml`, run #6) | **850 passed, 0 failed** (was 735 before; +115 = the new `r222` group plus a few new checks in older groups) |
+| Web app, full suite in this cloud sandbox | 727 passed; 4 groups crash this sandbox's Chromium (also on untouched `main`), so their checks didn't run here; they all pass on GitHub |
+| Group `r222` alone | 114 passed |
+| HTA Alarms `core` (JUnit, `./gradlew -p core test`, and in CI) | 13 tests passed: every fixture byte for byte (24 edits), DST and time zones, quarter-hour math, snooze, delta bookkeeping, planner, write-back with 412s |
+| HTA Alarms app (CI `hta-alarms.yml`, run #5+) | compiles against Android 17 (API 37), lint passes, signed APK uploaded |
+
+- Changed older tests (on purpose): the format check now treats **6** as "newer" (5 is this build's); "data format 4 recognized" became "5"; `_todo.json` after a folder change stays at 4 (no reminders).
+- Test runner: if a group crashes the browser, it starts a new one and carries on (`HTA_TEST_CHANNEL` picks another Chromium build).
 
 ## The rounds
 1. **Round 1 — build it.** Phase 1 complete with the `r222` group; the shared fixtures (written by hand first, then both implementations made to match); `android/core` with its JUnit tests; the Android app; both CI workflows.
@@ -64,6 +73,7 @@ TESTS_SECTION
     - If Android stops the ringing service early, what was ringing becomes "Missed", never silently lost.
     - Two files with the same task id (a conflict copy) ring once, like HTA.
     - A duplicate timer when text-to-speech fails to start.
+    - GitHub's Chromium showed the Remind section widening the editor 13 px past a 338 px phone screen (this sandbox didn't): the editor's grid columns now can't grow past the screen (`minmax(0, 1fr)`), the root cause rather than a Remind-only patch.
     - Edge cases covered by tests: DST both ways (snooze "tomorrow", ring times in the skipped and the doubled hour, quarter-hour checks), a time-zone change, several reminders at the same minute, a task deleted or checked off while ringing, 412 conflicts (retry once, then "changed on this phone only"), two `remind` keys (never written), sign-in expiry (red line + notification; alarms already set keep ringing), offline (same), a folder from a newer HTA (never written).
 
 ## What couldn't be done or verified
@@ -78,7 +88,7 @@ TESTS_SECTION
 
 ## Your steps (in order)
 1. **Azure:** check that the registration "HTML-ToDo-App PoC" has the **Android** platform: package `io.github.gvd1024.htaalarms`, signature hash `aJ6Exuuw7N1kKUzxtANItriZ0Vw=` (should already be done).
-2. **Get the APK:** GitHub → Actions → "HTA Alarms (Android)" → the latest green run on branch `claude/vibrant-mccarthy-dqcpgi` → Artifacts → `hta-alarms-2026-11-15a.apk` (a zip with the APK in it). The run's summary says whether it's signed. (The first signed one: run #3, artifact `hta-alarms-2026-11-15a.apk`; later pushes make newer runs with the same name — take the newest.)
+2. **Get the APK:** GitHub → Actions → "HTA Alarms (Android)" → the latest green run on branch `claude/vibrant-mccarthy-dqcpgi` → Artifacts → `hta-alarms-2026-11-15a.apk` (a zip with the APK in it). The run's summary says whether it's signed. (Signed builds: runs #3–#5; take the newest green one, run #5 = commit `cc8870f`, which has every Android fix.)
 3. **Install on the S23:** open the APK on the phone (download it there, or copy it over). Allow "Install unknown apps" for that source (Chrome or My Files) when asked.
 4. **Permissions:** open HTA Alarms and work down the "This phone" list until every line is green: notifications, full-screen alerts, no battery restriction, alarm volume. Then Settings → Battery → Background usage limits → **Never sleeping apps** → add HTA Alarms (the "Open" button tries to take you there).
 5. **Sign in** (button at the top). Check that the folder is `HTML-ToDo-App-Test` for now: **Settings → folder** (see step 7).
