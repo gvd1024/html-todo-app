@@ -216,8 +216,8 @@ html.phone .d-head{gap:6px;padding:8px 8px}
 html.phone #drawer .d-head button{font-size:calc(14px*min(var(--z),1.15));padding:5px 9px;min-height:calc(40px*min(var(--z),1.25))}
 html.phone .d-head .dirty{min-width:0;overflow:hidden;white-space:nowrap;font-size:calc(11px*min(var(--z),1.15))}
 .d-head .dirty.on{visibility:visible}
-.d-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px}
-.d-fields label{display:flex;flex-direction:column;font-size:calc(11px*var(--z));color:var(--muted);gap:3px}
+.d-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:10px 12px}   /* minmax(0,…): a field can never widen the editor past the screen */
+.d-fields label{display:flex;flex-direction:column;font-size:calc(11px*var(--z));color:var(--muted);gap:3px;min-width:0}
 .d-fields .wide{grid-column:span 4}
 #f-title{font-size:calc(17px*var(--z));font-weight:600}
 .d-note{font-size:calc(12px*var(--z));color:var(--muted);padding:0 12px 6px}
@@ -235,10 +235,10 @@ html.phone .d-head .dirty{min-width:0;overflow:hidden;white-space:nowrap;font-si
 .d-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 .d-foot .file{flex:1 1 100%;font-size:calc(12px*var(--z));color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:700px){
-  .d-fields{grid-template-columns:1fr 1fr} .d-fields .wide{grid-column:span 2}
+  .d-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .d-fields .wide{grid-column:span 2}
   .d-head button,.d-foot button{min-height:calc(40px*var(--z))}
 }
-html.phone .d-fields{grid-template-columns:1fr 1fr} html.phone .d-fields .wide{grid-column:span 2}
+html.phone .d-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} html.phone .d-fields .wide{grid-column:span 2}
 html.phone .d-head button,html.phone .d-foot button{min-height:calc(40px*var(--z))}
 
 /* modal / sheet / popover / toast */
