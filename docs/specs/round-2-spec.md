@@ -1763,7 +1763,7 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (th
     4. **Android version and phone maker:**
         - Android 14+ restricts exact alarms and full-screen alerts for apps not from the Play Store, so Geoff may need to allow them by hand (the status panel guides him).
         - Some makers (Samsung, Xiaomi, OnePlus …) add their own battery killers that need extra exemptions.
-        - Needs Geoff's phone model and Android version.
+        - **Geoff's phone (2026-11-13):** Samsung Galaxy S23 Ultra (SM-S918U1), **Android 17, One UI 9.0**. Target Android 17. Samsung's battery manager ("Sleeping apps" / "Never sleeping apps") needs HTA Alarms added to **Never sleeping apps**. The status panel should check for this and link to it.
     5. **Testing:** Claude can build and unit-test here but can't press buttons on the phone. Geoff installs each APK and tests. The ringing path (screen off, silent mode, DND) can only be proven on the real phone.
     6. **Rule 13:** separate Kotlin code that must follow the same task-file contract. A shared test set of tricky task files (CRLF, unknown keys, odd YAML) is run against both HTA and HTA Alarms.
     7. **Time zones:** `remind:` is local time with no zone. Fine at home; if Geoff travels, a reminder rings at that clock time wherever the phone is. To note in the UI, or decide later.
