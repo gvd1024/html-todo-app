@@ -32,6 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
+| R2-22 | Reminders: always-on-top PC popup; spoken alarm on the phone (HTA Alarms) | Decided (design) | Data format 5 `remind:`/`remind_text:`; PowerShell popup; Kotlin alarm app with text-to-speech |
 | R2-21 | Home ↔ work: shuttle one package by email (two Claude instances) | Roles decided | git bundle + hand-off .md; no data; only home pushes |
 | R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
 | R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
@@ -1661,6 +1662,93 @@ This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A,
 
 ---
 
+## R2-22 — Reminders: an always-on-top popup on the PC, a spoken alarm on the phone
+
+**Asked** (Geoff, 2026-11-13): "I want a notification / reminder system integrated into the HTA. But how the notification should be different on phone vs on the pc."
+- **PC:** "a pop up in the middle of my screen that goes on top of every other app on my desktop and remains on top of every other application until I dismiss, snooze, or reschedule the notification."
+- **Phone:** "a sound is not enough and I don't watch my phone screen continuously … I want the notification to be a voice reading out loud on my phone either the title of the task triggering the notification or a custom notification text."
+- **Geoff's current routine:** a voice recording plus a daily phone alarm whose sound is that recording. He asked "Could you somehow create some kind of helper app that looks for changes to tasks with notifications set and sets up phone alarms based on those notifications."
+- Then: "no need to handle any kind of voice recording feature … either the HTA App or the "HTA Alarms" app would look at the notification text (or task title if not notification text exists) and generates an audio file from that text."
+
+**Why a web page can't do it alone:** browsers don't let a page put a window on top of other apps, or wake a sleeping phone and speak while the page is closed. So each device gets a small helper **outside the browser**. The task files stay the single source of truth, and every helper reads and writes them.
+
+### 1. Data (one definition for every device) — data format 5
+New optional frontmatter keys, after `due` (key order to be fixed at build time):
+```yaml
+remind: 2026-11-14 17:00     # when, in local time (YYYY-MM-DD HH:MM)
+remind_text: Pick up the baby from daycare   # optional; what to say or show (default: the title)
+```
+- **Snooze / Reschedule** rewrite `remind:`.
+- **Dismiss** removes `remind:`. The `remind_text` stays for next time.
+- Since every device reads the same file, a dismiss on one device stops it on the others.
+- **Recurring tasks (R2-1):** when the task rolls forward, `remind:` moves by the same number of days, keeping its time of day. To confirm at build time.
+- A done, archived or deleted task never rings.
+- Files written with `remind:` need format 5. Older builds would open the folder read-only (the format check, build 2026-11-08a), so every device must be updated first.
+- **HTA editor:** a **Remind** field (date + time) next to Due, with quick picks (in 1 hour, this evening, tomorrow morning, at the due date), plus an optional **Reminder text** box.
+- While HTA is open, it also shows its own in-app popup when a reminder is due. That's shared code, one code path (rule 13).
+
+### 2. PC: the always-on-top popup (a small PowerShell script)
+- Runs hidden from log-on, e.g. alongside the R2-20 server and auto-start. No install: it uses Windows' built-in PowerShell and .NET forms.
+- **Every minute** it reads the task folder directly: `C:\HTA\Data` at work, the OneDrive-synced folder at home.
+- **When a reminder is due:** a **centered, always-on-top window** (`TopMost`) shows the reminder text (or the title), the task's folder and the due date. It stays on top of every app until Geoff clicks one of:
+    - **Dismiss**
+    - **Snooze** (10 min / 1 h / custom)
+    - **Reschedule** (date + time picker)
+- **Writing back:** each button writes back to the task file with the same safe-write rules as the app and Claude: re-read right before writing, stop if it changed, keep key order and unknown keys.
+- **Several due at once:** they're listed in one window, each with its own buttons.
+- **Optional:** speak the text with Windows' built-in voice too (off by default).
+
+### 3. Phone: "HTA Alarms", a small Android app (Kotlin)
+**What it is:** a separate, single-purpose Android app that turns HTA reminders into **real alarms**. It isn't a general alarm clock.
+- **Checker:**
+    - It signs in to Microsoft once, like HTA.
+    - About every **15 minutes** (Android schedules background work, so it's approximate), and whenever it's opened, it reads the reminder fields from the personal OneDrive task folder through the same change feed HTA uses.
+    - New reminders get an alarm, changed ones are moved, and done, deleted or cleared ones are cancelled.
+- **Alarms:**
+    - Each reminder is an Android **"alarm clock" alarm** (`setAlarmClock`): exact to the minute, wakes a sleeping phone, exempt from battery saving, with the ⏰ icon in the status bar.
+    - The timing is done by Android, so the app doesn't have to stay running.
+- **Ringing:**
+    - A full-screen page over the lock screen (like the Clock app).
+    - It **speaks the reminder text** (or the title) with Android's built-in text-to-speech, on the **alarm volume** (which plays in silent mode), repeating until Geoff acts. No recordings and no audio files.
+    - Buttons: **Dismiss / Snooze / Reschedule**, written back to the task file in OneDrive (`If-Match`, like HTA).
+- **Its own screen:** a list of upcoming reminders (tap to snooze, reschedule or cancel), the sign-in, and a status line: last check time, plus warnings if a needed permission is off.
+- **Instant handoff:** when a reminder is set or changed **in HTA on the phone**, HTA passes it straight to HTA Alarms (an Android link to the app), so "remind me in 10 minutes" doesn't wait for the next check.
+- **Not in the Clock app** (Geoff asked): Android lets each alarm app see only its own alarms. Editing happens in HTA (the master copy) or in HTA Alarms' list.
+- **Install:** an APK file installed directly ("install unknown apps" allowed once), not the Play Store. Updates are new APKs. Building it needs Android's free tools (Android Studio or the command-line SDK) on the home PC.
+- **One-time permissions:**
+    - notifications
+    - *Alarms & reminders* (exact alarms)
+    - full-screen alerts
+    - no battery restriction
+- **Honest limits:**
+    - A phone that's off, or HTA Alarms **force-stopped**, can't ring.
+    - Do Not Disturb can be set to block alarms. The app checks and warns, and can raise the alarm volume itself.
+    - Changes made elsewhere reach the phone within ~15 minutes.
+    - **Separate code from HTA**, an unavoidable exception to rule 13 (a web page can't schedule alarms). It shares the task-file rules, not code.
+- **Scope:** personal OneDrive only. **Work reminders stay on the work PC popup**; no work data on the phone.
+
+### Options considered and ranked lower
+- **The phone's Clock app via intents:** Clock alarms only know a time of day (not a date), and outside apps can't reliably update or delete them, so they'd leave duplicates and stale alarms. HTA Alarms schedules its own instead.
+- **A calendar plus an automation app** (an "HTA Reminders" calendar, MacroDroid/Tasker speaking at event start): little code, but one more app plus rules to maintain, and calendar sync to keep in step.
+- **Push messages through a relay** (ntfy/Pushover): needs an always-on sender at the right time.
+- **Tasker/MacroDroid with a folder-sync app:** no custom code, but fragile (task files parsed by automation rules).
+- **Voice recordings** (Geoff's current routine, a 🎤 button in HTA): **dropped by Geoff (2026-11-13)**. Text-to-speech only.
+
+### Phases
+1. **Data format 5 + HTA editor field + in-app popup** (shared code, all stores). Every device updated before any file gets `remind:`.
+2. **PC popup script**, packaged with the R2-20 setup tool (auto-start).
+3. **HTA Alarms** (Android): checker, alarms, spoken ringing screen, write-back, instant handoff from HTA.
+
+### To decide at build time
+- Several reminders per task (e.g. a day before *and* an hour before), or one?
+- "Remind me N minutes before due" as a shorthand (needs due *times*; today `due` is a date only)?
+- Exact recurring-task behavior (above).
+- Default snooze lengths, and how many times it repeats speaking before it stops (then shows as missed)?
+
+**Status:** Decided (design, 2026-11-13). Not approved for build.
+
+---
+
 ## Agent rounds (designer/tester, 2026-10-23)
 An automated tester agent tests the app and writes a report; a designer agent fixes what it finds. Work happens on the `agent-rounds` branch (not `main`). Findings are numbered **T1-n** (round 1). Rule: data safety first; nothing that changes how the app looks or behaves beyond what the specs already decide is built without Geoff.
 
@@ -1727,6 +1815,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-13 | R2-22 | **Design decided:** PC = always-on-top PowerShell popup (Dismiss/Snooze/Reschedule); phone = separate Kotlin app "HTA Alarms" scheduling real alarms and speaking the reminder text (TTS); no voice recordings; alarms not shown in the Clock app | Not approved for build |
 | 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` merged (deletion pending Geoff) |
 | 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
 | 2026-11-11 | R2-20 | **Added (Open):** experiment showed an installed app at a web address reopens the local folder with no Reconnect; options A–D and sharing notes | Not approved for build |
@@ -1779,6 +1868,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-13 — v54: R2-22 (reminders: PC popup, HTA Alarms on the phone) added, design decided.
 - 2026-11-12 — v53: R2-5 Verified (go-live done).
 - 2026-11-12 — v52: R2-21 P2 result: work email quarantined the zip; next option GitHub download (home→work) + plain-text email (work→home).
 - 2026-11-11 — v50: R2-21 (home↔work package shuttle, roles, problems P1–P8) added.
