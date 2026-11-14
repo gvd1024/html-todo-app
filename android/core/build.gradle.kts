@@ -13,6 +13,6 @@ dependencies {
 
 tasks.test {
     // the shared fixtures live with the web app's tests (rule 13: one contract, two implementations)
-    systemProperty("fixtures", rootProject.projectDir.resolve("../tests/fixtures/frontmatter").absolutePath)
+    systemProperty("fixtures", projectDir.resolve("../../tests/fixtures/frontmatter").absolutePath)
     testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }

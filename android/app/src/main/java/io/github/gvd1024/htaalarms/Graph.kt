@@ -56,18 +56,23 @@ class Graph(private val token: () -> String) : FileApi {
         return GraphJson.DeltaPage(items, null, deltaLink)
     }
 
-    /** The file's text and its current eTag. The content comes from a short-lived download link without our token. */
+    /** The file's text and its current eTag (for a write-back). */
     override fun download(itemId: String): Pair<String, String> {
         val meta = try { JSONObject(get("$G/me/drive/items/$itemId?select=id,eTag")) } catch (e: HttpError) { if (e.code == 404) throw FileApi.NotFound() else throw e }
+        return content(itemId) to meta.getString("eTag")
+    }
+
+    /** Only the text (the checker already has the eTag from the change feed). The content comes from a short-lived
+     *  download link, fetched without our token. */
+    fun content(itemId: String): String {
         val c = open("$G/me/drive/items/$itemId/content")
-        val text = try {
+        return try {
             when (c.responseCode) {
                 302, 301, 303, 307 -> { val loc = c.getHeaderField("Location"); val d = open(loc, auth = false); try { body(d) } finally { d.disconnect() } }
                 404 -> throw FileApi.NotFound()
                 else -> body(c)
             }
         } finally { c.disconnect() }
-        return text to meta.getString("eTag")
     }
 
     /** PUT with If-Match: the file is written only if nobody changed it since [ifMatch]. */

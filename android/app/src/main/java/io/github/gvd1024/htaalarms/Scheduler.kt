@@ -32,6 +32,15 @@ object Scheduler {
         State.edit(ctx) { it.nextCheck = next }
     }
 
+    /** A big first read didn't finish within one check: carry on in a minute (replaces the quarter-hour alarm
+     *  only if it's sooner; the next full check re-arms the quarter hour). */
+    fun armFollowUp(ctx: Context) {
+        val at = System.currentTimeMillis() + 60_000L
+        val pi = PendingIntent.getBroadcast(ctx, CHECK_CODE + 1, Intent(ctx, CheckReceiver::class.java).setAction(CheckReceiver.ACTION + ".more").putExtra("why", "continue reading"),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        if (canExact(ctx)) am(ctx).setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) else am(ctx).set(AlarmManager.RTC_WAKEUP, at, pi)
+    }
+
     private fun reminderIntent(ctx: Context, code: Int, key: String?, plan: Planner.Plan?): PendingIntent {
         val i = Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION + code)
         if (key != null) i.putExtra("key", key)

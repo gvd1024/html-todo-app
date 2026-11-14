@@ -3,7 +3,6 @@
 // without one (e.g. a cloud session) only `core` is built.
 pluginManagement {
     repositories { google(); mavenCentral(); gradlePluginPortal() }
-    plugins { id("com.android.application") version "9.4.1" }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
@@ -16,6 +15,7 @@ dependencyResolutionManagement {
 }
 rootProject.name = "hta-alarms"
 include(":core")
+// the app needs the Android SDK; without one, test the core alone: ./gradlew -p core test
 val sdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
     ?: file("local.properties").takeIf { it.exists() }?.readLines()?.firstOrNull { it.startsWith("sdk.dir=") }?.substringAfter("=")
 if (sdk != null && file(sdk).resolve("platforms").exists()) include(":app")

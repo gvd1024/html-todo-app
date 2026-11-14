@@ -27,6 +27,7 @@ import java.time.ZoneId
  * Android setting), and the honest limits.
  */
 class MainActivity : Activity() {
+    private val FOREGROUND_BUDGET = 90_000L          // the app is open: read a big folder in one go
     private lateinit var box: LinearLayout
     private var account: String? = null
 
@@ -54,7 +55,7 @@ class MainActivity : Activity() {
         draw()
         worker.execute {                               // app open: re-arm and check now
             account = Auth.account(this)?.username
-            Checker.check(applicationContext, "app opened")
+            Checker.check(applicationContext, "app opened", FOREGROUND_BUDGET)
             runOnUiThread { draw() }
         }
     }
@@ -74,7 +75,7 @@ class MainActivity : Activity() {
         line(acc != null && !st.signInNeeded, if (acc == null) "Not signed in" else if (st.signInNeeded) "Sign-in expired ($acc) — alarms already set still ring" else "Signed in as $acc",
             if (acc == null || st.signInNeeded) "Sign in" else "Sign out") {
             if (acc == null || st.signInNeeded) Auth.signIn(this) { user, err ->
-                if (user != null) { set.account = user; account = user; Notify.cancelSignIn(this); worker.execute { Checker.check(applicationContext, "signed in"); runOnUiThread { draw() } } }
+                if (user != null) { set.account = user; account = user; Notify.cancelSignIn(this); worker.execute { Checker.check(applicationContext, "signed in", FOREGROUND_BUDGET); runOnUiThread { draw() } } }
                 else Ui.toast(this, "Sign-in didn't finish: $err")
                 draw()
             } else AlertDialog.Builder(this).setTitle("Sign out?").setMessage("New and changed reminders stop arriving until you sign in again.")
@@ -86,7 +87,7 @@ class MainActivity : Activity() {
         box.addView(Ui.text(this, "Last check: ${Ui.niceMs(st.lastCheck)}" + (if (st.lastError.isNotEmpty()) " — ${st.lastError}" else if (st.lastOk == st.lastCheck && st.lastOk > 0) " ✓" else ""), 15f, if (st.lastError.isNotEmpty()) Ui.RED else null))
         box.addView(Ui.text(this, "Next check: ${Ui.niceMs(st.nextCheck)} (${if (set.mode == "exact") "on the quarter hour" else "battery-friendly, may be up to 10 min later"})", 15f))
         val r1 = Ui.row(this)
-        r1.addView(Ui.weight(Ui.button(this, "Check now") { worker.execute { val m = Checker.check(applicationContext, "check now"); Ui.toast(this, "Check: $m"); runOnUiThread { draw() } } }))
+        r1.addView(Ui.weight(Ui.button(this, "Check now") { worker.execute { val m = Checker.check(applicationContext, "check now", FOREGROUND_BUDGET); Ui.toast(this, "Check: $m"); runOnUiThread { draw() } } }))
         r1.addView(Ui.weight(Ui.button(this, "Test alarm in 1 min") { worker.execute { Scheduler.testAlarm(applicationContext) }; Ui.toast(this, "A test reminder will speak in about 1 minute. Try it with the screen off, in silent mode and in Do Not Disturb.") }))
         box.addView(r1)
         box.addView(Ui.button(this, "Settings") { settingsDialog() })
@@ -182,7 +183,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Settings").setView(col)
             .setPositiveButton("Save") { _, _ ->
                 set.folder = folder.text.toString(); set.mode = if (g.checkedRadioButtonId == 1) "exact" else "battery"
-                worker.execute { Checker.check(applicationContext, "settings"); runOnUiThread { draw() } }
+                worker.execute { Checker.check(applicationContext, "settings", FOREGROUND_BUDGET); runOnUiThread { draw() } }
             }.setNegativeButton("Cancel", null).show()
     }
 }

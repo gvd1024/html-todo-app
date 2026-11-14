@@ -6,12 +6,12 @@ import android.content.Intent
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-internal val worker = Executors.newSingleThreadExecutor()
+internal val worker = Executors.newCachedThreadPool()   // checks are serialized by Checker; a button never waits behind a long check
 
 /** Runs [fn] on the worker thread while the broadcast is kept alive (goAsync), with a time limit. */
 internal fun BroadcastReceiver.async(fn: () -> Unit) {
     val pending = goAsync()
-    val f = worker.submit { try { fn() } catch (e: Exception) { android.util.Log.w("HTAAlarms", "background: ${e.javaClass.simpleName}") } }
+    val f = worker.submit(Runnable { try { fn() } catch (e: Exception) { android.util.Log.w("HTAAlarms", "background: ${e.javaClass.simpleName}") } })
     Thread { try { f.get(25, TimeUnit.SECONDS) } catch (e: Exception) { } finally { pending.finish() } }.start()
 }
 
