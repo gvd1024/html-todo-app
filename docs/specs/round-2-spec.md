@@ -1676,7 +1676,7 @@ This replaces the "mailbox" ideas in R2-20 for now (R2-20 coordination option A,
 New optional frontmatter keys, after `due` (key order to be fixed at build time):
 ```yaml
 remind: 2026-11-14 17:00     # when, in local time (YYYY-MM-DD HH:MM)
-remind_text: Pick up the baby from daycare   # optional; what to say or show (default: the title)
+remind_text: Pick up the baby from daycare   # optional; what to say or show (the title is used when it's empty, or doesn't exist)
 ```
 - **Snooze / Reschedule** rewrite `remind:`.
 - **Dismiss** removes `remind:`. The `remind_text` stays for next time.
@@ -1689,7 +1689,8 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (de
 
 ### 2. PC: the always-on-top popup (a small PowerShell script)
 - Runs hidden from log-on, e.g. alongside the R2-20 server and auto-start. No install: it uses Windows' built-in PowerShell and .NET forms.
-- **Every minute** it reads the task folder directly: `C:\HTA\Data` at work, the OneDrive-synced folder at home.
+- **Every 15 minutes (adjustable)** it reads the task folder directly: `C:\HTA\Data` at work, the OneDrive-synced folder at home (Geoff, 2026-11-13).
+- **Reading vs. ringing:** the 15 minutes is only how often it looks for **new or changed** reminders. Between reads it keeps a timer for each known reminder, so the popup appears **at the exact minute**. A reminder found already past its time (set less than 15 minutes ahead on another device) pops up **at once**, marked late.
 - **When a reminder is due:** a **centered, always-on-top window** (`TopMost`) shows the reminder text (or the title), the task's folder and the due date. It stays on top of every app until Geoff clicks one of:
     - **Dismiss**
     - **Snooze** (10 min / 1 h / custom)
@@ -1702,7 +1703,10 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (de
 **What it is:** a separate, single-purpose Android app that turns HTA reminders into **real alarms**. It isn't a general alarm clock.
 - **Checker:**
     - It signs in to Microsoft once, like HTA.
-    - About every **15 minutes** (Android schedules background work, so it's approximate), and whenever it's opened, it reads the reminder fields from the personal OneDrive task folder through the same change feed HTA uses.
+    - It checks **as soon as possible after each quarter hour (:00, :15, :30, :45)** (Geoff, 2026-11-13), and whenever it's opened. It reads the reminder fields from the personal OneDrive task folder through the same change feed HTA uses.
+    - **The cost:** each check is one small request, and almost nothing is downloaded when nothing changed. Lining the checks up on the quarter hours doesn't reduce the load compared with "every 15 minutes" (same number of checks). Its benefit is a predictable rule: a change made elsewhere reaches the phone **by the next quarter hour**.
+    - **Implementation:** an exact alarm for the next quarter hour (Android allows this rate even in deep sleep), rather than Android's own background scheduler, which can run late. Android lets the background scheduler batch work with other apps, saving a little battery; the exact check wakes the phone briefly four times an hour. It's negligible, but a setting could switch to the batched mode.
+    - **Reading vs. ringing:** the alarms themselves ring **at the exact minute**. A reminder found already past its time (set less than 15 minutes ahead on another device) rings **at once**, marked late.
     - New reminders get an alarm, changed ones are moved, and done, deleted or cleared ones are cancelled.
 - **Alarms:**
     - Each reminder is an Android **"alarm clock" alarm** (`setAlarmClock`): exact to the minute, wakes a sleeping phone, exempt from battery saving, with the ⏰ icon in the status bar.
@@ -1723,7 +1727,11 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (de
 - **Honest limits:**
     - A phone that's off, or HTA Alarms **force-stopped**, can't ring.
     - Do Not Disturb can be set to block alarms. The app checks and warns, and can raise the alarm volume itself.
-    - Changes made elsewhere reach the phone within ~15 minutes.
+    - Changes made elsewhere reach the phone by the next quarter hour.
+- **Show the limits in the UI** (Geoff, 2026-11-13: "should probably add these limits … in the User interface somewhere"):
+    - **In HTA's Remind field**, a short note: *"Phone: rings via HTA Alarms. Set elsewhere, it reaches the phone by the next quarter hour. Needs the phone on and HTA Alarms not force-stopped."* Plus a warning when a reminder is set less than 15 minutes ahead from the PC (it may ring late on the phone).
+    - **In HTA Alarms**, a status panel: last check time, next check, and a green/red line for each requirement (signed in; exact alarms; full-screen alerts; notifications; no battery restriction; alarms allowed in Do Not Disturb; alarm volume not zero). Each red line comes with a button that opens the right Android setting.
+    - **In the PC popup's tray icon menu:** last read time and the read interval.
     - **Separate code from HTA**, an unavoidable exception to rule 13 (a web page can't schedule alarms). It shares the task-file rules, not code.
 - **Scope:** personal OneDrive only. **Work reminders stay on the work PC popup**; no work data on the phone.
 
@@ -1734,10 +1742,36 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (de
 - **Tasker/MacroDroid with a folder-sync app:** no custom code, but fragile (task files parsed by automation rules).
 - **Voice recordings** (Geoff's current routine, a 🎤 button in HTA): **dropped by Geoff (2026-11-13)**. Text-to-speech only.
 
-### Phases
-1. **Data format 5 + HTA editor field + in-app popup** (shared code, all stores). Every device updated before any file gets `remind:`.
-2. **PC popup script**, packaged with the R2-20 setup tool (auto-start).
-3. **HTA Alarms** (Android): checker, alarms, spoken ringing screen, write-back, instant handoff from HTA.
+### Phases (order set by Geoff, 2026-11-13: "I want the phone voice reminder first, the PC pop up notification can come later")
+1. **Data format 5 + HTA editor field** (and the in-app popup). Shared code, all stores. Every device is updated before any file gets `remind:`. A prerequisite for the phone: reminders have to be set somewhere.
+2. **HTA Alarms** (Android): checker, alarms, spoken ringing screen, write-back, status panel, instant handoff from HTA.
+3. **PC popup script**, later, packaged with the R2-20 setup tool (auto-start).
+
+### Effort and possible blockers (Claude, 2026-11-13)
+- **Phase 1: small to medium.** Two frontmatter keys, the editor field, the format bump with its tests, and a careful rollout (format 5 makes older builds open the folder read-only).
+- **Phase 2: the biggest piece.** A new Android project (Kotlin) with:
+    - Microsoft sign-in (MSAL for Android) and the Graph change feed
+    - a safe frontmatter edit (line-level, keeping key order, unknown keys and line endings, as the contract requires)
+    - the alarms, the full-screen ringing page with text-to-speech, the permissions and the status panel
+    - the HTA handoff link
+
+  Build in steps: a test alarm that speaks; then reading reminders; then write-back; then polish.
+- **Possible blockers or setup needed:**
+    1. **Android build tools** on the home PC: a JDK plus the Android SDK command-line tools (a few GB; an emulator is optional and much bigger). It needs Geoff's OK to install.
+    2. **Azure:** the app registration needs an **Android platform** entry (package name + signing-key hash). Geoff adds it in the Azure portal; Claude gives the exact values.
+    3. **Signing key:** every update must be signed with the same key, or Android refuses it (uninstall/reinstall, losing sign-in and settings). The key lives in `private/` (never committed) plus a backup Geoff keeps.
+    4. **Android version and phone maker:**
+        - Android 14+ restricts exact alarms and full-screen alerts for apps not from the Play Store, so Geoff may need to allow them by hand (the status panel guides him).
+        - Some makers (Samsung, Xiaomi, OnePlus …) add their own battery killers that need extra exemptions.
+        - Needs Geoff's phone model and Android version.
+    5. **Testing:** Claude can build and unit-test here but can't press buttons on the phone. Geoff installs each APK and tests. The ringing path (screen off, silent mode, DND) can only be proven on the real phone.
+    6. **Rule 13:** separate Kotlin code that must follow the same task-file contract. A shared test set of tricky task files (CRLF, unknown keys, odd YAML) is run against both HTA and HTA Alarms.
+    7. **Time zones:** `remind:` is local time with no zone. Fine at home; if Geoff travels, a reminder rings at that clock time wherever the phone is. To note in the UI, or decide later.
+
+### Open questions for Geoff
+- Phone model and Android version (Settings → About phone).
+- OK to install the Android build tools on this PC?
+- The decisions listed under "To decide at build time" below.
 
 ### To decide at build time
 - Several reminders per task (e.g. a day before *and* an hour before), or one?
@@ -1868,6 +1902,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-13 — v55: R2-22 edits from Geoff (remind_text wording, PC every 15 min adjustable, phone checks on the quarter hours, limits shown in the UI, phone first); effort and blockers added.
 - 2026-11-13 — v54: R2-22 (reminders: PC popup, HTA Alarms on the phone) added, design decided.
 - 2026-11-12 — v53: R2-5 Verified (go-live done).
 - 2026-11-12 — v52: R2-21 P2 result: work email quarantined the zip; next option GitHub download (home→work) + plain-text email (work→home).
