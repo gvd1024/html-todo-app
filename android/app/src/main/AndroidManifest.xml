@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- exact alarms: USE_EXACT_ALARM (Android 13+) is granted at install for alarm-clock apps and can't be switched
+         off; Android 12 (API 31-32) needs SCHEDULE_EXACT_ALARM instead -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- text-to-speech engines are found through this intent (Android 11+ package visibility) -->
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="HTA Alarms"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HtaAlarms"
+        tools:replace="android:allowBackup">
+
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- the ringing screen, over the lock screen -->
+        <activity android:name=".RingActivity" android:exported="false" android:launchMode="singleTask"
+            android:showWhenLocked="true" android:turnScreenOn="true" android:excludeFromRecents="true"
+            android:taskAffinity="io.github.gvd1024.htaalarms.ring" />
+
+        <!-- HTA's handoff: htaalarms://sync → check OneDrive now, show nothing -->
+        <activity android:name=".SyncLinkActivity" android:exported="true" android:noHistory="true"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="htaalarms" android:host="sync" />
+            </intent-filter>
+        </activity>
+
+        <!-- MSAL's sign-in return (the redirect URI's path is the signing key's hash) -->
+        <activity android:name="com.microsoft.identity.client.BrowserTabActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="msauth" android:host="io.github.gvd1024.htaalarms" android:path="/aJ6Exuuw7N1kKUzxtANItriZ0Vw=" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".RingService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+
+        <receiver android:name=".CheckReceiver" android:exported="false" />
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <receiver android:name=".ActionReceiver" android:exported="false" />
+        <receiver android:name=".SystemReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

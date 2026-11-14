@@ -1,0 +1,10 @@
+{
+  "client_id": "18f50dc2-e8ba-4b12-8735-1cf7d6c873cd",
+  "authorization_user_agent": "DEFAULT",
+  "redirect_uri": "msauth://io.github.gvd1024.htaalarms/aJ6Exuuw7N1kKUzxtANItriZ0Vw%3D",
+  "account_mode": "SINGLE",
+  "broker_redirect_uri_registered": false,
+  "authorities": [
+    { "type": "AAD", "audience": { "type": "AzureADandPersonalMicrosoftAccount", "tenant_id": "common" }, "default": true }
+  ]
+}

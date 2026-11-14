@@ -1,0 +1,93 @@
+# HTA Alarms (R2-22 Phase 2): unit tests + APK. Signed with the permanent release key when the repository secrets
+# exist (HTA_ALARMS_KEYSTORE_B64 = base64 PKCS12, HTA_ALARMS_KEYSTORE_PASSWORD = store and key password,
+# HTA_ALARMS_KEY_ALIAS = htaalarms); otherwise a debug APK (which can't sign in to Microsoft). Secrets are never echoed.
+name: HTA Alarms (Android)
+
+on:
+  push:
+    paths: ['android/**', 'tests/fixtures/**', '.github/workflows/hta-alarms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Android SDK packages (Android 17 = API 37)
+        run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" > /dev/null
+
+      - name: Version (versionName = HTA's BUILD, versionCode = this workflow's run number)
+        run: |
+          v=$(grep -o "const BUILD = '[^']*'" ../app/index.html | cut -d"'" -f2)
+          echo "HTA_VERSION=${v:-dev}" >> "$GITHUB_ENV"
+          echo "HTA_CODE=$(( 100 + ${{ github.run_number }} ))" >> "$GITHUB_ENV"
+
+      - name: Signing key (only if the secrets exist)
+        env:
+          KS_B64: ${{ secrets.HTA_ALARMS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/hta-alarms.p12"
+            echo "HTA_KS_FILE=$RUNNER_TEMP/hta-alarms.p12" >> "$GITHUB_ENV"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+          else
+            echo "SIGNED=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Unit tests (core + app)
+        run: ./gradlew --no-daemon -PhtaVersion="$HTA_VERSION" -PhtaCode="$HTA_CODE" test
+
+      - name: Build the APK
+        env:
+          HTA_KS_PASSWORD: ${{ secrets.HTA_ALARMS_KEYSTORE_PASSWORD }}
+          HTA_KEY_ALIAS: ${{ secrets.HTA_ALARMS_KEY_ALIAS }}
+        run: |
+          if [ "$SIGNED" = 1 ]; then task=assembleRelease; dir=release; else task=assembleDebug; dir=debug; fi
+          ./gradlew --no-daemon -PhtaVersion="$HTA_VERSION" -PhtaCode="$HTA_CODE" "$task"
+          mkdir -p out
+          src=$(ls app/build/outputs/apk/$dir/*.apk | head -1)
+          if [ "$SIGNED" = 1 ]; then name="hta-alarms-$HTA_VERSION.apk"; else name="hta-alarms-$HTA_VERSION-debug.apk"; fi
+          cp "$src" "out/$name"
+          echo "APK=$name" >> "$GITHUB_ENV"
+
+      - name: Check the signature (release key's SHA-1 must give the Azure hash aJ6Exuuw7N1kKUzxtANItriZ0Vw=)
+        if: env.SIGNED == '1'
+        run: |
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          sha1=$("$bt/apksigner" verify --print-certs "out/$APK" | grep -m1 'SHA-1 digest' | awk '{print $NF}')
+          hash=$(echo "$sha1" | xxd -r -p | base64)
+          echo "Signature hash: $hash"
+          if [ "$hash" != "aJ6Exuuw7N1kKUzxtANItriZ0Vw=" ]; then echo "::warning::The APK's signature hash ($hash) is not the one registered in Azure — Microsoft sign-in will fail."; fi
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/hta-alarms.p12"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK }}
+          path: android/out/${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "## HTA Alarms $HTA_VERSION (versionCode $HTA_CODE)"
+            if [ "$SIGNED" = 1 ]; then echo "Signed with the release key: **$APK** (download it from this run's Artifacts)."
+            else echo "⚠ The signing secrets aren't set, so this is a **debug** APK: it installs and its test alarm works, but Microsoft sign-in will fail (the redirect URI needs the release key)."; fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -33,8 +33,9 @@ object Planner {
             val z = snoozed[r.key]
             when {
                 z != null -> out.add(Plan(r, maxOf(z, nowMillis), false, true))
+                r.key in rung -> {}                                   // rang or answered on this phone already
                 at > nowMillis -> out.add(Plan(r, at, false, false))
-                r.key !in rung -> out.add(Plan(r, nowMillis, nowMillis - at > 2 * 60_000, false))   // found already past: ring at once, "late"
+                else -> out.add(Plan(r, nowMillis, nowMillis - at > 2 * 60_000, false))   // found already past: ring at once, "late"
             }
         }
         return out.sortedBy { it.atMillis }

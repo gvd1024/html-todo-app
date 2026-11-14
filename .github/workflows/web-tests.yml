@@ -1,0 +1,26 @@
+# The web app's full test suite (python tests/run_tests.py), so a branch shows green checks.
+name: HTA web tests
+
+on:
+  push:
+    paths: ['app/**', 'tests/**', '.github/workflows/web-tests.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Playwright + Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run the tests
+        run: python tests/run_tests.py
