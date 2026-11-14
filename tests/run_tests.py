@@ -3029,6 +3029,9 @@ def test_r222_reminders(browser):
     check("…and the task file has it", "remind: [" in fg.files()["b.md"], fg.files()["b.md"])
     seq = {it["name"]: it["seq"] for it in fg.live()}
     check("…_todo.json was written before the task file", seq["_todo.json"] < seq["b.md"], seq)
+    page.evaluate("async () => { const t = __todo.get('t-b'); t.remind = [...t.remind, '2031-01-01 09:00']; await __todo.saveTask(t); }")
+    seq2 = {it["name"]: it["seq"] for it in fg.live()}
+    check("…later reminder saves don't rewrite _todo.json again", seq2["_todo.json"] == seq["_todo.json"] and seq2["b.md"] > seq["b.md"], (seq, seq2))
     # two tabs on the same folder: only one shows the popup
     past = page.evaluate("() => { const d = new Date(Date.now() - 60000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }")
     fg.ext_edit("a.md", fm("t-a", "Alpha 2", f"remind: {past}\n"))

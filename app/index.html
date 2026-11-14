@@ -1383,7 +1383,8 @@ const needsFormat5 = t => (t.remind || []).length > 0 || !!t.remind_text;
 async function ensureFormat(f){                     // before a file with format-f keys is written: say so in _todo.json first
   if ((Number(S.cfgExtra?.format) || 0) >= f) return true;
   S.formatWant = { store:S.store, f };
-  const ok = await saveConfig(); if (ok) logNote(`folder data format → ${f} (first reminder)`);
+  const ok = await saveConfig();
+  if (ok){ S.cfgExtra = { ...S.cfgExtra, format:f }; logNote(`folder data format → ${f} (first reminder)`); }
   return ok;
 }
 async function mergeConfigFromDisk(){
