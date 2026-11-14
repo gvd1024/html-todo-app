@@ -2668,6 +2668,7 @@ if (location.hash === '#no-hta-alarms') history.replaceState(null, '', location.
    a short claim-then-check stops two tabs racing. A shown, unanswered reminder stays in the file (🔔 greyed on the row,
    tap to answer it). Repeating tasks: Dismiss and Snooze stay on this device (todo.remindSnooze), so the schedule keeps
    moving with the due date. Otherwise Dismiss removes the entry and Snooze/Pick replaces it, through saveTask. */
+const RMD_LATE_LIMIT = 24 * 3600000;                  // a reminder found past pops up late only within a day
 const RMD_SEEN = 'todo.remindSeen', RMD_SNOOZE = 'todo.remindSnooze', TAB_ID = Math.random().toString(36).slice(2, 10);
 const rmdRingable = t => (t.status === 'open' || t.status === 'active') && !t.isNew && !t.readonly && !t.dupOf;
 const rmdKeyOf = (t, e) => (S.draftScope || 'demo') + '|' + t.id + '|' + e;
@@ -2695,6 +2696,7 @@ async function remindTick(){
     for (const e of (t.remind || [])){
       if (!isRemind(e) || remindMs(e) > now) continue;
       const k = rmdKeyOf(t, e), z = snz[k];
+      if (!z && now - remindMs(e) > RMD_LATE_LIMIT) continue;           // older than a day: only the greyed 🔔 (HTA Alarms: the same)
       if (z){ if (z.until > now) continue; delete snz[k]; snzDirty = true; S.rmdQueue.push({ id:t.id, entry:e, k, snoozed:true }); continue; }
       if (seen[k] || S.rmdQueue.some(q => q.k === k)) continue;
       seen[k] = { at:now, tab:TAB_ID }; S.rmdQueue.push({ id:t.id, entry:e, k, claim:true });

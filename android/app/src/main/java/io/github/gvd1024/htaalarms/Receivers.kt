@@ -32,7 +32,11 @@ class SystemReceiver : BroadcastReceiver() {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val key = intent.getStringExtra("key") ?: return
-        RingService.start(ctx, key, intent.getBooleanExtra("late", false))
+        try { RingService.start(ctx, key, intent.getBooleanExtra("late", false)) }
+        catch (e: Exception) {   // Android refused a background start (e.g. a fallback, non-exact alarm): at least leave the notice
+            android.util.Log.w("HTAAlarms", "ring start refused: ${e.javaClass.simpleName}")
+            async { State.load(ctx).let { st -> Actions.find(st, key) }?.let { r -> State.edit(ctx) { it.rung[key] = System.currentTimeMillis() }; Notify.missed(ctx, key, r.speak, r.title, r.entry) } }
+        }
     }
     companion object { const val ACTION = "io.github.gvd1024.htaalarms.REMIND." }
 }

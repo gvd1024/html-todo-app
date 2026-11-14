@@ -88,9 +88,7 @@ class RingService : Service() {
                     @Deprecated("old API") override fun onError(id: String?) { if (id == LAST) handler.postDelayed({ speakRound() }, PAUSE_MS) }
                 })
                 speakRound()
-            } else {
-                handler.postDelayed({ finishAll(true) }, RING_MS)            // no voice engine: the screen and notification still show
-            }
+            }                                                                // no voice engine: the screen and notification still show until the timer below
         }
         handler.postDelayed({ finishAll(true) }, RING_MS)
     }
@@ -144,7 +142,8 @@ class RingService : Service() {
         stopSelf()
     }
 
-    override fun onDestroy() { if (started != 0L) finishAll(false); super.onDestroy() }
+    /** Stopped by Android before an answer (memory, limits): what was ringing is left as "Missed", never lost. */
+    override fun onDestroy() { if (started != 0L) finishAll(true); super.onDestroy() }
 
     companion object {
         const val ACTION_RING = "ring"

@@ -2948,7 +2948,7 @@ def test_r222_reminders(browser):
     check("Dismiss removes only that entry (line-level edit)", f"remind: {later}\nremind_text: Get milk\n" in txt and past not in txt, txt)
     page.evaluate("() => __todo.remindTick()"); page.wait_for_timeout(300)
     check("…and it doesn't pop up again", page.locator("#modal .rmd-pop-text").count() == 0)
-    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.remind = [...t.remind, '2020-01-01 10:00']; await __todo.saveTask(t); }")
+    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); const d = new Date(Date.now() - 5 * 60000), p = n => String(n).padStart(2, '0'); t.remind = [...t.remind, d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())]; await __todo.saveTask(t); }")
     page.evaluate("() => __todo.remindTick()"); page.wait_for_selector("#modal .rmd-pop-text", timeout=3000)
     page.click("#modal [data-a=dismiss]"); page.wait_for_timeout(300)
     page.reload(); page.wait_for_selector(".row"); page.wait_for_timeout(800)
@@ -2981,6 +2981,10 @@ def test_r222_reminders(browser):
     page.wait_for_timeout(300)
     check("a done task never rings (and shows no 🔔)", page.locator("#modal .rmd-pop-text").count() == 0 and row(page, "Call insurance agent about renewal").locator(".rmd-ico").count() == 0)
     page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.status = 'open'; t.completed = ''; t.remind = []; await __todo.saveTask(t); __todo.render(); }")
+    page.evaluate("async () => { const t = __todo.all().find(x => x.title === 'Call insurance agent about renewal'); t.status = 'open'; t.completed = ''; t.remind = ['2020-01-01 08:00']; await __todo.saveTask(t); __todo.render(); localStorage.removeItem('todo.remindSeen'); await __todo.remindTick(); }")
+    page.wait_for_timeout(300)
+    check("a reminder more than a day old doesn't pop up late (greyed 🔔 only; HTA Alarms: the same limit)", page.locator("#modal .rmd-pop-text").count() == 0
+          and "rmd-past" in (row(page, "Call insurance agent about renewal").locator(".rmd-ico").get_attribute("class") or ""))
 
     # --- repeating tasks: shifts on Recycle and Copy; popup actions stay on this device ---
     r = page.evaluate("""async () => { const T = __todo, mk = async (title, fm) => { const t = T.all().find(x => x.title === title); Object.assign(t, fm); await T.saveTask(t); return t; };
@@ -3001,7 +3005,9 @@ def test_r222_reminders(browser):
       await T.toggleDone(t); await new Promise(r => setTimeout(r, 300)); const x = T.all().find(y => y.id === t.id); return [x.due !== '', JSON.stringify(x.remind)]; }""")
     check("a repeating task without a due date: the reminders stay as they are", r == [True, '["2026-11-10 08:00"]'], r)
     r = page.evaluate("""async () => { const T = __todo; const t = T.all().find(x => x.title === 'Tap a title to open it · tap the box to check it off · tap ⋯ for more');
-      const e = t.remind[0]; const before = __fget(t.file).text; localStorage.removeItem('todo.remindSeen');
+      const d = new Date(Date.now() - 20 * 60000), p = n => String(n).padStart(2, '0');
+      t.remind = [d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes())]; await T.saveTask(t);
+      const before = __fget(t.file).text; localStorage.removeItem('todo.remindSeen');
       await T.remindTick(); await new Promise(r => setTimeout(r, 300)); const shown = !!document.querySelector('#modal .rmd-pop-text');
       document.querySelector('#modal [data-a=dismiss]')?.click(); await new Promise(r => setTimeout(r, 300));
       return [shown, __fget(t.file).text === before]; }""")

@@ -28,13 +28,14 @@ object Planner {
 
     fun plan(index: Collection<IndexEntry>, nowMillis: Long, zone: ZoneId, rung: Set<String>, snoozed: Map<String, Long>): List<Plan> {
         val out = mutableListOf<Plan>()
-        for (r in index.flatMap { it.reminders() }) {
+        for (r in all(index)) {
             val at = Remind.epochMillis(r.entry, zone) ?: continue
             val z = snoozed[r.key]
             when {
                 z != null -> out.add(Plan(r, maxOf(z, nowMillis), false, true))
                 r.key in rung -> {}                                   // rang or answered on this phone already
                 at > nowMillis -> out.add(Plan(r, at, false, false))
+                nowMillis - at > LATE_LIMIT_MS -> {}                  // more than a day old: listed as missed, never rung late
                 else -> out.add(Plan(r, nowMillis, nowMillis - at > 2 * 60_000, false))   // found already past: ring at once, "late"
             }
         }
@@ -43,7 +44,15 @@ object Planner {
 
     /** Missed = past, already rung here, not snoozed (the status list shows these with their buttons). */
     fun missed(index: Collection<IndexEntry>, nowMillis: Long, zone: ZoneId, rung: Set<String>, snoozed: Map<String, Long>) =
-        index.flatMap { it.reminders() }.filter { r -> val at = Remind.epochMillis(r.entry, zone); at != null && at <= nowMillis && r.key in rung && r.key !in snoozed }
+        all(index).filter { r -> val at = Remind.epochMillis(r.entry, zone)
+            at != null && at <= nowMillis && r.key !in snoozed && (r.key in rung || nowMillis - at > LATE_LIMIT_MS) }
+
+    /** A reminder found past rings late only within a day (HTA's popup has the same limit); older ones are just missed. */
+    const val LATE_LIMIT_MS = 24 * 3600_000L
+
+    /** Every reminder once: two files with the same task id (a conflict copy) ring once, like HTA (it flags the twin ⚠). */
+    private fun all(index: Collection<IndexEntry>) =
+        index.sortedBy { it.path }.flatMap { it.reminders() }.distinctBy { it.taskId + "|" + it.entry }
 }
 
 /** Stable alarm request codes: one per reminder key, kept across restarts; codes of keys that are gone are freed. */

@@ -64,6 +64,8 @@ class DeltaPlannerTest {
             task("odd", null),
             task("same1", listOf("2026-11-14 18:00")), task("same2", listOf("2026-11-14 18:00")),
             task("snz", listOf("2026-11-14 09:00"), repeat = "daily", due = "2026-11-14"),
+            task("old", listOf("2026-11-12 09:00")),
+            IndexEntry("I-twin", "zz-twin.md", "e", "c", Frontmatter.Task("fut", "Twin", "open", "", listOf("2026-11-14 17:00"), "", "")),
         )
         val rung = setOf("I-rung|2026-11-14 10:00", "I-snz|2026-11-14 09:00")
         val p = Planner.plan(idx, now, zone, rung, mapOf("I-snz|2026-11-14 09:00" to ms("2026-11-14T12:10")))
@@ -76,7 +78,9 @@ class DeltaPlannerTest {
         assertNull(byKey["I-done|2026-11-14 17:00"]); assertNull(byKey["I-arch|2026-11-14 17:00"])
         assertEquals("two at the same minute: both", 2, p.count { it.atMillis == ms("2026-11-14T18:00") })
         assertTrue("local snooze", byKey["I-snz|2026-11-14 09:00"]!!.let { it.snoozed && it.atMillis == ms("2026-11-14T12:10") && it.reminder.repeats })
-        assertEquals(listOf("I-rung|2026-11-14 10:00"), Planner.missed(idx, now, zone, rung, mapOf("I-snz|2026-11-14 09:00" to 1L)).map { it.key })
+        assertNull("two days old: not rung late", byKey["I-old|2026-11-12 09:00"])
+        assertNull("a twin with the same task id rings once", byKey["I-twin|2026-11-14 17:00"])
+        assertEquals(setOf("I-rung|2026-11-14 10:00", "I-old|2026-11-12 09:00"), Planner.missed(idx, now, zone, rung, mapOf("I-snz|2026-11-14 09:00" to 1L)).map { it.key }.toSet())
         assertEquals("the title is spoken when there's no text", "Title fut", byKey["I-fut|2026-11-14 17:00"]!!.reminder.speak)
     }
 
