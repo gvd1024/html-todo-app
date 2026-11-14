@@ -32,7 +32,7 @@ Same as round 1:
 | R2-13 | Clear a due date on the phone | **Built** (2026-11-07c; verified on PC and phone) | ✕ next to Due in the editor; "No date" in Change due date… |
 | R2-14 | Today view: ↑ ↓ ● instead of Today / Tmrw | **Built** (2026-11-07c; verified on PC and phone) | From the due date; ● hidden on today rows |
 | R2-15 | Delete all: readable button | **Built** (2026-11-07c; verified on PC and phone) | White on deep red |
-| R2-22 | Reminders: always-on-top PC popup; spoken alarm on the phone (HTA Alarms) | Decided (design) | Data format 5 `remind:`/`remind_text:`; PowerShell popup; Kotlin alarm app with text-to-speech |
+| R2-22 | Reminders: always-on-top PC popup; spoken alarm on the phone (HTA Alarms) | **Approved for build** (Phases 1–2, cloud session) | Data format 5 `remind:`/`remind_text:`; PowerShell popup; Kotlin alarm app with text-to-speech |
 | R2-21 | Home ↔ work: shuttle one package by email (two Claude instances) | Roles decided | git bundle + hand-off .md; no data; only home pushes |
 | R2-20 | Work PC: no Reconnect every start; sharing with coworkers | Open | Installed app from a web address keeps the folder (tested); stable address before sharing |
 | R2-19 | A way to hide the "Add subtask…" lines | Open | Show the line only on demand (recommended) |
@@ -1779,7 +1779,18 @@ remind_text: Pick up the baby from daycare   # optional; what to say or show (th
 - Exact recurring-task behavior (above).
 - Default snooze lengths, and how many times it repeats speaking before it stops (then shows as missed)?
 
-**Status:** Decided (design, 2026-11-13). Not approved for build.
+### Decisions (Geoff, 2026-11-14)
+- **Several reminders per task:** `remind:` is a scalar for one, a sorted YAML flow list for several. `remind_text` is shared by all of them.
+- **Snooze:** 10 min / 1 hour / tomorrow (same time) / custom.
+- **Ringing:** speak, pause, repeat for **3 minutes**, then a persistent "Missed" notification.
+- **Repeating tasks:** the reminders move with the due date (same number of days), keeping their time of day. In Copy mode the copy gets them.
+- **HTA Alarms identity:**
+    - Package `io.github.gvd1024.htaalarms`.
+    - Permanent signing key made on the home PC (`private/android/`, never committed). Signature hash `aJ6Exuuw7N1kKUzxtANItriZ0Vw=`, which Geoff registers as an Android platform in Azure.
+    - Release APKs are signed by GitHub Actions from encrypted repo secrets that Geoff uploads.
+- **Build:** approved for an unattended cloud session (claude.ai/code), Phase 1 then Phase 2, on a branch. The brief is `docs/briefs/r2-22-build.md`, and the report goes to `docs/briefs/r2-22-report.md`.
+
+**Status:** Approved for build (2026-11-14), Phases 1–2. Phase 3 (PC popup) later.
 
 ---
 
@@ -1849,6 +1860,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 
 | Date | Item | Decision | Notes |
 |---|---|---|---|
+| 2026-11-14 | R2-22 | **Approved for build** (Phases 1–2): several reminders per task; snooze 10 min / 1 h / tomorrow / custom; 3 min of speaking; reminders follow repeating tasks; package io.github.gvd1024.htaalarms; unattended cloud build per docs/briefs/r2-22-build.md | Phase 3 (PC popup) later |
 | 2026-11-13 | R2-22 | **Design decided:** PC = always-on-top PowerShell popup (Dismiss/Snooze/Reschedule); phone = separate Kotlin app "HTA Alarms" scheduling real alarms and speaking the reminder text (TTS); no voice recordings; alarms not shown in the Clock app | Not approved for build |
 | 2026-11-12 | R2-5 | **Verified:** live on main (2026-11-11a), real folder converted, PC and phone checked | Branch `r2-5-folders` merged (deletion pending Geoff) |
 | 2026-11-11 | R2-21 | **Roles decided (Geoff):** only home pushes to GitHub; either side may change code, documented in .md; either side packages one zip, no data; work data never shared; email shuttle | Process P1–P8 to confirm |
@@ -1902,6 +1914,7 @@ An automated tester agent tests the app and writes a report; a designer agent fi
 | 2026-10-20 | — | Round 2 opened with R2-1 (recurring tasks) and R2-2 (Today view), at Geoff's request | Discussing |
 
 ## Change history of this spec
+- 2026-11-14 — v56: R2-22 decisions; approved for build (Phases 1–2); build brief added.
 - 2026-11-13 — v55: R2-22 edits from Geoff (remind_text wording, PC every 15 min adjustable, phone checks on the quarter hours, limits shown in the UI, phone first); effort and blockers added.
 - 2026-11-13 — v54: R2-22 (reminders: PC popup, HTA Alarms on the phone) added, design decided.
 - 2026-11-12 — v53: R2-5 Verified (go-live done).
